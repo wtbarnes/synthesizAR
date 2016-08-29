@@ -14,3 +14,4 @@ from ._astropy_init import *
 if not _ASTROPY_SETUP_:
     from . import version
     Version = version._last_generated_version
+    from .field import Skeleton
