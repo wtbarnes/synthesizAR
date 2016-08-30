@@ -15,6 +15,7 @@ import solarbextrapolation.map3dclasses
 import solarbextrapolation.extrapolators
 
 from .util import convert_angle_to_length,find_seed_points
+from .loop import Loop
 
 
 class Skeleton(object):
@@ -178,7 +179,7 @@ class Skeleton(object):
             self.logger.warning('Maxed out number of tries. Only found {} acceptable streamlines'.format(len(self.streamlines)))
 
 
-    def peek(self,figsize=(10,10),color=sns.color_palette('deep')[0],alpha=0.75,print_to_file=None,**kwargs):
+    def peek(self, figsize=(10,10), color=sns.color_palette('deep')[0], alpha=0.75, print_to_file=None, **kwargs):
         """
         Show extracted fieldlines overlaid on HMI image.
         """
@@ -195,3 +196,13 @@ class Skeleton(object):
         if print_to_file is not None:
             plt.savefig(print_to_file,**kwargs)
         plt.show()
+
+
+    def make_loops(self):
+        """
+        Make list of loop objects from the extracted streamlines
+        """
+        loops = []
+        for stream,i in zip(self.streamlines,range(len(self.streamlines))):
+            loops.append(Loop('loop{}'.format(i), stream[0].value, stream[1].value))
+        self.loops = loops
