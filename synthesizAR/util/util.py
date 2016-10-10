@@ -51,8 +51,10 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
     if len(unmasked_indices) < number_fieldlines:
         raise ValueError('Requested number of seed points too large. Increase safety factor.')
 
-    x_pos = np.linspace(convert_angle_to_length(boundary_map_resampled,boundary_map_resampled.xrange[0]).value, convert_angle_to_length(boundary_map_resampled,boundary_map_resampled.xrange[1]).value, resample_resolution)
-    y_pos = np.linspace(convert_angle_to_length(boundary_map_resampled,boundary_map_resampled.yrange[0]).value, convert_angle_to_length(boundary_map_resampled,boundary_map_resampled.yrange[1]).value, resample_resolution)
+    length_x = convert_angle_to_length(boundary_map_resampled,boundary_map_resampled.xrange)
+    length_y = convert_angle_to_length(boundary_map_resampled,boundary_map_resampled.yrange)
+    x_pos = np.linspace(length_x[0].value, length_x[1].value, resample_resolution)
+    y_pos = np.linspace(length_y[0].value, length_y[1].value, resample_resolution)
 
     #choose seed points
     seed_points = []
