@@ -14,7 +14,7 @@ import yt
 import solarbextrapolation.map3dclasses
 import solarbextrapolation.extrapolators
 
-from .util import convert_angle_to_length,find_seed_points
+from synthesizAR.util import convert_angle_to_length,find_seed_points
 from .loop import Loop
 
 
@@ -206,3 +206,19 @@ class Skeleton(object):
         for stream,i in zip(self.streamlines,range(len(self.streamlines))):
             loops.append(Loop('loop{}'.format(i), stream[0].value, stream[1].value))
         self.loops = loops
+
+
+    def configure_loop_simulations(self, interface, parent_config_dir='config', parent_results_dir='results'):
+        """
+        Configure hydrodynamic simulations for each loop object
+        """
+        for loop in self.loops:
+            interface.configure_input(loop,parent_config_dir,parent_results_dir)
+
+
+    def load_loop_simulations(self,interface):
+        """
+        Load in loop parameters from hydrodynamic results.
+        """
+        for loop in self.loops:
+            interface.load_results(loop)
