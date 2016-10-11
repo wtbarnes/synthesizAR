@@ -3,7 +3,6 @@ channels: !!python/tuple
 - defaults
 dependencies:
 - alabaster=0.7.8=py35_0
-- appnope=0.1.0=py35_0
 - astropy=1.2.1=np111py35_0
 - babel=2.3.3=py35_0
 - beautifulsoup4=4.4.1=py35_0
@@ -41,12 +40,10 @@ dependencies:
 - jupyter_console=5.0.0=py35_0
 - jupyter_core=4.1.1=py35_0
 - libpng=1.6.22=0
-- libxslt=1.1.28=2
 - llvmlite=0.12.1=py35_0
 - lxml=3.6.4=py35_0
 - markupsafe=0.23=py35_2
 - matplotlib=1.5.1=np111py35_0
-- mistune=0.7.2=py35_1
 - mkl=11.3.3=0
 - mpmath=0.19=py35_1
 - nbconvert=4.2.0=py35_0
@@ -68,7 +65,6 @@ dependencies:
 - pyqt=4.11.4=py35_4
 - python=3.5.2=0
 - python-dateutil=2.5.3=py35_0
-- python.app=1.2=py35_4
 - pytz=2016.6.1=py35_0
 - pyzmq=15.4.0=py35_0
 - qt=4.8.7=4
