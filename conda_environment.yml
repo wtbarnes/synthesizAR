@@ -1,4 +1,6 @@
 name: synthesizar
+channels: !!python/tuple
+- defaults
 dependencies:
 - alabaster=0.7.8=py35_0
 - appnope=0.1.0=py35_0
@@ -40,6 +42,7 @@ dependencies:
 - jupyter_core=4.1.1=py35_0
 - libpng=1.6.22=0
 - libxslt=1.1.28=2
+- llvmlite=0.12.1=py35_0
 - lxml=3.6.4=py35_0
 - markupsafe=0.23=py35_2
 - matplotlib=1.5.1=np111py35_0
@@ -50,6 +53,7 @@ dependencies:
 - nbformat=4.1.0=py35_0
 - networkx=1.11=py35_0
 - notebook=4.2.2=py35_0
+- numba=0.27.0=np111py35_0
 - numpy=1.11.1=py35_0
 - openssl=1.0.2h=2
 - path.py=8.2.1=py35_0
@@ -71,6 +75,7 @@ dependencies:
 - qtconsole=4.2.1=py35_0
 - readline=6.2=2
 - scipy=0.18.0=np111py35_0
+- seaborn=0.7.1=py35_0
 - setuptools=25.1.6=py35_0
 - simplegeneric=0.8.1=py35_1
 - sip=4.18=py35_0
@@ -91,21 +96,11 @@ dependencies:
 - yt=3.3.1=py35_0
 - zlib=1.2.8=3
 - pip:
-  - contextlib2==0.5.3
-  - decorator==4.0.10
-  - glymur==0.8.4
   - ipython-genutils==0.1.0
   - jupyter-client==4.3.0
   - jupyter-console==5.0.0
   - jupyter-core==4.1.1
-  - pandas==0.18.1
-  - pillow==3.2.0
   - prompt-toolkit==1.0.3
-  - pytest==2.9.2
-  - requests==2.11.0
-  - scikit-image==0.12.3
   - git+git://github.com/wtbarnes/solarbextrapolation@setup_fixes#egg=solarbextrapolation
   - sphinx-rtd-theme==0.1.9
-  - suds-jurko==0.6
-  - sunpy==0.7.3
-  - wcsaxes==0.9
+  - synthesizar==0.1.dev16
