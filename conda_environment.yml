@@ -103,4 +103,3 @@ dependencies:
   - prompt-toolkit==1.0.3
   - git+git://github.com/wtbarnes/solarbextrapolation@setup_fixes#egg=solarbextrapolation
   - sphinx-rtd-theme==0.1.9
-  - synthesizar==0.1.dev16
