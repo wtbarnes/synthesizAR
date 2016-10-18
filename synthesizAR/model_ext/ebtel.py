@@ -7,6 +7,7 @@ import logging
 import copy
 
 import numpy as np
+from scipy.interpolate import splprep,splev
 import astropy.units as u
 
 from synthesizAR.util import InputHandler,OutputHandler
@@ -23,7 +24,7 @@ class EbtelInterface(object):
     heating_model
     """
 
-    def __init__(self,base_config,heating_model):
+    def __init__(self,base_config,heating_model,dt=1.0,ds=None):
         """
         Create EBTEL interface
         """
@@ -31,6 +32,12 @@ class EbtelInterface(object):
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config
+        self.global_time = np.linspace(0.0,self.base_config['total_time'],
+                int(np.ceil(self.base_config['total_time']/dt)))*u.s
+        self.ds = ds
+        if self.ds is None:
+            self.logger.warning('Interpolated loop spacing set to None. You will not be able to load loop results until this is set.')
+
 
 
     def configure_input(self,loop,parent_config_dir,parent_results_dir):
@@ -64,9 +71,16 @@ class EbtelInterface(object):
         Parameters
         ----------
         loop
+        dt
+        ds
         """
+        #interpolate loop lengths to higher resolution with a B-spline
+        N_interp = int(np.ceil(loop.full_length/self.ds.to(loop.full_length.unit)))
+        nots,_ = splprep(loop.coordinates.value.T)
+        _tmp = splev(np.linspace(0,1,N_interp),nots)
+        loop.coordinates = [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]*loop.coordinates.unit
+        #load in data and interpolate to universal time
         N_s = len(loop.field_aligned_coordinate)
         _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
-        loop.time = _tmp[:,0]*u.s
-        loop.temperature = np.outer(_tmp[:,1],np.ones(N_s))*u.K
-        loop.density = np.outer(_tmp[:,3],np.ones(N_s))*(u.cm**(-3))
+        loop.temperature = np.outer(np.interp(self.global_time, _tmp[:,0], _tmp[:,1]), np.ones(N_s))*u.K
+        loop.density = np.outer(np.interp(self.global_time, _tmp[:,0], _tmp[:,3]), np.ones(N_s))*(u.cm**(-3))
