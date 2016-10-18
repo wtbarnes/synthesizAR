@@ -99,17 +99,21 @@ class Skeleton(object):
                                 self.hmi_map.yrange+self.hmi_map.scale.y*u.Quantity([boundary_clipping[1]*u.pixel,-boundary_clipping[1]*u.pixel]))
 
         #create the bounding box
-        bbox = np.array([self._convert_angle_to_length(self.clipped_hmi_map.xrange).value,
-                         self._convert_angle_to_length(self.clipped_hmi_map.yrange).value,
-                         self._convert_angle_to_length(map_3d.zrange+map_3d.scale.z*u.Quantity([boundary_clipping[2]*u.pixel,-boundary_clipping[2]*u.pixel])).value])
+        bbox = np.array([
+            self._convert_angle_to_length(self.clipped_hmi_map.xrange).value,
+            self._convert_angle_to_length(self.clipped_hmi_map.yrange).value,
+            self._convert_angle_to_length(map_3d.zrange+map_3d.scale.z*u.Quantity([boundary_clipping[2]*u.pixel,-boundary_clipping[2]*u.pixel])).value])
 
         #assemble the dataset
-        self.extrapolated_3d_field = yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox, length_unit='cm', geometry=('cartesian',('x','y','z')))
+        self.extrapolated_3d_field = yt.load_uniform_grid(data,
+            data['Bx'][0].shape, bbox=bbox, length_unit='cm',
+            geometry=('cartesian',('x','y','z')))
 
 
     def _filter_streamlines(self,streamline,close_threshold=0.05,loop_length_range=[2.e+9,5.e+10]):
         """
-        Check extracted loop to make sure it fits given criteria. Return True if it passes.
+        Check extracted loop to make sure it fits given criteria. Return
+        True if it passes.
 
         Parameters
         ----------
@@ -216,9 +220,10 @@ class Skeleton(object):
             interface.configure_input(loop,parent_config_dir,parent_results_dir)
 
 
-    def load_loop_simulations(self,interface):
+    def load_loop_simulations(self,interface,**kwargs):
         """
         Load in loop parameters from hydrodynamic results.
         """
+        self.time = interface.global_time.copy()
         for loop in self.loops:
-            interface.load_results(loop)
+            interface.load_results(loop,**kwargs)
