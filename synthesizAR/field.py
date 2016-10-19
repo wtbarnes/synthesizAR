@@ -224,6 +224,5 @@ class Skeleton(object):
         """
         Load in loop parameters from hydrodynamic results.
         """
-        self.time = interface.global_time.copy()
         for loop in self.loops:
             interface.load_results(loop,**kwargs)
