@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn.apionly as sns
 import sunpy.map
 import astropy.units as u
+import h5py
 import yt
 import solarbextrapolation.map3dclasses
 import solarbextrapolation.extrapolators
@@ -226,3 +227,22 @@ class Skeleton(object):
         """
         for loop in self.loops:
             interface.load_results(loop,**kwargs)
+
+
+    def calculate_emissivity(self,emissivity_model,savefile=None,**kwargs):
+        """
+        Calculate emissivity as function of time and space for each loop
+        """
+        for loop in self.loops:
+            emiss = emissivity_model.calculate_emissivity(loop.temperature,
+                                                          loop.density,
+                                                          **kwargs)
+            if savefile is not None:
+                loop.emissivity_savefile = savefile
+                hf = h5py.File(savefile,'w')
+                for key in emiss:
+                    dset = hf.create_dataset(key,data=emiss[key])
+                    dset.attrs['units'] = emissivity[c].unit.to_string()
+                hf.close()
+            else:
+                loop.emissivity = emiss

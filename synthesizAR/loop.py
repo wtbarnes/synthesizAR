@@ -4,6 +4,7 @@ Class for an individual loop structure that is part of a larger active region.
 
 import numpy as np
 import astropy.units as u
+import h5py
 
 class Loop(object):
     """
@@ -43,3 +44,16 @@ class Loop(object):
         Loop full-length 2L. This will have the same units as the original coordinates.
         """
         return np.sum(np.linalg.norm(np.diff(self.coordinates.value,axis=0),axis=1))*self.coordinates.unit
+
+    def get_emissivity(self,wavelength):
+        """
+        Get the calculated emissivity that was either set or saved to disk
+        """
+        if self.emissivity_savefile:
+            with h5py.File(self.emissivity_savefile,'r') as hf:
+                dset = hf.get(wavelength)
+                emiss = np.array(dset)*u.Unit(dset.attr['units'])
+        else:
+            emiss = self.emissivity
+
+        return emiss
