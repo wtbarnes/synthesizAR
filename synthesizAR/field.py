@@ -234,7 +234,6 @@ class Skeleton(object):
         Calculate emissivity as function of time and space for each loop
         """
         if savefile is not None:
-            loop.emissivity_savefile = savefile
             hf = h5py.File(savefile,'w')
 
         for loop in self.loops:
@@ -242,11 +241,12 @@ class Skeleton(object):
                                                           loop.density,
                                                           **kwargs)
             if savefile is not None:
+                loop.emissivity_savefile = savefile
                 grp = hf.create_group(loop.name)
                 for key in emiss:
                     dset = grp.create_dataset(key,data=emiss[key])
                     dset.attrs['units'] = emissivity[c].unit.to_string()
             else:
                 loop.emissivity = emiss
-                
+
         if savefile is not None: hf.close()
