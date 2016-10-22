@@ -244,8 +244,8 @@ class Skeleton(object):
                 loop.emissivity_savefile = savefile
                 grp = hf.create_group(loop.name)
                 for key in emiss:
-                    dset = grp.create_dataset(key,data=emiss[key])
-                    dset.attrs['units'] = emissivity[c].unit.to_string()
+                    dset = grp.create_dataset(key,data=emiss[key].value)
+                    dset.attrs['units'] = emiss[key].unit.to_string()
             else:
                 loop.emissivity = emiss
 
