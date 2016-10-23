@@ -161,9 +161,9 @@ class Skeleton(object):
         _tmp = map_3d.data[boundary_clipping[0]:-boundary_clipping[0], boundary_clipping[1]:-boundary_clipping[1], boundary_clipping[2]:-boundary_clipping[2],:]
         #some annoying and cryptic translation between yt and SunPy
         data = dict(
-                    Bx=(np.swapaxes(_tmp[:,:,:,1],0,1),"T"),
-                    By=(np.swapaxes(_tmp[:,:,:,0],0,1),"T"),
-                    Bz=(np.swapaxes(_tmp[:,:,:,2],0,1),"T"))
+                    Bx=(np.swapaxes(_tmp[:,:,:,1],0,1),yt.units.tesla),
+                    By=(np.swapaxes(_tmp[:,:,:,0],0,1),yt.units.tesla),
+                    Bz=(np.swapaxes(_tmp[:,:,:,2],0,1),yt.units.tesla))
 
         #trim the boundary hmi map appropriately
         self.clipped_hmi_map = self.hmi_map.submap(
@@ -178,7 +178,7 @@ class Skeleton(object):
 
         #assemble the dataset
         self.extrapolated_3d_field = yt.load_uniform_grid(data,
-            data['Bx'][0].shape, bbox=bbox, length_unit='cm',
+            data['Bx'][0].shape, bbox=bbox, length_unit=yt.units.cm,
             geometry=('cartesian',('x','y','z')))
 
 
