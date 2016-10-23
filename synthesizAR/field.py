@@ -125,7 +125,7 @@ class Skeleton(object):
             clipped_hmi_map = pickle.load(f)
         #3d extapolated fields
         extrapolated_3d_field = yt.load(os.path.join(savedir,
-                                                'extrapolated_3d_field.pickle'))
+                                                'extrapolated_3d_field.h5'))
         field = cls()
         field.loops = loops
         field.hmi_map = hmi_map
