@@ -289,33 +289,28 @@ class Skeleton(object):
         """
         Load in loop parameters from hydrodynamic results.
         """
-        if savefile is not None:
-            hf = h5py.File(savefile,'a')
         for loop in self.loops:
             temperature,density = interface.load_results(loop,**kwargs)
             if savefile is not None:
                 loop.parameters_savefile = savefile
-                if loop.name not in hf:
-                    hf.create_group(loop.name)
-                dset_temperature = hf[loop.name].create_dataset('temperature',
-                                        data=temperature.value)
-                dset_temperature.attrs['units'] = temperature.unit.to_string()
-                dset_density = hf[loop.name].create_dataset('density',
-                                        data=density.value)
-                dset_density.attrs['units'] = density.unit.to_string()
+                with h5py.File(savefile,'a') as hf:
+                    if loop.name not in hf:
+                        hf.create_group(loop.name)
+                    dset_temperature = hf[loop.name].create_dataset('temperature',
+                                            data=temperature.value)
+                    dset_temperature.attrs['units'] = temperature.unit.to_string()
+                    dset_density = hf[loop.name].create_dataset('density',
+                                            data=density.value)
+                    dset_density.attrs['units'] = density.unit.to_string()
             else:
                 loop._temperature = temperature
                 loop._density = density
-        if savefile is not None: hf.close()
 
 
     def calculate_emissivity(self,emissivity_model,savefile=None,**kwargs):
         """
         Calculate emissivity as function of time and space for each loop
         """
-        if savefile is not None:
-            hf = h5py.File(savefile,'w')
-
         for loop in self.loops:
             self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
             emiss = emissivity_model.calculate_emissivity(loop.temperature,
@@ -323,13 +318,13 @@ class Skeleton(object):
                                                           **kwargs)
             if savefile is not None:
                 loop.emissivity_savefile = savefile
-                if loop.name not in hf:
-                    hf.create_group(loop.name)
-                for key in emiss:
-                    self.logger.info('Saving emissivity for wavelength {}'.format(key))
-                    dset = hf[loop.name].create_dataset(key,data=emiss[key].value)
-                    dset.attrs['units'] = emiss[key].unit.to_string()
+                with h5py.File(savefile,'w') as hf:
+                    if loop.name not in hf:
+                        hf.create_group(loop.name)
+                    for key in emiss:
+                        self.logger.info('Saving emissivity for wavelength {}'.format(key))
+                        dset = hf[loop.name].create_dataset(key,data=emiss[key].value)
+                        dset.attrs['units'] = emiss[key].unit.to_string()
             else:
                 loop.emissivity = emiss
-
-        if savefile is not None: hf.close()
+                
