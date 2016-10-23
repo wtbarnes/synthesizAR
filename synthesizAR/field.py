@@ -108,7 +108,7 @@ class Skeleton(object):
         Restore the field from a set of serialized files
         """
         #loops
-        loop_files = glob.glob(os.path.join(savedir,'loops'))
+        loop_files = glob.glob(os.path.join(savedir,'loops','*'))
         loop_files = sorted([lf.split('/')[-1] for lf in loop_files],
                             key=lambda l: int(l.split('.')[0][4:]))
         loops = []
