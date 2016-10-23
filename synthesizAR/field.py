@@ -116,7 +116,7 @@ class Skeleton(object):
         with open(os.path.join(savedir,'hmi_map.pickle'),'rb') as f:
             hmi_map = pickle.load(f)
         #3d extapolated fields
-        wit open(os.path.join(savedir,'map_3d.pickle')'rb') as f:
+        with open(os.path.join(savedir,'map_3d.pickle')'rb') as f:
             map_3d = pickle.load(f)
         field = cls()
         field.loops = loops
