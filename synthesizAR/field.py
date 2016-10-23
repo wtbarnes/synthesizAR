@@ -91,15 +91,9 @@ class Skeleton(object):
         #sunpy maps
         with open(os.path.join(top_dir,'hmi_map.pickle'),'wb') as f:
             pickle.dump(self.hmi_map,f)
-        with open(os.path.join(top_dir,'clipped_hmi_map.pickle'),'wb') as f:
-            pickle.dump(self.clipped_hmi_map,f)
         #3d extrapolated field
-        cg = self.extrapolated_3d_field.covering_grid(level=0,
-                left_edge=self.extrapolated_3d_field.domain_left_edge,
-                dims=self.extrapolated_3d_field.domain_dimensions)
-        cg.save_as_dataset(filename=os.path.join(top_dir,
-                                                'extrapolated_3d_field.h5'),
-                            fields=['Bx','By','Bz'])
+        with open(os.path.join(top_dir,'map_3d.pickle'),'wb') as f:
+            pickle.dump(self._map_3d,f)
 
 
     @classmethod
@@ -121,17 +115,15 @@ class Skeleton(object):
         #sunpy maps
         with open(os.path.join(savedir,'hmi_map.pickle'),'rb') as f:
             hmi_map = pickle.load(f)
-        with open(os.path.join(savedir,'clipped_hmi_map.pickle'),'rb') as f:
-            clipped_hmi_map = pickle.load(f)
         #3d extapolated fields
-        extrapolated_3d_field = yt.load(os.path.join(savedir,
-                                                'extrapolated_3d_field.h5'))
+        wit open(os.path.join(savedir,'map_3d.pickle')'rb') as f:
+            map_3d = pickle.load(f)
         field = cls()
         field.loops = loops
         field.hmi_map = hmi_map
-        field.clipped_hmi_map = clipped_hmi_map
         field.streamlines = streamlines
-        field.extrapolated_3d_field = extrapolated_3d_field
+        field._transform_to_yt(map_3d)
+        field._map_3d = map_3d
 
         return field
 
@@ -216,7 +208,8 @@ class Skeleton(object):
         self.logger.debug('Extrapolating field.')
         extrapolator = solarbextrapolation.extrapolators.PotentialExtrapolator(self.hmi_map, zshape=zshape, zrange=zrange)
         map_3d = extrapolator.extrapolate(enable_numba=use_numba_for_extrapolation)
-
+        #preserve the 3d numpy array for restoration purposes
+        self._map_3d = map_3d
         #hand it to yt
         self.logger.debug('Transforming to yt data object')
         self._transform_to_yt(map_3d)
