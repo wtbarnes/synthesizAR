@@ -70,7 +70,7 @@ class Loop(object):
         file or from memory
         """
         if hasattr(self,'parameters_savefile'):
-            with h5py.File(parameters_savefile,'r') as hf:
+            with h5py.File(self.parameters_savefile,'r') as hf:
                 dset = hf[os.path.join(self.name,'density')]
                 density = np.array(dset)*u.Unit(dset.attrs['units'])
             return density
