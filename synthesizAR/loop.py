@@ -53,7 +53,7 @@ class Loop(object):
             with h5py.File(self.emissivity_savefile,'r') as hf:
                 grp = hf.get(self.name)
                 dset = grp.get(wavelength)
-                emiss = np.array(dset)*u.Unit(dset.attr['units'])
+                emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
             emiss = self.emissivity
 
