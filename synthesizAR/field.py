@@ -4,6 +4,9 @@ Active region object definition. This object holds all the important information
 import os
 import sys
 import logging
+import datetime
+import pickle
+import glob
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,7 +32,7 @@ class Skeleton(object):
     Examples
     --------
     """
-    def __init__(self,hmi_fits_file,**kwargs):
+    def __init__(self,hmi_fits_file=None,**kwargs):
         """
         Constructor
 
@@ -38,8 +41,11 @@ class Skeleton(object):
         Right now, this class just accepts an HMI fits file. Could be adjusted to do the actual query as well.
         """
         self.logger = logging.getLogger(name=type(self).__name__)
-        tmp_map = sunpy.map.Map(hmi_fits_file)
-        self._process_map(tmp_map,**kwargs)
+        if hmi_fits_file is not None:
+            tmp_map = sunpy.map.Map(hmi_fits_file)
+            self._process_map(tmp_map,**kwargs)
+        else:
+            self.logger.warning('No HMI fits file supplied. A new HMI map object will not be created.')
 
 
     def _process_map(self,tmp_map,crop=None,resample=None):
@@ -64,6 +70,71 @@ class Skeleton(object):
 
         self.hmi_map = tmp_map
 
+
+    def save_field(self,savedir=None):
+        """
+        Save the components of the field object to be reloaded later.
+        """
+
+        top_dir = os.path.join(savedir,'synthesizAR-field-save_' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+        if not os.path.exists(top_dir):
+            os.makedirs(top_dir)
+        #loops
+        if not os.path.exists(os.path.join(top_dir,'loops')):
+            os.makedirs(os.path.join(top_dir,'loops'))
+        for l in self.loops:
+            with open(os.path.join(top_dir,'loops',l.name+'.pickle'),'wb') as f:
+                pickle.dump(l,f)
+        #streamlines
+        with open(os.path.join(top_dir,'streamlines.pickle'),'wb') as f:
+            pickle.dump(self.streamlines,f)
+        #sunpy maps
+        with open(os.path.join(top_dir,'hmi_map.pickle'),'wb') as f:
+            pickle.dump(self.hmi_map,f)
+        with open(os.path.join(top_dir,'clipped_hmi_map.pickle'),'wb') as f:
+            pickle.dump(self.clipped_hmi_map,f)
+        #3d extrapolated field
+        cg = self.extrapolated_3d_field.covering_grid(level=0,
+                left_edge=self.extrapolated_3d_field.domain_left_edge,
+                dims=self.extrapolated_3d_field.domain_dimensions)
+        cg.save_as_dataset(filename=os.path.join(top_dir,
+                                                'extrapolated_3d_field.h5'),
+                            fields=['Bx','By','Bz'])
+
+
+    @classmethod
+    def restore_field(cls,savedir):
+        """
+        Restore the field from a set of serialized files
+        """
+        #loops
+        loop_files = glob.glob(os.path.join(savedir,'loops'))
+        loop_files = sorted([lf.split('/')[-1] for lf in loop_files],
+                            key=lambda l: int(l.split('.')[0][4:]))
+        loops = []
+        for lf in loop_files:
+            with open(os.path.join(savedir,'loops',lf),'rb') as f:
+                loops += pickle.load(f)
+        #streamlines
+        with open(os.path.join(savedir,'streamlines.pickle'),'rb') as f:
+            streamlines = pickle.load(f)
+        #sunpy maps
+        with open(os.path.join(savedir,'hmi_map.pickle'),'rb') as f:
+            hmi_map = pickle.load(f)
+        with open(os.path.join(savedir,'clipped_hmi_map.pickle'),'rb') as f:
+            clipped_hmi_map = pickle.load(f)
+        #3d extapolated fields
+        extrapolated_3d_field = yt.load(os.path.join(savedir,
+                                                'extrapolated_3d_field.pickle'))
+        field = cls()
+        field.loops = loops
+        field.hmi_map = hmi_map
+        field.clipped_hmi_map = clipped_hmi_map
+        field.streamlines = streamlines
+        field.extrapolated_3d_field = extrapolated_3d_field
+
+        return field
+        
 
     def _convert_angle_to_length(self,angle_or_length,working_units=u.meter):
         """
@@ -237,6 +308,7 @@ class Skeleton(object):
             hf = h5py.File(savefile,'w')
 
         for loop in self.loops:
+            self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
             emiss = emissivity_model.calculate_emissivity(loop.temperature,
                                                           loop.density,
                                                           **kwargs)
@@ -244,6 +316,7 @@ class Skeleton(object):
                 loop.emissivity_savefile = savefile
                 grp = hf.create_group(loop.name)
                 for key in emiss:
+                    self.logger.info('Saving emissivity for wavelength {}'.format(key))
                     dset = grp.create_dataset(key,data=emiss[key].value)
                     dset.attrs['units'] = emiss[key].unit.to_string()
             else:
