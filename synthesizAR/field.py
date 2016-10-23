@@ -161,9 +161,9 @@ class Skeleton(object):
         _tmp = map_3d.data[boundary_clipping[0]:-boundary_clipping[0], boundary_clipping[1]:-boundary_clipping[1], boundary_clipping[2]:-boundary_clipping[2],:]
         #some annoying and cryptic translation between yt and SunPy
         data = dict(
-                    Bx=(np.swapaxes(_tmp[:,:,:,1],0,1),yt.units.tesla),
-                    By=(np.swapaxes(_tmp[:,:,:,0],0,1),yt.units.tesla),
-                    Bz=(np.swapaxes(_tmp[:,:,:,2],0,1),yt.units.tesla))
+                    Bx=(np.swapaxes(_tmp[:,:,:,1],0,1),'T'),
+                    By=(np.swapaxes(_tmp[:,:,:,0],0,1),'T'),
+                    Bz=(np.swapaxes(_tmp[:,:,:,2],0,1),'T'))
 
         #trim the boundary hmi map appropriately
         self.clipped_hmi_map = self.hmi_map.submap(
