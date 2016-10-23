@@ -114,7 +114,7 @@ class Skeleton(object):
         loops = []
         for lf in loop_files:
             with open(os.path.join(savedir,'loops',lf),'rb') as f:
-                loops += pickle.load(f)
+                 loops.append(pickle.load(f))
         #streamlines
         with open(os.path.join(savedir,'streamlines.pickle'),'rb') as f:
             streamlines = pickle.load(f)
