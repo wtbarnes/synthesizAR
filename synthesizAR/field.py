@@ -318,7 +318,7 @@ class Skeleton(object):
                                                           **kwargs)
             if savefile is not None:
                 loop.emissivity_savefile = savefile
-                with h5py.File(savefile,'w') as hf:
+                with h5py.File(savefile,'a') as hf:
                     if loop.name not in hf:
                         hf.create_group(loop.name)
                     for key in emiss:
@@ -327,4 +327,3 @@ class Skeleton(object):
                         dset.attrs['units'] = emiss[key].unit.to_string()
             else:
                 loop.emissivity = emiss
-                
