@@ -2,6 +2,8 @@
 Class for an individual loop structure that is part of a larger active region.
 """
 
+import os
+
 import numpy as np
 import astropy.units as u
 import h5py
