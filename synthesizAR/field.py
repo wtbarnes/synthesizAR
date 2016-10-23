@@ -330,7 +330,7 @@ class Skeleton(object):
                                                           **kwargs)
             if savefile is not None:
                 loop.emissivity_savefile = savefile
-                if loop.name is not in hf:
+                if loop.name not in hf:
                     hf.create_group(loop.name)
                 for key in emiss:
                     self.logger.info('Saving emissivity for wavelength {}'.format(key))
