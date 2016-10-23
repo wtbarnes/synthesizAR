@@ -134,7 +134,7 @@ class Skeleton(object):
         field.extrapolated_3d_field = extrapolated_3d_field
 
         return field
-        
+
 
     def _convert_angle_to_length(self,angle_or_length,working_units=u.meter):
         """
@@ -292,12 +292,28 @@ class Skeleton(object):
             interface.configure_input(loop,parent_config_dir,parent_results_dir)
 
 
-    def load_loop_simulations(self,interface,**kwargs):
+    def load_loop_simulations(self,interface,savefile=None,**kwargs):
         """
         Load in loop parameters from hydrodynamic results.
         """
+        if savefile is not None:
+            hf = h5py.File(savefile,'a')
         for loop in self.loops:
-            interface.load_results(loop,**kwargs)
+            temperature,density = interface.load_results(loop,**kwargs)
+            if savefile is not None:
+                loop.parameters_savefile = savefile
+                if loop.name not in hf:
+                    hf.create_group(loop.name)
+                dset_temperature = hf[loop.name].create_dataset('temperature',
+                                        data=temperature.value)
+                dset_temperature.attrs['units'] = temperature.unit.to_string()
+                dset_density = hf[loop.name].create_dataset('density',
+                                        data=density.value)
+                dset_density.attrs['units'] = density.unit.to_string()
+            else:
+                loop._temperature = temperature
+                loop._density = density
+        if savefile is not None: hf.close()
 
 
     def calculate_emissivity(self,emissivity_model,savefile=None,**kwargs):
@@ -314,10 +330,11 @@ class Skeleton(object):
                                                           **kwargs)
             if savefile is not None:
                 loop.emissivity_savefile = savefile
-                grp = hf.create_group(loop.name)
+                if loop.name is not in hf:
+                    hf.create_group(loop.name)
                 for key in emiss:
                     self.logger.info('Saving emissivity for wavelength {}'.format(key))
-                    dset = grp.create_dataset(key,data=emiss[key].value)
+                    dset = hf[loop.name].create_dataset(key,data=emiss[key].value)
                     dset.attrs['units'] = emiss[key].unit.to_string()
             else:
                 loop.emissivity = emiss

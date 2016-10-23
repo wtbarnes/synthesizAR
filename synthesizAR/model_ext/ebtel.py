@@ -95,5 +95,7 @@ class EbtelInterface(object):
         else:
             loop.time = _tmp[:,0]
 
-        loop.temperature = np.outer(np.interp(loop.time, _tmp[:,0], _tmp[:,1]), np.ones(N_s))*u.K
-        loop.density = np.outer(np.interp(loop.time, _tmp[:,0], _tmp[:,3]), np.ones(N_s))*(u.cm**(-3))
+        temperature = np.outer(np.interp(loop.time, _tmp[:,0], _tmp[:,1]), np.ones(N_s))*u.K
+        density = np.outer(np.interp(loop.time, _tmp[:,0], _tmp[:,3]), np.ones(N_s))*(u.cm**(-3))
+
+        return temperature,density

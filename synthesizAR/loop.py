@@ -45,14 +45,44 @@ class Loop(object):
         """
         return np.sum(np.linalg.norm(np.diff(self.coordinates.value,axis=0),axis=1))*self.coordinates.unit
 
+
+    @property
+    def temperature(self):
+        """
+        Return loop temperature as function of coordinate and time either
+        from file or from memory
+        """
+        if hasattr(self,'parameters_savefile'):
+            with h5py.File(self.parameters_savefile,'r') as hf:
+                dset = hf[os.path.join(self.name,'temperature')]
+                temperature = np.array(dset)*u.Unit(dset.attrs['units'])
+            return temperature
+        else:
+            return self._temperature
+
+
+    @property
+    def density(self):
+        """
+        Return loop density as a function of coordinate and time either from
+        file or from memory
+        """
+        if hasattr(self,'parameters_savefile'):
+            with h5py.File(parameters_savefile,'r') as hf:
+                dset = hf[os.path.join(self.name,'density')]
+                density = np.array(dset)*u.Unit(dset.attrs['units'])
+            return density
+        else:
+            return self._density
+
+
     def get_emissivity(self,wavelength):
         """
         Get the calculated emissivity that was either set or saved to disk
         """
-        if self.emissivity_savefile:
+        if hasattr(self,'emissivity_savefile'):
             with h5py.File(self.emissivity_savefile,'r') as hf:
-                grp = hf.get(self.name)
-                dset = grp.get(wavelength)
+                dset = hf[os.path.join(self.name),wavelength]
                 emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
             emiss = self.emissivity
