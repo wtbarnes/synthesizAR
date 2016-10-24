@@ -79,23 +79,13 @@ class EbtelInterface(object):
         ----------
         loop
         """
-        if self.ds is not None:
-            #interpolate loop lengths to higher resolution with a B-spline
-            N_interp = int(np.ceil(loop.full_length/self.ds.to(loop.full_length.unit)))
-            nots,_ = splprep(loop.coordinates.value.T)
-            _tmp = splev(np.linspace(0,1,N_interp),nots)
-            loop.coordinates = [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]*loop.coordinates.unit
-
         #load in data and interpolate to universal time
         N_s = len(loop.field_aligned_coordinate)
         _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
 
-        if self.global_time is not None:
-            loop.time = self.global_time
-        else:
-            loop.time = _tmp[:,0]
+        loop.time = _tmp[:,0]
 
-        temperature = np.outer(np.interp(loop.time, _tmp[:,0], _tmp[:,1]), np.ones(N_s))*u.K
-        density = np.outer(np.interp(loop.time, _tmp[:,0], _tmp[:,3]), np.ones(N_s))*(u.cm**(-3))
+        temperature = np.outer(_tmp[:,1],np.ones(N_s))*u.K
+        density = np.outer(_tmp[:,3],np.ones(N_s))*(u.cm**(-3)
 
         return temperature,density
