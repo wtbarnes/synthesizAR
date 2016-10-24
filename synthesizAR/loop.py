@@ -87,6 +87,6 @@ class Loop(object):
                 dset = hf[os.path.join(self.name,wavelength)]
                 emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
-            emiss = self.emissivity
+            emiss = self.emissivity[wavelength]
 
         return emiss
