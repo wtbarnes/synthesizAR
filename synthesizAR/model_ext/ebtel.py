@@ -24,7 +24,7 @@ class EbtelInterface(object):
     heating_model
     """
 
-    def __init__(self,base_config,heating_model,dt=None,ds=None):
+    def __init__(self,base_config,heating_model):
         """
         Create EBTEL interface
         """
@@ -32,15 +32,6 @@ class EbtelInterface(object):
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config
-        if dt is None:
-            self.global_time = None
-            self.logger.warning('Global time not set. Evolution of loops may not be synchronized. Set global time before importing loops to change this.')
-        else:
-            self.global_time = np.linspace(0.0,self.base_config['total_time'],
-                int(np.ceil(self.base_config['total_time']/dt)))*u.s
-        self.ds = ds
-        if self.ds is None:
-            self.logger.warning('Interpolated loop spacing set to None. You will not be able to load loop results until this is set.')
 
 
     def configure_input(self,loop,parent_config_dir,parent_results_dir):
@@ -83,7 +74,7 @@ class EbtelInterface(object):
         N_s = len(loop.field_aligned_coordinate)
         _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
 
-        loop.time = _tmp[:,0]
+        loop.time = _tmp[:,0]*u.s
 
         temperature = np.outer(_tmp[:,1],np.ones(N_s))*u.K
         density = np.outer(_tmp[:,3],np.ones(N_s))*(u.cm**(-3))
