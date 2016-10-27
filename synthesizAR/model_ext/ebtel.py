@@ -7,7 +7,6 @@ import logging
 import copy
 
 import numpy as np
-from scipy.interpolate import splprep,splev
 import astropy.units as u
 
 from synthesizAR.util import InputHandler,OutputHandler
