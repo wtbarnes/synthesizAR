@@ -76,23 +76,24 @@ class Skeleton(object):
         Save the components of the field object to be reloaded later.
         """
 
-        top_dir = os.path.join(savedir,'synthesizAR-field-save_' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-        if not os.path.exists(top_dir):
-            os.makedirs(top_dir)
+        if savedir is None:
+            savedir = 'synthesizAR-field-save_' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        if not os.path.exists(savedir):
+            os.makedirs(savedir)
         #loops
-        if not os.path.exists(os.path.join(top_dir,'loops')):
-            os.makedirs(os.path.join(top_dir,'loops'))
+        if not os.path.exists(os.path.join(savedir,'loops')):
+            os.makedirs(os.path.join(savedir,'loops'))
         for l in self.loops:
-            with open(os.path.join(top_dir,'loops',l.name+'.pickle'),'wb') as f:
+            with open(os.path.join(savedir,'loops',l.name+'.pickle'),'wb') as f:
                 pickle.dump(l,f)
         #streamlines
-        with open(os.path.join(top_dir,'streamlines.pickle'),'wb') as f:
+        with open(os.path.join(savedir,'streamlines.pickle'),'wb') as f:
             pickle.dump(self.streamlines,f)
         #sunpy maps
-        with open(os.path.join(top_dir,'hmi_map.pickle'),'wb') as f:
+        with open(os.path.join(savedir,'hmi_map.pickle'),'wb') as f:
             pickle.dump(self.hmi_map,f)
         #3d extrapolated field
-        with open(os.path.join(top_dir,'map_3d.pickle'),'wb') as f:
+        with open(os.path.join(savedir,'map_3d.pickle'),'wb') as f:
             pickle.dump(self._map_3d,f)
 
 
