@@ -314,6 +314,7 @@ class Skeleton(object):
         """
         for loop in self.loops:
             self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
+            loop.wavelengths = emissivity_model.wavelengths
             emiss = emissivity_model.calculate_emissivity(loop.temperature,
                                                           loop.density,
                                                           **kwargs)
