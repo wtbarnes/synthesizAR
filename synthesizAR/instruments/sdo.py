@@ -73,6 +73,10 @@ class InstrumentSDOAIA(object):
         ----------
         loop : loop object
         channel : `dict`
+
+        Returns
+        -------
+        counts : array-like
         """
         if self.use_temperature_response_functions:
             counts = self._detect_simple(loop,channel)
