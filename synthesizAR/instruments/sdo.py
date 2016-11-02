@@ -63,7 +63,7 @@ class InstrumentSDOAIA(object):
         self.observing_time = np.arange(
                             observing_time[0].to(u.s).value,
                             observing_time[1].to(u.s).value,
-                            _cadence.value)*u.s
+                            self.cadence.value)*u.s
         self.observing_area = observing_area
         self.use_temperature_response_functions = use_temperature_response_functions
         if self.use_temperature_response_functions and response_function_file:
