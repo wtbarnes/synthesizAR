@@ -22,8 +22,14 @@ class InstrumentSDOAIA(object):
 
     Parameters
     ----------
-    observing_time
-    observing_area
+    observing_time : `tuple`
+        start and end of observing time
+    observing_area : `tuple`
+        x and y range of observation
+    use_temperature_response_functions : `bool`
+        if True, do simple counts calculation
+    response_function_file : `str`
+        filename containing AIA response functions
 
     Examples
     --------
@@ -44,11 +50,11 @@ class InstrumentSDOAIA(object):
                 {'wavelength':211*u.angstrom,'telescope_number':2},
                 {'wavelength':335*u.angstrom,'telescope_number':1}]
 
-    cadence = 1.0*u.s
+    cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel)
 
 
-    def __init__(self, observing_time, observing_area,
+    def __init__(self, observing_time, observing_area=None,
     use_temperature_response_functions=True,response_function_file=''):
         """
         Constructor
@@ -128,11 +134,10 @@ class InstrumentSDOAIA(object):
             self.channels[i]['response_interpolator'] = interpolate.interp1d(_tmp_temperature,_tmp_response)
 
 
-    def make_fits_header(self,field,channel_wavelength):
+    def make_fits_header(self,field,channel):
         """
         Build up FITS header with relevant instrument information.
         """
-        channel = list(c for c in self.channels if c['wavelength'] == channel_wavelength)[0]
         update_entries = ['crpix1','crpix2','crval1','crval2','cunit1',
                           'cunit2','crlt_obs','ctype1','ctype2','date-obs',
                           'dsun_obs','rsun_obs']
@@ -142,6 +147,7 @@ class InstrumentSDOAIA(object):
         fits_header['cdelt1'] = self.resolution.x.value
         fits_header['cdelt2'] = self.resolution.y.value
         fits_header['instrume'] = 'AIA_' + channel['telescope_number']
+        fits_header['wavelnth'] = int(channel['wavelength'])
 
         return fits_header
 
@@ -157,5 +163,5 @@ class InstrumentSDOAIA(object):
         self.bins = [int(np.ceil(delta_x/self.resolution.x)).value,
                      int(np.ceil(delta_y/self.resolution.y)).value]
         self.bin_ranges = [
-                field._convert_angle_to_length(field.clipped_hmi_map.xrange),
-                field._convert_angle_to_length(field.clipped_hmi_map.yrange)]
+            field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
+            field._convert_angle_to_length(field.clipped_hmi_map.yrange).value]
