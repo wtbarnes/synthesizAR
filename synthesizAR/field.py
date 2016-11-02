@@ -291,7 +291,8 @@ class Skeleton(object):
         Load in loop parameters from hydrodynamic results.
         """
         for loop in self.loops:
-            temperature,density = interface.load_results(loop,**kwargs)
+            time,temperature,density = interface.load_results(loop,**kwargs)
+            loop.time = time
             if savefile is not None:
                 loop.parameters_savefile = savefile
                 with h5py.File(savefile,'a') as hf:

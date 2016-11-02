@@ -73,9 +73,8 @@ class EbtelInterface(object):
         N_s = len(loop.field_aligned_coordinate)
         _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
 
-        loop.time = _tmp[:,0]*u.s
-
+        time = _tmp[:,0]*u.s
         temperature = np.outer(_tmp[:,1],np.ones(N_s))*u.K
         density = np.outer(_tmp[:,3],np.ones(N_s))*(u.cm**(-3))
 
-        return temperature,density
+        return time,temperature,density
