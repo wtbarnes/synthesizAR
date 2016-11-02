@@ -8,7 +8,7 @@ import sys
 import logging
 from collections import namedtuple
 
-import numpy
+import numpy as np
 import astropy.units as u
 import sunpy.map
 
