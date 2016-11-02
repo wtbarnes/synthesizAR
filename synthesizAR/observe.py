@@ -43,7 +43,7 @@ class Observer(object):
 
     def build_detector_files(self,savedir):
         """
-        Create files to store interpolated emissivity results before binning.
+        Create files to store interpolated counts before binning.
         """
         file_template = os.path.join(savedir,'{detector}_counts.h5')
         interpolated_points = sum([int(np.ceil(loop.full_length/self.ds)) for loop in self.field.loops])
@@ -57,12 +57,12 @@ class Observer(object):
 
     def calculate_detector_counts(self):
         """
-        Calculate counts for each channel in the detector using the emissivity
-        for every wavelength that we computed previously.
+        Calculate counts for each channel of each detector. Counts are
+        interpolated to the desired spatial and temporal resolution.
         """
         # initialize offset and list for coordinates
         start_index = 0
-        total_coordinates = []
+        self.total_coordinates = []
         # iterate over all loops in the field
         for loop in self.field.loops:
             self.logger.debug(
@@ -73,9 +73,9 @@ class Observer(object):
                                         n_interp)
             nots,_ = interpolate.splprep(loop.coordinates.value.T)
             _tmp = interpolate.splev(np.linspace(0,1,n_interp),nots)
-            total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],
-                                                           _tmp[1],
-                                                           _tmp[2])]
+            self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],
+                                                                _tmp[1],
+                                                                _tmp[2])]
             #iterate over detectors
             for instr in self.instruments:
                 self.logger.debug(
@@ -92,7 +92,16 @@ class Observer(object):
                         interpolated_counts = interpolate.interp1d(loop.time.value, f_s(interpolated_s), axis=0)(instr.observing_time)
                         #save to file
                         dset = hf[channel['wavelength'].value]
+                        if 'units' not in dset.attrs:
+                            dset.attrs['units'] = counts.unit.to_string()
                         dset[:,start_index:(start_index+n_interp)] = interpolated_counts
-
             #increment offset
             start_index += n_interp
+
+
+    def bin_detector_counts(self,savedir):
+        """
+        Bin the counts into the detector array, project it down to 2 dimensions,
+        and save it to a FITS file.
+        """
+        pass
