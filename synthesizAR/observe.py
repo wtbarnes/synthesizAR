@@ -160,8 +160,8 @@ class Observer(object):
                         header['t_obs'] = time
                         tmp_map = sunpy.map.Map(projection,header)
                         #crop to desired region and save
-                        if observing_area is not None:
-                            tmp_map = tmp_map.crop(observing_area)
+                        if instr.observing_area is not None:
+                            tmp_map = tmp_map.crop(instr.observing_area)
                         tmp_map.save(fn_template.format(instr=instr.name,
                                                 channel=channel['name'],
                                                 time=i))
