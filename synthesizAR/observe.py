@@ -72,8 +72,8 @@ class Observer(object):
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
                                         loop.field_aligned_coordinate.value[-1],
                                         n_interp)
-            nots,_ = interpolate.splprep(loop.coordinates.value.T)
-            _tmp = interpolate.splev(np.linspace(0,1,n_interp),nots)
+            nots,_ = scipy.interpolate.splprep(loop.coordinates.value.T)
+            _tmp = scipy.interpolate.splev(np.linspace(0,1,n_interp),nots)
             self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],
                                                                 _tmp[1],
                                                                 _tmp[2])]
