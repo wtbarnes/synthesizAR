@@ -50,6 +50,8 @@ class InstrumentSDOAIA(object):
                 {'wavelength':193*u.angstrom,'telescope_number':2},
                 {'wavelength':211*u.angstrom,'telescope_number':2},
                 {'wavelength':335*u.angstrom,'telescope_number':1}]
+    for channel in channels:
+        channel['name'] = str(channel['wavelength'].value).strip('.0')
 
     cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel)

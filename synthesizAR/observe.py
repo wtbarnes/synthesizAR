@@ -51,8 +51,8 @@ class Observer(object):
         for instr in self.instruments:
             instr.counts_file = file_template.format(instr.name)
             with h5py.File(file_template.format(instr.name),'w') as hf:
-                for c in instr.channels:
-                    hf.create_dataset(str(c['wavelength'].value).strip('.0'),
+                for channel in instr.channels:
+                    hf.create_dataset(channel['name'],
                                 (len(instr.observing_time),interpolated_points))
 
 
@@ -84,7 +84,7 @@ class Observer(object):
                 with h5py.File(instr.counts_file,'a') as hf:
                     #iterate over channels
                     for channel in instr.channels:
-                        self.logger.debug('Calculating counts for channel {}'.format(channel['wavelength']))
+                        self.logger.debug('Calculating counts for channel {}'.format(channel['name']))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
                         f_s = scipy.interpolate.interp1d(
@@ -92,7 +92,7 @@ class Observer(object):
                                         counts.value,axis=1)
                         interpolated_counts = scipy.interpolate.interp1d(loop.time.value, f_s(interpolated_s), axis=0)(instr.observing_time)
                         #save to file
-                        dset = hf[str(channel['wavelength'].value)]
+                        dset = hf[channel['name']]
                         if 'units' not in dset.attrs:
                             dset.attrs['units'] = counts.unit.to_string()
                         dset[:,start_index:(start_index+n_interp)] = interpolated_counts
@@ -133,14 +133,14 @@ class Observer(object):
             instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file,'r') as hf:
                 for channel in instr.channels:
-                    self.logger.debug('Building maps for channel {}'.format(channel['wavelength']))
+                    self.logger.debug('Building maps for channel {}'.format(channel['name']))
                     dummy_dir = os.path.dirname(fn_template.format(
                                                   instr=instr.name,
-                                                  channel=channel['wavelength'],
+                                                  channel=channel['name'],
                                                   time=0))
                     if not os.path.exists(dummy_dir):
                         os.makedirs(dummy_dir)
-                    dset = hf[channel['wavelength'].value]
+                    dset = hf[channel['name']]
                     for i,time in instr.observing_time:
                         self.logger.debug('Building map at t={}'.format(time))
                         #slice at particular time
@@ -162,5 +162,5 @@ class Observer(object):
                         if observing_area is not None:
                             tmp_map = tmp_map.crop(observing_area)
                         tmp_map.save(fn_template.format(instr=instr.name,
-                                                channel=channel['wavelength'],
+                                                channel=channel['name'],
                                                 time=i))
