@@ -46,7 +46,7 @@ class Observer(object):
         """
         Create files to store interpolated counts before binning.
         """
-        file_template = os.path.join(savedir,'{detector}_counts.h5')
+        file_template = os.path.join(savedir,'{}_counts.h5')
         interpolated_points = sum([int(np.ceil(loop.full_length/self.ds)) for loop in self.field.loops])
         for instr in self.instruments:
             instr.counts_file = file_template.format(instr.name)
