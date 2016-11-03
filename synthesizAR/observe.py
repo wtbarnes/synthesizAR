@@ -52,7 +52,7 @@ class Observer(object):
             instr.counts_file = file_template.format(instr.name)
             with h5py.File(file_template.format(instr.name),'w') as hf:
                 for c in instr.channels:
-                    hf.create_dataset(c['wavelength'].value,
+                    hf.create_dataset(str(c['wavelength'].value),
                                 (len(instr.observing_time),interpolated_points))
 
 
