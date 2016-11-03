@@ -141,7 +141,7 @@ class InstrumentSDOAIA(object):
         """
         Build up FITS header with relevant instrument information.
         """
-        update_entries = ['crpix1','crpix2','crval1','crval2','cunit1',
+        update_entries = ['crval1','crval2','cunit1',
                           'cunit2','crlt_obs','ctype1','ctype2','date-obs',
                           'dsun_obs','rsun_obs']
         fits_header = self.fits_template.copy()
@@ -149,6 +149,8 @@ class InstrumentSDOAIA(object):
             fits_header[entry] = field.clipped_hmi_map.meta[entry]
         fits_header['cdelt1'] = self.resolution.x.value
         fits_header['cdelt2'] = self.resolution.y.value
+        fits_header['crpix1'] = (self.bins.x + 1.0)/2.0
+        fits_header['crpix2'] = (self.bins.y + 1.0)/2.0
         fits_header['instrume'] = 'AIA_{}'.format(channel['telescope_number'])
         fits_header['wavelnth'] = int(channel['wavelength'].value)
 
@@ -163,8 +165,8 @@ class InstrumentSDOAIA(object):
                           field.clipped_hmi_map.xrange[0])
         delta_y = np.fabs(field.clipped_hmi_map.yrange[1] -
                           field.clipped_hmi_map.yrange[0])
-        self.bins = [int(np.ceil(delta_x/self.resolution.x).value),
-                     int(np.ceil(delta_y/self.resolution.y).value)]
-        self.bin_ranges = [
+        self.bins = Pair(int(np.ceil(delta_x/self.resolution.x).value),
+                         int(np.ceil(delta_y/self.resolution.y).value))
+        self.bin_range = Pair(
             field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
-            field._convert_angle_to_length(field.clipped_hmi_map.yrange).value]
+            field._convert_angle_to_length(field.clipped_hmi_map.yrange).value)

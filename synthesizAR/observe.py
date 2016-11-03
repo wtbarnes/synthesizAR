@@ -116,7 +116,7 @@ class Observer(object):
         bins_z = int(np.ceil(np.fabs(max_z-min_z)/delta_z))
         bin_ranges_z = [min_z,max_z]
 
-        return bins_z,bin_ranges_z
+        return bins_z,bin_range_z
 
 
     def bin_detector_counts(self,savedir):
@@ -129,7 +129,7 @@ class Observer(object):
         for instr in self.instruments:
             self.logger.debug('Building maps for {}'.format(instr.name))
             #create instrument array bins
-            bins_z,bin_ranges_z = self._make_z_bins(instr)
+            bins_z,bin_range_z = self._make_z_bins(instr)
             instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file,'r') as hf:
                 for channel in instr.channels:
@@ -152,8 +152,10 @@ class Observer(object):
                         #bin counts into 3D histogram
                         hist,edges = np.histogramdd(
                                         self.total_coordinates.value,
-                                        bins=instr.bins+[bins_z],
-                                        range=instr.bin_ranges+[bin_ranges_z],
+                                        bins=[instr.bins.x,instr.bins.y,bins_z],
+                                        range=[instr.bin_range.x,
+                                               instr.bin_range.y,
+                                               bin_range_z],
                                         weights=_tmp)
                         #project down to x-y plane
                         projection = np.dot(hist,np.diff(edges[2])).T
