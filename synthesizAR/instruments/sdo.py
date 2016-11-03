@@ -132,7 +132,7 @@ class InstrumentSDOAIA(object):
         _tmp_temperature = 10**(_tmp[:,0])
         for i,channel in enumerate(self.channels):
             _tmp_response = _tmp[:,channel_order[channel['wavelength']]+1]
-            self.channels[i]['response_interpolator'] = interpolate.interp1d(_tmp_temperature,_tmp_response)
+            self.channels[i]['response_interpolator'] = scipy.interpolate.interp1d(_tmp_temperature,_tmp_response)
 
 
     def make_fits_header(self,field,channel):
