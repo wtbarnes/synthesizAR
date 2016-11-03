@@ -116,7 +116,7 @@ class Observer(object):
         bins_z = int(np.ceil(np.fabs(max_z-min_z)/delta_z))
         bin_ranges_z = [min_z,max_z]
 
-        return [bins_z],[bin_ranges_z]
+        return bins_z,bin_ranges_z
 
 
     def bin_detector_counts(self,savedir):
@@ -141,6 +141,9 @@ class Observer(object):
                     if not os.path.exists(dummy_dir):
                         os.makedirs(dummy_dir)
                     dset = hf[channel['name']]
+                    #setup fits header
+                    header = instr.make_fits_header(self.field,channel)
+                    header['bunit'] = (u.Unit(dset.attrs['unit'])*self.total_coordinates.unit).to_string()
                     for i,time in instr.observing_time:
                         self.logger.debug('Building map at t={}'.format(time))
                         #slice at particular time
@@ -148,15 +151,12 @@ class Observer(object):
                         #bin counts into 3D histogram
                         hist,edges = np.histogramdd(
                                         self.total_coordinates.value,
-                                        bins=instr.bins+bins_z,
-                                        range=instr.bin_ranges+bin_ranges_z,
+                                        bins=instr.bins+[bins_z],
+                                        range=instr.bin_ranges+[bin_ranges_z],
                                         weights=_tmp)
                         #project down to x-y plane
                         projection = np.dot(hist,np.diff(edges[2])).T
-                        #setup fits header
-                        header = instr.make_fits_header(self.field,channel)
                         header['t_obs'] = time
-                        header['bunit'] = (u.Unit(dset.attrs['unit'])*self.total_coordinates.unit).to_string()
                         tmp_map = sunpy.map.Map(projection,header)
                         #crop to desired region and save
                         if observing_area is not None:
