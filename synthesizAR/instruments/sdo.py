@@ -9,6 +9,7 @@ import logging
 from collections import namedtuple
 
 import numpy as np
+import scipy.interpolate
 import astropy.units as u
 import sunpy.map
 

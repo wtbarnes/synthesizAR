@@ -87,10 +87,10 @@ class Observer(object):
                         self.logger.debug('Calculating counts for channel {}'.format(channel['wavelength']))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
-                        f_s = interpolate.interp1d(
+                        f_s = scipy.interpolate.interp1d(
                                         loop.field_aligned_coordinate.value,
                                         counts.value,axis=1)
-                        interpolated_counts = interpolate.interp1d(loop.time.value, f_s(interpolated_s), axis=0)(instr.observing_time)
+                        interpolated_counts = scipy.interpolate.interp1d(loop.time.value, f_s(interpolated_s), axis=0)(instr.observing_time)
                         #save to file
                         dset = hf[channel['wavelength'].value]
                         if 'units' not in dset.attrs:
