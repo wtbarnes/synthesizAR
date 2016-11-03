@@ -156,7 +156,7 @@ class Observer(object):
                         #setup fits header
                         header = instr.make_fits_header(self.field,channel)
                         header['t_obs'] = time
-                        header['bunit'] = dset.attrs['unit']
+                        header['bunit'] = (u.Unit(dset.attrs['unit'])*self.total_coordinates.unit).to_string()
                         tmp_map = sunpy.map.Map(projection,header)
                         #crop to desired region and save
                         if observing_area is not None:
