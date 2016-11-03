@@ -99,7 +99,7 @@ class InstrumentSDOAIA(object):
         """
         response_function = channel['response_interpolator'](np.ravel(loop.temperature))*u.count*u.cm**5/u.s/u.pixel
 
-        return np.reshape(np.ravel(loop.temperature**2)*response_function,
+        return np.reshape(np.ravel(loop.density**2)*response_function,
                           np.shape(loop.density))
 
 
