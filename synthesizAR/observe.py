@@ -37,8 +37,8 @@ class Observer(object):
         self.field = field
         self.instruments = instruments
         if ds is None:
-            ds = 0.1*np.min([min(instr.resolution_x.value,
-                    instr.resolution_y.value) for instr in self.instruments])*self.instruments[0].resolution.x.unit
+            ds = 0.1*np.min([min(instr.resolution.x.value,
+                    instr.resolution.y.value) for instr in self.instruments])*self.instruments[0].resolution.x.unit
         self.ds = self.field._convert_angle_to_length(ds)
 
 
