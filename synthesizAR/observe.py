@@ -143,7 +143,7 @@ class Observer(object):
                     dset = hf[channel['name']]
                     #setup fits header
                     header = instr.make_fits_header(self.field,channel)
-                    header['t_obsunit'] = instr.observing_time.unit.to_string()
+                    header['tunit'] = instr.observing_time.unit.to_string()
                     header['bunit'] = (u.Unit(dset.attrs['units'])*self.total_coordinates.unit).to_string()
                     for i,time in enumerate(instr.observing_time.value):
                         self.logger.debug('Building map at t={}'.format(time))
