@@ -109,7 +109,7 @@ class Observer(object):
         """
         min_z = min(self.field.extrapolated_3d_field.domain_left_edge[2].value,
                 self.total_coordinates[:,2].min().value)
-        max_z = max(self.field.extrapolated_3d_field.domain_right[2].value,
+        max_z = max(self.field.extrapolated_3d_field.domain_right_edge[2].value,
                 self.total_coordinates[:,2].max().value)
         delta_z = self.field._convert_angle_to_length(
                 max(instr.resolution.x,instr.resolution_y)).value
