@@ -150,7 +150,7 @@ class InstrumentSDOAIA(object):
         fits_header['cdelt1'] = self.resolution.x.value
         fits_header['cdelt2'] = self.resolution.y.value
         fits_header['instrume'] = 'AIA_' + channel['telescope_number']
-        fits_header['wavelnth'] = int(channel['wavelength'])
+        fits_header['wavelnth'] = int(channel['wavelength'].value)
 
         return fits_header
 
