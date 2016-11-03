@@ -92,7 +92,7 @@ class Observer(object):
                                         counts.value,axis=1)
                         interpolated_counts = scipy.interpolate.interp1d(loop.time.value, f_s(interpolated_s), axis=0)(instr.observing_time)
                         #save to file
-                        dset = hf[channel['wavelength'].value]
+                        dset = hf[str(channel['wavelength'].value)]
                         if 'units' not in dset.attrs:
                             dset.attrs['units'] = counts.unit.to_string()
                         dset[:,start_index:(start_index+n_interp)] = interpolated_counts
