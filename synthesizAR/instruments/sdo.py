@@ -163,8 +163,8 @@ class InstrumentSDOAIA(object):
                           field.clipped_hmi_map.xrange[0])
         delta_y = np.fabs(field.clipped_hmi_map.yrange[1] -
                           field.clipped_hmi_map.yrange[0])
-        self.bins = [int(np.ceil(delta_x/self.resolution.x)).value,
-                     int(np.ceil(delta_y/self.resolution.y)).value]
+        self.bins = [int(np.ceil(delta_x/self.resolution.x).value),
+                     int(np.ceil(delta_y/self.resolution.y).value)]
         self.bin_ranges = [
             field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
             field._convert_angle_to_length(field.clipped_hmi_map.yrange).value]
