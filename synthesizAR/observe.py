@@ -114,7 +114,7 @@ class Observer(object):
         delta_z = self.field._convert_angle_to_length(
                 max(instr.resolution.x,instr.resolution.y)).value
         bins_z = int(np.ceil(np.fabs(max_z-min_z)/delta_z))
-        bin_ranges_z = [min_z,max_z]
+        bin_range_z = [min_z,max_z]
 
         return bins_z,bin_range_z
 
