@@ -66,7 +66,7 @@ class Observer(object):
         self.total_coordinates = []
         # iterate over all loops in the field
         for loop in self.field.loops:
-            self.logger.debug(
+            self.logger.info(
                             'Calculating counts for loop {}'.format(loop.name))
             n_interp = int(np.ceil(loop.full_length/self.ds))
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
@@ -127,13 +127,13 @@ class Observer(object):
         fn_template = os.path.join(savedir,
                                    '{instr}','{channel}','map_t{time:06d}.fits')
         for instr in self.instruments:
-            self.logger.debug('Building maps for {}'.format(instr.name))
+            self.logger.info('Building maps for {}'.format(instr.name))
             #create instrument array bins
             bins_z,bin_range_z = self._make_z_bins(instr)
             instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file,'r') as hf:
                 for channel in instr.channels:
-                    self.logger.debug('Building maps for channel {}'.format(channel['name']))
+                    self.logger.info('Building maps for channel {}'.format(channel['name']))
                     dummy_dir = os.path.dirname(fn_template.format(
                                                   instr=instr.name,
                                                   channel=channel['name'],
