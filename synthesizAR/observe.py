@@ -7,6 +7,7 @@ import logging
 
 import numpy as np
 import scipy.interpolate
+import scipy.ndimage
 import astropy.units as u
 import sunpy.map
 import h5py
@@ -119,7 +120,7 @@ class Observer(object):
         return bins_z,bin_range_z
 
 
-    def bin_detector_counts(self,savedir):
+    def bin_detector_counts(self,savedir,apply_psf=False):
         """
         Bin the counts into the detector array, project it down to 2 dimensions,
         and save it to a FITS file.
@@ -159,6 +160,10 @@ class Observer(object):
                                         weights=_tmp)
                         #project down to x-y plane
                         projection = np.dot(hist,np.diff(edges[2])).T
+                        if apply_psf:
+                            projection = scipy.ndimage.filters.gaussian_filter(
+                                                projection,
+                                                channel['gaussian_width'].value)
                         header['t_obs'] = time
                         tmp_map = sunpy.map.Map(projection,header)
                         #crop to desired region and save

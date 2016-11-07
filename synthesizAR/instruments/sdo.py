@@ -44,12 +44,19 @@ class InstrumentSDOAIA(object):
     fits_template['waveunit'] = 'angstrom'
 
     name = 'SDO_AIA'
-    channels = [{'wavelength':94*u.angstrom,'telescope_number':4},
-                {'wavelength':131*u.angstrom,'telescope_number':1},
-                {'wavelength':171*u.angstrom,'telescope_number':3},
-                {'wavelength':193*u.angstrom,'telescope_number':2},
-                {'wavelength':211*u.angstrom,'telescope_number':2},
-                {'wavelength':335*u.angstrom,'telescope_number':1}]
+    channels = [
+        {'wavelength':94*u.angstrom,'telescope_number':4,
+            'gaussian_width':0.951*u.pixel},
+        {'wavelength':131*u.angstrom,'telescope_number':1,
+            'gaussian_width':1.033*u.pixel},
+        {'wavelength':171*u.angstrom,'telescope_number':3,
+            'gaussian_width':0.962*u.pixel},
+        {'wavelength':193*u.angstrom,'telescope_number':2,
+            'gaussian_width':1.512*u.pixel},
+        {'wavelength':211*u.angstrom,'telescope_number':2,
+            'gaussian_width':1.199*u.pixel},
+        {'wavelength':335*u.angstrom,'telescope_number':1,
+            'gaussian_width':0.962*u.pixel}]
     for channel in channels:
         channel['name'] = str(channel['wavelength'].value).strip('.0')
 
