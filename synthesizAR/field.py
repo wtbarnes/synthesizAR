@@ -325,7 +325,7 @@ class Skeleton(object):
                     if loop.name not in hf:
                         hf.create_group(loop.name)
                     for key in emiss:
-                        self.logger.info('Saving emissivity for wavelength {}'.format(key))
+                        self.logger.debug('Saving emissivity for wavelength {}'.format(key))
                         dset = hf[loop.name].create_dataset(key,data=emiss[key].value)
                         dset.attrs['units'] = emiss[key].unit.to_string()
             else:
