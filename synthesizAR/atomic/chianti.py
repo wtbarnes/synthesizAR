@@ -20,8 +20,8 @@ from synthesizAR.util import collect_points
 
 class ChIon(object):
     """
-    This is a stripped down version of the ChiantiPy ion object. It speeds up and streamlines
-    the emissivity calculation.
+    This is a stripped down version of the ChiantiPy ion object. It speeds up and
+    streamlines the emissivity calculation.
 
     Parameters
     ----------
@@ -249,9 +249,9 @@ class ChIon(object):
         lvl2 = np.array(self._wgfa['lvl2'])
         avalues = np.array(self._wgfa['avalue'])/u.s
         # exclude two-photon decays that are denoted by 0 wavelength
-        wavelength = wavelength[wavelength!=0]
         lvl2 = lvl2[wavelength!=0]
         avalues = avalues[wavelength!=0]
+        wavelength = wavelength[wavelength!=0]
         # set energy conversion factor
         if self.meta['rcparams']['flux'] == 'energy':
             energy_factor = (const.h*const.c).to(u.erg*u.angstrom)/wavelength
@@ -263,7 +263,7 @@ class ChIon(object):
         # calculate emissivity
         emissivity = ((level_populations[lvl2-1,:]).T*avalues*energy_factor).T
 
-        return emissivity
+        return wavelength,emissivity
 
     def calculate_ionization_equilibrium(self):
         """Calculate ionization equilibrium."""
