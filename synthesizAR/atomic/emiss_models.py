@@ -9,6 +9,8 @@ import sys
 import numpy as np
 import astropy.units as u
 
+from synthesizAR.atomic import ChIon
+
 
 class EquilibriumModel(object):
     """
@@ -16,11 +18,7 @@ class EquilibriumModel(object):
     """
 
     def __init__(self):
-        """
-        Constructor
-        """
         pass
-
 
     def calculate_emissivity(self,temperature,density):
         """
