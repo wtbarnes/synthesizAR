@@ -10,7 +10,8 @@ import h5py
 
 class Loop(object):
     """
-    Coronal loop object for easily handling all of the properties associated with a loop in an active region.
+    Coronal loop object for easily handling all of the properties associated with a loop in
+    an active region.
 
     Parameters
     ----------
@@ -37,7 +38,8 @@ class Loop(object):
         """
         Field-aligned coordinate s. This will have the same units the original coordinates.
         """
-        return np.append(0., np.linalg.norm(np.diff(self.coordinates.value,axis=0), axis=1).cumsum())*self.coordinates.unit
+        return np.append(0., np.linalg.norm(np.diff(self.coordinates.value,axis=0),
+                                            axis=1).cumsum())*self.coordinates.unit
 
 
     @property
@@ -45,7 +47,8 @@ class Loop(object):
         """
         Loop full-length 2L. This will have the same units as the original coordinates.
         """
-        return np.sum(np.linalg.norm(np.diff(self.coordinates.value,axis=0),axis=1))*self.coordinates.unit
+        return np.sum(np.linalg.norm(np.diff(self.coordinates.value,axis=0),
+                                    axis=1))*self.coordinates.unit
 
 
     @property

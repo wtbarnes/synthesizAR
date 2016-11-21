@@ -15,8 +15,7 @@ import h5py
 
 class Observer(object):
     """
-    Class for assembling AR from loops and creating data products from 2D
-    projections.
+    Class for assembling AR from loops and creating data products from 2D projections.
 
     Parameters
     ----------
@@ -38,8 +37,8 @@ class Observer(object):
         self.field = field
         self.instruments = instruments
         if ds is None:
-            ds = 0.1*np.min([min(instr.resolution.x.value,
-                    instr.resolution.y.value) for instr in self.instruments])*self.instruments[0].resolution.x.unit
+            ds = 0.1*np.min([min(instr.resolution.x.value,nstr.resolution.y.value) \
+            for instr in self.instruments])*self.instruments[0].resolution.x.unit
         self.ds = self.field._convert_angle_to_length(ds)
 
 
@@ -48,50 +47,50 @@ class Observer(object):
         Create files to store interpolated counts before binning.
         """
         file_template = os.path.join(savedir,'{}_counts.h5')
-        interpolated_points = sum([int(np.ceil(loop.full_length/self.ds)) for loop in self.field.loops])
+        interpolated_points = sum([int(np.ceil(loop.full_length/self.ds)) \
+        for loop in self.field.loops])
+
         for instr in self.instruments:
             instr.counts_file = file_template.format(instr.name)
             with h5py.File(file_template.format(instr.name),'w') as hf:
                 for channel in instr.channels:
-                    hf.create_dataset(channel['name'],
-                                (len(instr.observing_time),interpolated_points))
+                    hf.create_dataset(channel['name'],(len(instr.observing_time),
+                                        interpolated_points))
 
 
     def calculate_detector_counts(self):
         """
-        Calculate counts for each channel of each detector. Counts are
-        interpolated to the desired spatial and temporal resolution.
+        Calculate counts for each channel of each detector. Counts are interpolated to the
+        desired spatial and temporal resolution.
         """
         # initialize offset and list for coordinates
         start_index = 0
         self.total_coordinates = []
         # iterate over all loops in the field
         for loop in self.field.loops:
-            self.logger.info(
-                            'Calculating counts for loop {}'.format(loop.name))
+            self.logger.info('Calculating counts for loop {}'.format(loop.name))
             n_interp = int(np.ceil(loop.full_length/self.ds))
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
                                         loop.field_aligned_coordinate.value[-1],
                                         n_interp)
             nots,_ = scipy.interpolate.splprep(loop.coordinates.value.T)
             _tmp = scipy.interpolate.splev(np.linspace(0,1,n_interp),nots)
-            self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],
-                                                                _tmp[1],
-                                                                _tmp[2])]
+            self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]
             #iterate over detectors
             for instr in self.instruments:
-                self.logger.debug(
-                    'Calculating counts for instrument {}'.format(instr.name))
+                self.logger.debug('Calculating counts for instrument {}'.format(instr.name))
                 with h5py.File(instr.counts_file,'a') as hf:
                     #iterate over channels
                     for channel in instr.channels:
-                        self.logger.debug('Calculating counts for channel {}'.format(channel['name']))
+                        self.logger.debug(
+                            'Calculating counts for channel{}'.format(channel['name']))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
                         f_s = scipy.interpolate.interp1d(
                                         loop.field_aligned_coordinate.value,
                                         counts.value,axis=1)
-                        interpolated_counts = scipy.interpolate.interp1d(loop.time.value, f_s(interpolated_s), axis=0)(instr.observing_time)
+                        interpolated_counts = scipy.interpolate.interp1d(loop.time.value,
+                                        f_s(interpolated_s), axis=0)(instr.observing_time)
                         #save to file
                         dset = hf[channel['name']]
                         if 'units' not in dset.attrs:
@@ -99,8 +98,7 @@ class Observer(object):
                         dset[:,start_index:(start_index+n_interp)] = interpolated_counts
             #increment offset
             start_index += n_interp
-        self.total_coordinates = np.array(
-                                self.total_coordinates)*loop.coordinates.unit
+        self.total_coordinates = np.array(self.total_coordinates)*loop.coordinates.unit
 
 
     def _make_z_bins(self,instr):
@@ -155,8 +153,8 @@ class Observer(object):
                                         self.total_coordinates.value,
                                         bins=[instr.bins.x,instr.bins.y,bins_z],
                                         range=[instr.bin_range.x,
-                                               instr.bin_range.y,
-                                               bin_range_z],
+                                                instr.bin_range.y,
+                                                bin_range_z],
                                         weights=_tmp)
                         #project down to x-y plane
                         projection = np.dot(hist,np.diff(edges[2])).T
@@ -170,5 +168,5 @@ class Observer(object):
                         if instr.observing_area is not None:
                             tmp_map = tmp_map.crop(instr.observing_area)
                         tmp_map.save(fn_template.format(instr=instr.name,
-                                                channel=channel['name'],
-                                                time=i))
+                                                        channel=channel['name'],
+                                                        time=i))
