@@ -29,10 +29,8 @@ class Observer(object):
     -----
     """
 
+
     def __init__(self,field,instruments,ds=None):
-        """
-        Constructor
-        """
         self.logger = logging.getLogger(name=type(self).__name__)
         self.field = field
         self.instruments = instruments
@@ -40,7 +38,6 @@ class Observer(object):
             ds = 0.1*np.min([min(instr.resolution.x.value,nstr.resolution.y.value) \
             for instr in self.instruments])*self.instruments[0].resolution.x.unit
         self.ds = self.field._convert_angle_to_length(ds)
-
 
     def build_detector_files(self,savedir):
         """
@@ -56,7 +53,6 @@ class Observer(object):
                 for channel in instr.channels:
                     hf.create_dataset(channel['name'],(len(instr.observing_time),
                                         interpolated_points))
-
 
     def calculate_detector_counts(self):
         """
@@ -100,7 +96,6 @@ class Observer(object):
             start_index += n_interp
         self.total_coordinates = np.array(self.total_coordinates)*loop.coordinates.unit
 
-
     def _make_z_bins(self,instr):
         """
         Make z bins and ranges. The bin width isn't all that important since
@@ -116,7 +111,6 @@ class Observer(object):
         bin_range_z = [min_z,max_z]
 
         return bins_z,bin_range_z
-
 
     def bin_detector_counts(self,savedir,apply_psf=False):
         """
