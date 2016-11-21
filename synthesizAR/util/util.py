@@ -75,3 +75,17 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
         raise ValueError('Could not find desired number of seed points within failure tolerance of {}. Try increasing safety factor or the mask threshold'.format(max_failures))
 
     return seed_points
+
+
+def collect_points(x,y):
+    """
+    Using two lists, where the first has repeated entries, sum the corresponding entries
+    in the repeated list for each unique entry in the first list.
+
+    Parameters
+    ----------
+    x : `list`
+    y : `list`
+    """
+    return np.array([np.array([g[1] for g in grp]).sum(axis=0) \
+        for lvl,grp in itertools.groupby(sorted(zip(x,y),key=lambda x:x[0]),lambda x:x[0])])
