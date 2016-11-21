@@ -1,11 +1,13 @@
 """
-Some basic tools/utilities needed for active region construction. These functions are generally peripheral to the actual physics.
+Some basic tools/utilities needed for active region construction. These functions are generally
+peripheral to the actual physics.
 """
 
 import numpy as np
 import astropy.units as u
 import solarbextrapolation.utilities
 
+__all__=['convert_angle_to_length','find_seed_points','collect_points']
 
 def convert_angle_to_length(hmi_map,angle_or_length,working_units=u.meter):
     """
