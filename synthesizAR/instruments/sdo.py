@@ -66,9 +66,6 @@ class InstrumentSDOAIA(object):
 
     def __init__(self, observing_time, observing_area=None,
     use_temperature_response_functions=True,response_function_file=''):
-        """
-        Constructor
-        """
         self.logger = logging.getLogger(name=type(self).__name__)
         self.observing_time = np.arange(
                             observing_time[0].to(u.s).value,
