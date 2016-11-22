@@ -102,7 +102,7 @@ class ChIon(object):
         p2eratio = abundance[0]*_tmp_ioneq['ioneqAll'][0,1,:]/denominator
         nots = splrep(np.log10(_tmp_ioneq['ioneqTemperature']),p2eratio,s=0)
 
-        return splev(np.log10(self.temperature),nots,der=0)
+        return splev(np.log10(self.temperature.value),nots,der=0)
 
     def _descale_collision_strengths(self,x,y,energy_ratio,c,bt_type):
         """
