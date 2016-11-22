@@ -6,7 +6,7 @@ import os
 import logging
 
 import numpy as np
-import scipy.interpolate
+from scipy.interpolate import splev,splrep,interp1d
 import scipy.ndimage
 import astropy.units as u
 import sunpy.map
@@ -67,10 +67,9 @@ class Observer(object):
             self.logger.info('Calculating counts for loop {}'.format(loop.name))
             n_interp = int(np.ceil(loop.full_length/self.ds))
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
-                                        loop.field_aligned_coordinate.value[-1],
-                                        n_interp)
-            nots,_ = scipy.interpolate.splprep(loop.coordinates.value.T)
-            _tmp = scipy.interpolate.splev(np.linspace(0,1,n_interp),nots)
+                                        loop.field_aligned_coordinate.value[-1],n_interp)
+            nots,_ = splprep(loop.coordinates.value.T)
+            _tmp = splev(np.linspace(0,1,n_interp),nots)
             self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]
             #iterate over detectors
             for instr in self.instruments:
@@ -82,11 +81,10 @@ class Observer(object):
                             'Calculating counts for channel{}'.format(channel['name']))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
-                        f_s = scipy.interpolate.interp1d(
-                                        loop.field_aligned_coordinate.value,
-                                        counts.value,axis=1)
-                        interpolated_counts = scipy.interpolate.interp1d(loop.time.value,
-                                        f_s(interpolated_s), axis=0)(instr.observing_time)
+                        f_s = interp1d(loop.field_aligned_coordinate.value,
+                                                        counts.value,axis=1)
+                        interpolated_counts = interp1d(loop.time.value,f_s(interpolated_s),
+                                                        axis=0)(instr.observing_time)
                         #save to file
                         dset = hf[channel['name']]
                         if 'units' not in dset.attrs:
@@ -117,8 +115,7 @@ class Observer(object):
         Bin the counts into the detector array, project it down to 2 dimensions,
         and save it to a FITS file.
         """
-        fn_template = os.path.join(savedir,
-                                   '{instr}','{channel}','map_t{time:06d}.fits')
+        fn_template = os.path.join(savedir,'{instr}','{channel}','map_t{time:06d}.fits')
         for instr in self.instruments:
             self.logger.info('Building maps for {}'.format(instr.name))
             #create instrument array bins
@@ -127,10 +124,9 @@ class Observer(object):
             with h5py.File(instr.counts_file,'r') as hf:
                 for channel in instr.channels:
                     self.logger.info('Building maps for channel {}'.format(channel['name']))
-                    dummy_dir = os.path.dirname(fn_template.format(
-                                                  instr=instr.name,
-                                                  channel=channel['name'],
-                                                  time=0))
+                    dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
+                                                                    channel=channel['name'],
+                                                                    time=0))
                     if not os.path.exists(dummy_dir):
                         os.makedirs(dummy_dir)
                     dset = hf[channel['name']]
@@ -146,21 +142,17 @@ class Observer(object):
                         hist,edges = np.histogramdd(
                                         self.total_coordinates.value,
                                         bins=[instr.bins.x,instr.bins.y,bins_z],
-                                        range=[instr.bin_range.x,
-                                                instr.bin_range.y,
-                                                bin_range_z],
+                                        range=[instr.bin_range.x,instr.bin_range.y,bin_range_z],
                                         weights=_tmp)
                         #project down to x-y plane
                         projection = np.dot(hist,np.diff(edges[2])).T
                         if apply_psf:
-                            projection = scipy.ndimage.filters.gaussian_filter(
-                                                projection,
-                                                channel['gaussian_width'].value)
+                            projection = scipy.ndimage.filters.gaussian_filter(projection,
+                                                                    channel['gaussian_width'].value)
                         header['t_obs'] = time
                         tmp_map = sunpy.map.Map(projection,header)
                         #crop to desired region and save
                         if instr.observing_area is not None:
                             tmp_map = tmp_map.crop(instr.observing_area)
-                        tmp_map.save(fn_template.format(instr=instr.name,
-                                                        channel=channel['name'],
+                        tmp_map.save(fn_template.format(instr=instr.name,channel=channel['name'],
                                                         time=i))
