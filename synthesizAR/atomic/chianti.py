@@ -180,31 +180,28 @@ class ChIon(object):
         """
         upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
-        l1_indices_electron = np.array(sorted(set(self._scups['lvl1'])))-1
-        l2_indices_electron = np.array(sorted(set(self._scups['lvl2'])))-1
-        _electron_ex_broadcast = collect_points(self._scups['lvl1'],excitation_rate)
-        _electron_dex_broadcast = collect_points(self._scups['lvl2'],deexcitation_rate)
+        l1_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
+                                                                        deexcitation_rate)
+        l2_indices_electron,_electron_ex_broadcast = collect_points(self._scups['lvl1'],
+                                                                        excitation_rate)
 
         # account for protons if the file exists
         if hasattr(self,'_psplups'):
             upsilon_proton,excitation_rate_proton,deexcitation_rate_proton \
                                                 = self._calculate_collision_strengths(protons=True)
             # create excitation/deexcitation rate sums for broadcasting
-            l1_indices_proton = np.array(sorted(set(self._psplups['lvl1'])))-1
-            l2_indices_proton = np.array(sorted(set(self._psplups['lvl2'])))-1
-            _proton_ex_broadcast = collect_points(self._psplups['lvl1'],
-                                                    excitation_rate_proton)
-            _proton_dex_broadcast = collect_points(self._psplups['lvl2'],
-                                                    deexcitation_rate_proton)
+            l1_indices_proton,_proton_ex_broadcast = collect_points(self._psplups['lvl1'],
+                                                                    excitation_rate_proton)
+            l2_indices_proton,_proton_dex_broadcast = collect_points(self._psplups['lvl2'],
+                                                                    deexcitation_rate_proton)
 
         process_matrix = np.zeros([self.n_levels,self.n_levels])
         # add spontaneous emission, TODO: correction for recombination and ionization
         process_matrix[np.array(self._wgfa['lvl1'])-1,
                         np.array(self._wgfa['lvl2'])-1] += self._wgfa['avalue']
         # sum all of the level 2 Avalues to broadcast
-        _wgfa_broadcasts = collect_points(self._wgfa['lvl2'],self._wgfa['avalue'])
-        process_matrix[_wgfa_broadcasts[:,0].astype(int)-1,
-                       _wgfa_broadcasts[:,0].astype(int)-1] -= _wgfa_broadcasts[:,1]
+        wgfa_indices,_wgfa_broadcasts = collect_points(self._wgfa['lvl2'],self._wgfa['avalue'])
+        process_matrix[wgfa_indices-1,wgfa_indices-1] -= _wgfa_broadcasts
         #TODO: add photoexcitation and stimulated emission
 
         #b vector used for inversion later on
@@ -221,10 +218,9 @@ class ChIon(object):
             _tmp[np.array(self._scups['lvl2'])-1,
                 np.array(self._scups['lvl1'])-1] += nel*excitation_rate[:,i]
             # broadcast summed excitation rates for level 1
-            _tmp[l1_indices_electron,l1_indices_electron] -= nel*_electron_ex_broadcast[:,i]
+            _tmp[l1_indices_electron-1,l1_indices_electron-1] -= nel*_electron_ex_broadcast[:,i]
             # sum deexcitation rates for level 2 to broadcast
-            _tmp[l2_indices_electron,
-                l2_indices_electron] -= nel*_electron_dex_broadcast[:,i]
+            _tmp[l2_indices_electron-1,l2_indices_electron-1] -= nel*_electron_dex_broadcast[:,i]
             # excitation and de-excitation by protons
             if hasattr(self,'_psplups'):
                 _tmp[np.array(self._psplups['lvl1'])-1,
@@ -232,9 +228,9 @@ class ChIon(object):
                 _tmp[np.array(self._psplups['lvl2'])-1,
                      np.array(self._psplups['lvl1'])-1] += npr*excitation_rate_proton[:,i]
                 # sum excitation rates for level 1 broadcast
-                _tmp[l1_indices_proton,l1_indices_proton] -= npr*_proton_ex_broadcast[:,i]
+                _tmp[l1_indices_proton-1,l1_indices_proton-1] -= npr*_proton_ex_broadcast[:,i]
                 # sum deexcitation rates for level 2 broadcast
-                _tmp[l2_indices_proton,l2_indices_proton] -= npr*_proton_dex_broadcast[:,i]
+                _tmp[l2_indices_proton-1,l2_indices_proton-1] -= npr*_proton_dex_broadcast[:,i]
             # TODO: add effects from ionization and recombination
             # invert
             _tmp[-1,:] = np.ones(_tmp.shape[0])
