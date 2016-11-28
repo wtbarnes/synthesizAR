@@ -41,8 +41,8 @@ class ChIon(object):
             raise ValueError('{} not in CHIANTI database'.format(ion_name))
         self.meta = ch_tools.util.convertName(ion_name)
         self.meta['name'] = ion_name
-        self.meta['spectroscopic_name'] = ch_tools.util.zion2spectroscopic(
-                                            self.meta['Z'],self.meta['Ion'])
+        self.meta['spectroscopic_name'] = ch_tools.util.zion2spectroscopic(self.meta['Z'],
+                                                                            self.meta['Ion'])
         self.meta['rcparams'] = ch_tools.data.Defaults.copy()
         # read ion data from CHIANTI database
         if setup:
@@ -90,8 +90,7 @@ class ChIon(object):
         Calculate proton density to electron density ratio from Eq. 7 of Young et al. (2003)
         """
         _tmp_ioneq = ch_tools.io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
-        _tmp_abundance = ch_tools.io.abundanceRead(
-                                abundancename=self.meta['rcparams']['abundfile'])
+        _tmp_abundance = ch_tools.io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
         abundance = _tmp_abundance['abundance'][_tmp_abundance['abundance']>0]
 
         denominator = np.zeros(len(_tmp_ioneq['ioneqTemperature']))
@@ -136,7 +135,8 @@ class ChIon(object):
         if protons:
             collision_data = self._psplups
             scups_key = 'splups'
-            collision_data['btemp'] = [np.linspace(0,1,n_spline) for n_spline in collision_data['nspl']]
+            collision_data['btemp'] = [np.linspace(0,1,n_spline) for n_spline \
+                                                                    in collision_data['nspl']]
         else:
             collision_data = self._scups
             scups_key = 'bscups'
@@ -187,7 +187,8 @@ class ChIon(object):
 
         # account for protons if the file exists
         if hasattr(self,'_psplups'):
-            upsilon_proton,excitation_rate_proton,deexcitation_rate_proton = self._calculate_collision_strengths(protons=True)
+            upsilon_proton,excitation_rate_proton,deexcitation_rate_proton \
+                                                = self._calculate_collision_strengths(protons=True)
             # create excitation/deexcitation rate sums for broadcasting
             l1_indices_proton = np.array(sorted(set(self._psplups['lvl1'])))-1
             l2_indices_proton = np.array(sorted(set(self._psplups['lvl2'])))-1
@@ -268,8 +269,8 @@ class ChIon(object):
         """Calculate ionization equilibrium."""
         _tmp_ioneq = ch_tools.io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
         match_indices = np.where(
-            (self.temperature>=_tmp_ioneq['ioneqTemperature'].min()) & \
-            (self.temperature<=_tmp_ioneq['ioneqTemperature'].max()))[0]
+            (self.temperature.value>=_tmp_ioneq['ioneqTemperature'].min()) & \
+            (self.temperature.value<=_tmp_ioneq['ioneqTemperature'].max()))[0]
         if len(match_indices) != len(self.temperature):
             warnings.warn('''Temperature out of ionization equilibrium range.
                             Those temperatures will have zero fractional ionization.''')
@@ -278,8 +279,7 @@ class ChIon(object):
                                      _tmp_ioneq['ioneqAll'][self.meta['Z']-1,
                                      self.meta['Ion']-1+self.meta['Dielectronic'],:],
                                      kind='cubic')
-        fractional_ionization[match_indices] = f_interp(
-                                                np.log10(self.temperature[match_indices]))
+        fractional_ionization[match_indices] = f_interp(np.log10(self.temperature[match_indices]))
         fractional_ionization[fractional_ionization<0] = 0.0
 
         return fractional_ionization
