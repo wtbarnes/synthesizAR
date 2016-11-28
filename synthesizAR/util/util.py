@@ -3,6 +3,8 @@ Some basic tools/utilities needed for active region construction. These function
 peripheral to the actual physics.
 """
 
+import itertools
+
 import numpy as np
 import astropy.units as u
 import solarbextrapolation.utilities
