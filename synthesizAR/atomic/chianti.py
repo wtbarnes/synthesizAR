@@ -180,9 +180,9 @@ class ChIon(object):
         """
         upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
-        l1_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
+        l2_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
                                                                         deexcitation_rate)
-        l2_indices_electron,_electron_ex_broadcast = collect_points(self._scups['lvl1'],
+        l1_indices_electron,_electron_ex_broadcast = collect_points(self._scups['lvl1'],
                                                                         excitation_rate)
 
         # account for protons if the file exists
