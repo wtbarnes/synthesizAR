@@ -279,7 +279,8 @@ class ChIon(object):
                                      _tmp_ioneq['ioneqAll'][self.meta['Z']-1,
                                      self.meta['Ion']-1+self.meta['Dielectronic'],:],
                                      kind='cubic')
-        fractional_ionization[match_indices] = f_interp(np.log10(self.temperature[match_indices]))
+        fractional_ionization[match_indices] = f_interp(np.log10(
+                                                            self.temperature[match_indices].value))
         fractional_ionization[fractional_ionization<0] = 0.0
 
         return fractional_ionization
