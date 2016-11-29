@@ -167,8 +167,8 @@ class ChIon(object):
         energy_ratios = np.outer(_tmp_transition_energies,
                                 1.0/(self.temperature*const.k_B.cgs))
         #calculate excitation and deexcitation rates
-        _rate_factor = 2.172e-8*np.sqrt(
-            (13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))*upsilon
+        _rate_factor = 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)\
+                        /(self.temperature*const.k_B.cgs))*upsilon
         excitation_rate = ((np.exp(-energy_ratios)*_rate_factor).T*1.0/lower_weights).T
         deexcitation_rate = (_rate_factor.T*1.0/upper_weights).T
 
@@ -183,10 +183,10 @@ class ChIon(object):
                             deexcitation rates for electrons.''')
         upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
-        l2_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
-                                                                        deexcitation_rate)
         l1_indices_electron,_electron_ex_broadcast = collect_points(self._scups['lvl1'],
                                                                         excitation_rate)
+        l2_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
+                                                                        deexcitation_rate)
 
         # account for protons if the file exists
         if hasattr(self,'_psplups'):
@@ -215,8 +215,8 @@ class ChIon(object):
         b[-1] = 1.0
         #preallocate memory for level populations
         populations = np.zeros([self.n_levels,len(self.temperature)])
-        for i,(nel,npr,T) in enumerate(zip(self.electron_density,
-                                        self.proton_density,self.temperature)):
+        for i,(nel,npr,T) in enumerate(zip(self.electron_density,self.proton_density,
+                                            self.temperature)):
             _tmp = np.copy(process_matrix)
             # excitation and de-excitation by electrons
             _tmp[np.array(self._scups['lvl1'])-1,
