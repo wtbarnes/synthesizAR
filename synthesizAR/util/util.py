@@ -93,5 +93,5 @@ def collect_points(x,y):
     """
     unique_sorted_x = np.array(sorted(set(x)))
     summed_sorted_y = np.array([np.array([g[1] for g in grp]).sum(axis=0) \
-            for lvl,grp in itertools.groupby(sorted(zip(x,y),key=lambda x:x[0]),lambda x:x[0])])
+            for lvl,grp in itertools.groupby(sorted(zip(x,y),key=lambda k:k[0]),lambda k:k[0])])
     return unique_sorted_x,summed_sorted_y
