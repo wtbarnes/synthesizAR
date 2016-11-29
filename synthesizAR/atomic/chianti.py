@@ -178,6 +178,8 @@ class ChIon(object):
         Calculate level populations for excited states as a function of temperature
         for relevant transitions.
         """
+        self.logger.debug('''Calculating descaled collision strengths and excitation and
+                            deexcitation rates for electrons.''')
         upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
         l2_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
@@ -187,6 +189,8 @@ class ChIon(object):
 
         # account for protons if the file exists
         if hasattr(self,'_psplups'):
+            self.logger.debug('''Calculating descaled collision strengths and excitation and
+                                deexcitation rates for protons.''')
             upsilon_proton,excitation_rate_proton,deexcitation_rate_proton \
                                                 = self._calculate_collision_strengths(protons=True)
             # create excitation/deexcitation rate sums for broadcasting
@@ -197,6 +201,7 @@ class ChIon(object):
 
         process_matrix = np.zeros([self.n_levels,self.n_levels])
         # add spontaneous emission, TODO: correction for recombination and ionization
+        self.logger.debug('Adding contributions from A-values to population matrix.')
         process_matrix[np.array(self._wgfa['lvl1'])-1,
                         np.array(self._wgfa['lvl2'])-1] += self._wgfa['avalue']
         # sum all of the level 2 Avalues to broadcast
@@ -233,6 +238,7 @@ class ChIon(object):
                 _tmp[l2_indices_proton-1,l2_indices_proton-1] -= npr*_proton_dex_broadcast[:,i]
             # TODO: add effects from ionization and recombination
             # invert
+            self.logger.debug('Calculating level populations for T,ne,np = {}'.format(T,nel,npr))
             _tmp[-1,:] = np.ones(_tmp.shape[0])
             populations[:,i] = np.linalg.solve(_tmp,b)
 
@@ -255,8 +261,10 @@ class ChIon(object):
             self.logger.info('Expressing emissivity in units of photons')
             energy_factor = 1.0*u.photon
         # calculate level populations
+        self.logger.info('Calculating level populations.')
         level_populations = self._calculate_level_populations()
         # calculate emissivity
+        self.logger.info('Calculating emissivity')
         emissivity = ((level_populations[lvl2-1,:]).T*avalues*energy_factor).T
 
         return wavelength,emissivity
