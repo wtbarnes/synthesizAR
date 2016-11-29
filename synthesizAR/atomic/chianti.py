@@ -11,6 +11,7 @@ import itertools
 
 import numpy as np
 from scipy.interpolate import interp1d,splrep,splev
+from scipy.linalg import solve
 import matplotlib.pyplot as plt
 import astropy.units as u
 import astropy.constants as const
@@ -240,7 +241,7 @@ class ChIon(object):
             # invert
             self.logger.debug('Calculating level populations for T,ne,np = {}'.format(T,nel,npr))
             _tmp[-1,:] = np.ones(_tmp.shape[0])
-            populations[:,i] = np.linalg.solve(_tmp,b)
+            populations[:,i] = solve(_tmp,b)
 
         return populations
 
