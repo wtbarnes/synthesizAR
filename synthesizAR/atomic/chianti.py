@@ -4,12 +4,12 @@ This should eventually be deprecated in favor of using ChiantiPy.
 """
 
 import os
-import warnings
 import logging
 import copy
 import itertools
 
 import numpy as np
+import h5py
 from scipy.interpolate import interp1d,splrep,splev
 import matplotlib.pyplot as plt
 import astropy.units as u
@@ -35,7 +35,7 @@ class ChIon(object):
 
 
     @u.quantity_input(temperature=u.K,electron_density=u.cm**(-3))
-    def __init__(self,ion_name,temperature,electron_density,setup=True,**kwargs):
+    def __init__(self,ion_name,temperature,electron_density,chianti_db_h5,setup=True,**kwargs):
         self.logger = logging.getLogger(name=type(self).__name__)
         if ion_name not in ch_tools.data.MasterList:
             raise ValueError('{} not in CHIANTI database'.format(ion_name))
@@ -44,9 +44,11 @@ class ChIon(object):
         self.meta['spectroscopic_name'] = ch_tools.util.zion2spectroscopic(self.meta['Z'],
                                                                             self.meta['Ion'])
         self.meta['rcparams'] = ch_tools.data.Defaults.copy()
+        # set location of CHIANTI database
+        self._chianti_db_h5 = chianti_db_h5
         # read ion data from CHIANTI database
         if setup:
-            self._read_chianti_db(**kwargs)
+            self._setup_ion(**kwargs)
         # check and set temperature and density
         if temperature.size != electron_density.size:
             if temperature.size == 1:
@@ -60,30 +62,46 @@ class ChIon(object):
         self.electron_density = electron_density
         self.proton_density = electron_density*self._calculate_proton_density()
 
-    def _read_chianti_db(self,**kwargs):
+    def _setup_ion(self,**kwargs):
         """
         Read files from CHIANTI database for specified ion
         """
         _tmp = ch_tools.io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
         self.abundance = _tmp['abundance'][self.meta['Z']-1]
         self.meta['abundance_filename'] = _tmp['abundancename']
-        self._elvlc = ch_tools.io.elvlcRead(self.meta['name'])
-        self._wgfa = ch_tools.io.wgfaRead(self.meta['name'])
-        _tmp = ch_tools.io.scupsRead(self.meta['name'])
+        elvlc_lvl = self._read_chianti_db_h5('elvlc','lvl')
+        wgfa_lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
         #FIXME: These warnings should really go in the respective reader functions
-        if 'file not found' not in _tmp:
-            self._scups = _tmp.copy()
-            n_levels_scups = np.max(self._scups['lvl2'])
-        else:
-            warnings.warn('{} not found'.format(_tmp['file not found']))
+        try:
+            self._has_scups = True
+            scups_lvl2 = self._read_chianti_db_h5('scups','lvl2')
+            n_levels_scups = np.max(scups_lvl2)
+        except ValueError:
+            self._has_scups = False
+            self.logger.warning('{} scups file not found'.format(self.meta['spectroscopic_name']))
             n_levels_scups = 1e+300
-        _tmp = ch_tools.io.splupsRead(self.meta['name'],filetype='psplups')
-        if 'file not found' not in _tmp:
-            self._psplups = _tmp.copy()
-        else:
-            warnings.warn('{} not found'.format(_tmp['file not found']))
-        self.n_levels = np.min([np.max(self._elvlc['lvl']),np.max(self._wgfa['lvl2']),
-                                n_levels_scups])
+        try:
+            psplups_tmp = self._read_chianti_db_h5('psplups','lvl2')
+            self._has_psplups = True
+        except ValueError:
+            self._has_psplups = False
+            self.logger.warning('{} psplups file not found'.format(self.meta['spectroscopic_name']))
+        self.n_levels = np.min([np.max(elvlc_lvl),np.max(wgfa_lvl2),n_levels_scups])
+
+    def _read_chianti_db_h5(self,filetype,data):
+        """
+        Reader function for CHIANTI data from HDF5 file
+        """
+        with h5py.File(self._chianti_db_h5,'r') as hf:
+            _tmp_grp = hf[os.path.join('/',self.meta['Element'],self.meta['Ion'])]
+            if filetype in _tmp_grp:
+                _tmp = np.array(hf[os.path.join('/',self.meta['Element'],self.meta['Ion'],filetype,
+                                            data)])
+            else:
+                raise ValueError('{} file does not exist for {}'.format(filetype,
+                                                                self.meta['spectroscopic_name']))
+        return _tmp
+
 
     def _calculate_proton_density(self):
         """
