@@ -95,13 +95,12 @@ class ChIon(object):
         with h5py.File(self._chianti_db_h5,'r') as hf:
             _tmp_grp = hf[os.path.join('/',self.meta['Element'],self.meta['Ion'])]
             if filetype in _tmp_grp:
-                _tmp = np.array(hf[os.path.join('/',self.meta['Element'],self.meta['Ion'],filetype,
-                                            data)])
+                _tmp = np.array(hf[os.path.join('/',self.meta['Element'],str(self.meta['Ion']),
+                                                filetype,data)])
             else:
                 raise ValueError('{} file does not exist for {}'.format(filetype,
                                                                 self.meta['spectroscopic_name']))
         return _tmp
-
 
     def _calculate_proton_density(self):
         """
