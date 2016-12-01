@@ -93,10 +93,9 @@ class ChIon(object):
         Reader function for CHIANTI data from HDF5 file
         """
         with h5py.File(self._chianti_db_h5,'r') as hf:
-            _tmp_grp = hf[os.path.join('/',self.meta['Element'],self.meta['Ion'])]
+            _tmp_grp = hf[os.path.join('/',self.meta['Element'],str(self.meta['Ion']))]
             if filetype in _tmp_grp:
-                _tmp = np.array(hf[os.path.join('/',self.meta['Element'],str(self.meta['Ion']),
-                                                filetype,data)])
+                _tmp = np.array(_tmp_grp[os.path.join(filetype,data)])
             else:
                 raise ValueError('{} file does not exist for {}'.format(filetype,
                                                                 self.meta['spectroscopic_name']))
