@@ -78,11 +78,10 @@ class Observer(object):
                     #iterate over channels
                     for channel in instr.channels:
                         self.logger.debug(
-                            'Calculating counts for channel{}'.format(channel['name']))
+                                        'Calculating counts for channel{}'.format(channel['name']))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
-                        f_s = interp1d(loop.field_aligned_coordinate.value,
-                                                        counts.value,axis=1)
+                        f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
                         interpolated_counts = interp1d(loop.time.value,f_s(interpolated_s),
                                                         axis=0)(instr.observing_time)
                         #save to file

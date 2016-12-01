@@ -259,8 +259,10 @@ class Skeleton(object):
         self.hmi_map.plot()
         ax.set_autoscale_on(False)
         for stream,_ in self.streamlines:
-            ax.plot(self._convert_angle_to_length(stream[:,0]*u.cm,working_units=u.arcsec).to(u.deg),
-                    self._convert_angle_to_length(stream[:,1]*u.cm,working_units=u.arcsec).to(u.deg),
+            ax.plot(self._convert_angle_to_length(stream[:,0]*u.cm,
+                                        working_units=u.arcsec).to(u.deg),
+                    self._convert_angle_to_length(stream[:,1]*u.cm,
+                                        working_units=u.arcsec).to(u.deg),
                     alpha=alpha,color=color,transform=ax.get_transform('world'))
 
         if print_to_file is not None:
