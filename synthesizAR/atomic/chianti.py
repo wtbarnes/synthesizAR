@@ -275,7 +275,7 @@ class ChIon(object):
         #find where wavelength is nonzero
         wavelength = np.fabs(self._read_chianti_db_h5('wgfa','wvl'))*u.angstrom
         lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
-        avalues = self._read_chianti_db_h5('avalue')/u.s
+        avalues = self._read_chianti_db_h5('wgfa','avalue')/u.s
         # exclude two-photon decays that are denoted by 0 wavelength
         lvl2 = lvl2[wavelength!=0]
         avalues = avalues[wavelength!=0]
