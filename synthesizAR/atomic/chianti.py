@@ -158,13 +158,11 @@ class ChIon(object):
             btemp = self._read_chianti_db_h5(filetype,'btemp')
         energy_ratios = np.outer((self._read_chianti_db_h5(filetype,'de')*u.Ry).to(u.erg),
                                 1.0/(self.temperature*const.k_B.cgs))
-        upsilon = [self._descale_collision_strengths(x,y,er,c,btt) \
-                        for x,y,er,c,btt in zip(btemp,
-                                            self._read_chianti_db_h5(filetype,scups_key),
-                                            1.0/energy_ratios,
-                                            self._read_chianti_db_h5(filetype,'cups'),
-                                            self._read_chianti_db_h5(filetype,'ttype'))]
-        upsilon = np.array(upsilon)
+        upsilon = np.array(list(map(self._descale_collision_strengths,btemp,
+                                                    self._read_chianti_db_h5(filetype,scups_key),
+                                                    1.0/energy_ratios,
+                                                    self._read_chianti_db_h5(filetype,'cups'),
+                                                    self._read_chianti_db_h5(filetype,'ttype'))))
         upsilon = np.where(upsilon>0.,upsilon,0.0)
 
         #alias some chianti data
@@ -174,10 +172,8 @@ class ChIon(object):
         elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
 
         #calculate weights
-        lower_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] \
-                                    for lvl in scups_lvl1])
-        upper_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] \
-                                    for lvl in scups_lvl2])
+        lower_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] for lvl in scups_lvl1])
+        upper_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] for lvl in scups_lvl2])
         # modified transition energies
         _tmp_level_energies = list(np.where(self._read_chianti_db_h5('elvlc','eryd')>=0,
                                             self._read_chianti_db_h5('elvlc','eryd'),
@@ -185,8 +181,7 @@ class ChIon(object):
         _tmp_transition_energies = np.array(
             [_tmp_level_energies[elvlc_lvl.index(l2)] - _tmp_level_energies[elvlc_lvl.index(l1)] \
             for l1,l2 in zip(scups_lvl1,scups_lvl2)])*u.Ry.to(u.erg)
-        energy_ratios = np.outer(_tmp_transition_energies,
-                                1.0/(self.temperature*const.k_B.cgs))
+        energy_ratios = np.outer(_tmp_transition_energies,1.0/(self.temperature*const.k_B.cgs))
         #calculate excitation and deexcitation rates
         _rate_factor = 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)\
                         /(self.temperature*const.k_B.cgs))*upsilon
@@ -210,10 +205,8 @@ class ChIon(object):
                             deexcitation rates for electrons.''')
         upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
-        l1_indices_electron,_electron_ex_broadcast = collect_points(scups_lvl1,
-                                                                    excitation_rate)
-        l2_indices_electron,_electron_dex_broadcast = collect_points(scups_lvl2,
-                                                                    deexcitation_rate)
+        l1_indices_electron,_electron_ex_broadcast = collect_points(scups_lvl1,excitation_rate)
+        l2_indices_electron,_electron_dex_broadcast = collect_points(scups_lvl2,deexcitation_rate)
 
         # account for protons if the file exists
         if self._has_psplups:
