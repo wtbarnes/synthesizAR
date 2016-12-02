@@ -149,36 +149,42 @@ class ChIon(object):
         Calculate collision strengths and excitation and de-excitation rates.
         """
         if protons:
-            collision_data = self._psplups
+            filetype = 'psplups'
             scups_key = 'splups'
-            collision_data['btemp'] = [np.linspace(0,1,n_spline) for n_spline \
-                                                                    in collision_data['nspl']]
+            btemp = [np.linspace(0,1,n_spline) for n_spline in self._read_chianti_db_h5(filetype,'nspl')]
         else:
-            collision_data = self._scups
+            filetype = 'scups'
             scups_key = 'bscups'
-        energy_ratios = np.outer((collision_data['de']*u.Ry).to(u.erg),
+            btemp = self._read_chianti_db_h5(filetype,'btemp')
+        energy_ratios = np.outer((self._read_chianti_db_h5(filetype,'de')*u.Ry).to(u.erg),
                                 1.0/(self.temperature*const.k_B.cgs))
         upsilon = [self._descale_collision_strengths(x,y,er,c,btt) \
-                    for x,y,er,c,btt in zip(collision_data['btemp'],
-                                            collision_data[scups_key],
+                        for x,y,er,c,btt in zip(btemp,
+                                            self._read_chianti_db_h5(filetype,scups_key),
                                             1.0/energy_ratios,
-                                            collision_data['cups'],
-                                            collision_data['ttype'])]
+                                            self._read_chianti_db_h5(filetype,'cups'),
+                                            self._read_chianti_db_h5(filetype,'ttype'))]
         upsilon = np.array(upsilon)
         upsilon = np.where(upsilon>0.,upsilon,0.0)
+
+        #alias some chianti data
+        scups_lvl1 = self._read_chianti_db_h5(filetype,'lvl1')
+        scups_lvl2 = self._read_chianti_db_h5(filetype,'lvl2')
+        elvlc_lvl = list(self._read_chianti_db_h5('elvlc','lvl'))
+        elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
+
         #calculate weights
-        lower_weights = np.array([self._elvlc['mult'][self._elvlc['lvl'].index(lvl)] \
-                                    for lvl in collision_data['lvl1']])
-        upper_weights = np.array([self._elvlc['mult'][self._elvlc['lvl'].index(lvl)] \
-                                    for lvl in collision_data['lvl2']])
+        lower_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] \
+                                    for lvl in scups_lvl1])
+        upper_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] \
+                                    for lvl in scups_lvl2])
         # modified transition energies
-        _tmp_level_energies = list(np.where(np.array(self._elvlc['eryd'])>=0,
-                                            np.array(self._elvlc['eryd']),
-                                            np.array(self._elvlc['erydth'])))
+        _tmp_level_energies = list(np.where(self._read_chianti_db_h5('elvlc','eryd')>=0,
+                                            self._read_chianti_db_h5('elvlc','eryd'),
+                                            self._read_chianti_db_h5('elvlc','erydth')))
         _tmp_transition_energies = np.array(
-            [_tmp_level_energies[self._elvlc['lvl'].index(l2)] \
-            - _tmp_level_energies[self._elvlc['lvl'].index(l1)] \
-            for l1,l2 in zip(collision_data['lvl1'],collision_data['lvl2'])])*u.Ry.to(u.erg)
+            [_tmp_level_energies[elvlc_lvl.index(l2)] - _tmp_level_energies[elvlc_lvl.index(l1)] \
+            for l1,l2 in zip(scups_lvl1,scups_lvl2)])*u.Ry.to(u.erg)
         energy_ratios = np.outer(_tmp_transition_energies,
                                 1.0/(self.temperature*const.k_B.cgs))
         #calculate excitation and deexcitation rates
@@ -194,34 +200,42 @@ class ChIon(object):
         Calculate level populations for excited states as a function of temperature
         for relevant transitions.
         """
+        #alias some of the chianti data
+        wgfa_lvl1 = self._read_chianti_db_h5('wgfa','lvl1')
+        wgfa_lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
+        wgfa_avalue = self._read_chianti_db_h5('wgfa','avalue')
+        scups_lvl1 = self._read_chianti_db_h5('scups','lvl1')
+        scups_lvl2 = self._read_chianti_db_h5('scups','lvl2')
         self.logger.debug('''Calculating descaled collision strengths and excitation and
                             deexcitation rates for electrons.''')
         upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
-        l1_indices_electron,_electron_ex_broadcast = collect_points(self._scups['lvl1'],
-                                                                        excitation_rate)
-        l2_indices_electron,_electron_dex_broadcast = collect_points(self._scups['lvl2'],
-                                                                        deexcitation_rate)
+        l1_indices_electron,_electron_ex_broadcast = collect_points(scups_lvl1,
+                                                                    excitation_rate)
+        l2_indices_electron,_electron_dex_broadcast = collect_points(scups_lvl2,
+                                                                    deexcitation_rate)
 
         # account for protons if the file exists
-        if hasattr(self,'_psplups'):
+        if self._has_psplups:
+            #alias some of the chianti data
+            psplups_lvl1 = self._read_chianti_db_h5('psplups','lvl1')
+            psplups_lvl2 = self._read_chianti_db_h5('psplups','lvl2')
             self.logger.debug('''Calculating descaled collision strengths and excitation and
                                 deexcitation rates for protons.''')
             upsilon_proton,excitation_rate_proton,deexcitation_rate_proton \
                                                 = self._calculate_collision_strengths(protons=True)
             # create excitation/deexcitation rate sums for broadcasting
-            l1_indices_proton,_proton_ex_broadcast = collect_points(self._psplups['lvl1'],
+            l1_indices_proton,_proton_ex_broadcast = collect_points(psplups_lvl1,
                                                                     excitation_rate_proton)
-            l2_indices_proton,_proton_dex_broadcast = collect_points(self._psplups['lvl2'],
+            l2_indices_proton,_proton_dex_broadcast = collect_points(psplups_lvl2,
                                                                     deexcitation_rate_proton)
 
         process_matrix = np.zeros([self.n_levels,self.n_levels])
         # add spontaneous emission, TODO: correction for recombination and ionization
         self.logger.debug('Adding contributions from A-values to population matrix.')
-        process_matrix[np.array(self._wgfa['lvl1'])-1,
-                        np.array(self._wgfa['lvl2'])-1] += self._wgfa['avalue']
+        process_matrix[wgfa_lvl1-1,wgfa_lvl2-1] += wgfa_avalue
         # sum all of the level 2 Avalues to broadcast
-        wgfa_indices,_wgfa_broadcasts = collect_points(self._wgfa['lvl2'],self._wgfa['avalue'])
+        wgfa_indices,_wgfa_broadcasts = collect_points(wgfa_lvl2,wgfa_avalue)
         process_matrix[wgfa_indices-1,wgfa_indices-1] -= _wgfa_broadcasts
         #TODO: add photoexcitation and stimulated emission
 
@@ -234,20 +248,16 @@ class ChIon(object):
                                             self.temperature)):
             _tmp = np.copy(process_matrix)
             # excitation and de-excitation by electrons
-            _tmp[np.array(self._scups['lvl1'])-1,
-                np.array(self._scups['lvl2'])-1] += nel*deexcitation_rate[:,i]
-            _tmp[np.array(self._scups['lvl2'])-1,
-                np.array(self._scups['lvl1'])-1] += nel*excitation_rate[:,i]
+            _tmp[scups_lvl1-1,scups_lvl2-1] += nel*deexcitation_rate[:,i]
+            _tmp[scups_lvl2-1,scups_lvl1-1] += nel*excitation_rate[:,i]
             # broadcast summed excitation rates for level 1
             _tmp[l1_indices_electron-1,l1_indices_electron-1] -= nel*_electron_ex_broadcast[:,i]
             # sum deexcitation rates for level 2 to broadcast
             _tmp[l2_indices_electron-1,l2_indices_electron-1] -= nel*_electron_dex_broadcast[:,i]
             # excitation and de-excitation by protons
             if hasattr(self,'_psplups'):
-                _tmp[np.array(self._psplups['lvl1'])-1,
-                     np.array(self._psplups['lvl2'])-1] += npr*deexcitation_rate_proton[:,i]
-                _tmp[np.array(self._psplups['lvl2'])-1,
-                     np.array(self._psplups['lvl1'])-1] += npr*excitation_rate_proton[:,i]
+                _tmp[psplups_lvl1-1,psplups_lvl2-1] += npr*deexcitation_rate_proton[:,i]
+                _tmp[psplups_lvl2-1,psplups_lvl1-1] += npr*excitation_rate_proton[:,i]
                 # sum excitation rates for level 1 broadcast
                 _tmp[l1_indices_proton-1,l1_indices_proton-1] -= npr*_proton_ex_broadcast[:,i]
                 # sum deexcitation rates for level 2 broadcast
@@ -263,9 +273,9 @@ class ChIon(object):
     def calculate_emissivity(self):
         """Calculate the emissivity for each transition"""
         #find where wavelength is nonzero
-        wavelength = np.fabs(np.array(self._wgfa['wvl']))*u.angstrom
-        lvl2 = np.array(self._wgfa['lvl2'])
-        avalues = np.array(self._wgfa['avalue'])/u.s
+        wavelength = np.fabs(self._read_chianti_db_h5('wgfa','wvl'))*u.angstrom
+        lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
+        avalues = self._read_chianti_db_h5('avalue')/u.s
         # exclude two-photon decays that are denoted by 0 wavelength
         lvl2 = lvl2[wavelength!=0]
         avalues = avalues[wavelength!=0]
