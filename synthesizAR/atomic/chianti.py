@@ -67,7 +67,7 @@ class ChIon(object):
         Read files from CHIANTI database for specified ion
         """
         _tmp = ch_tools.io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
-        self.abundance = _tmp['abundance'][self.meta['Z']-1]
+        self.abundance = _tmp['abundance'][self.meta['Z']-1]*u.s/u.s
         self.meta['abundance_filename'] = _tmp['abundancename']
         elvlc_lvl = self._read_chianti_db_h5('elvlc','lvl')
         wgfa_lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
@@ -159,10 +159,10 @@ class ChIon(object):
         energy_ratios = np.outer((self._read_chianti_db_h5(filetype,'de')*u.Ry).to(u.erg),
                                 1.0/(self.temperature*const.k_B.cgs))
         upsilon = np.array(list(map(self._descale_collision_strengths,btemp,
-                                                    self._read_chianti_db_h5(filetype,scups_key),
-                                                    1.0/energy_ratios,
-                                                    self._read_chianti_db_h5(filetype,'cups'),
-                                                    self._read_chianti_db_h5(filetype,'ttype'))))
+                                    self._read_chianti_db_h5(filetype,scups_key),
+                                    1.0/energy_ratios,
+                                    self._read_chianti_db_h5(filetype,'cups'),
+                                    self._read_chianti_db_h5(filetype,'ttype'))))
         upsilon = np.where(upsilon>0.,upsilon,0.0)
 
         #alias some chianti data
@@ -306,4 +306,5 @@ class ChIon(object):
                                                             self.temperature[match_indices].value))
         fractional_ionization[fractional_ionization<0] = 0.0
 
-        return fractional_ionization
+        # make it a unitless quantity
+        return fractional_ionization*u.s/u.s
