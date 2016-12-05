@@ -38,7 +38,8 @@ class InstrumentBase(object):
         fits_header['cdelt2'] = self.resolution.y.value
         fits_header['crpix1'] = (self.bins.x + 1.0)/2.0
         fits_header['crpix2'] = (self.bins.y + 1.0)/2.0
-        fits_header['instrume'] = channel['instrument_label']
+        if 'instrume' not in fits_header:
+            fits_header['instrume'] = channel['instrument_label']
         fits_header['wavelnth'] = int(channel['wavelength'].value)
 
         return fits_header
