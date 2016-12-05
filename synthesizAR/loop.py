@@ -8,6 +8,7 @@ import numpy as np
 import astropy.units as u
 import h5py
 
+
 class Loop(object):
     """
     Coronal loop object for easily handling all of the properties associated with a loop in
@@ -21,6 +22,7 @@ class Loop(object):
     -----
     """
 
+
     def __init__(self,name,coordinates,field_strength):
         """
         Constructor
@@ -32,7 +34,6 @@ class Loop(object):
         #Load in field strength along the field line; convert from Tesla to Gauss
         self.field_strength = (np.array(field_strength)*u.T).to(u.Gauss)
 
-
     @property
     def field_aligned_coordinate(self):
         """
@@ -41,7 +42,6 @@ class Loop(object):
         return np.append(0., np.linalg.norm(np.diff(self.coordinates.value,axis=0),
                                             axis=1).cumsum())*self.coordinates.unit
 
-
     @property
     def full_length(self):
         """
@@ -49,7 +49,6 @@ class Loop(object):
         """
         return np.sum(np.linalg.norm(np.diff(self.coordinates.value,axis=0),
                                     axis=1))*self.coordinates.unit
-
 
     @property
     def temperature(self):
@@ -65,7 +64,6 @@ class Loop(object):
         else:
             return self._temperature
 
-
     @property
     def density(self):
         """
@@ -80,14 +78,14 @@ class Loop(object):
         else:
             return self._density
 
-
+    @u.quantity_input(wavelength=u.angstrom)
     def get_emissivity(self,wavelength):
         """
         Get the calculated emissivity that was either set or saved to disk
         """
         if hasattr(self,'emissivity_savefile'):
             with h5py.File(self.emissivity_savefile,'r') as hf:
-                dset = hf[os.path.join(self.name,wavelength)]
+                dset = hf[os.path.join(self.name,str(wavelength.to(u.angstrom).value))]
                 emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
             emiss = self.emissivity[wavelength]
