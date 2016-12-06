@@ -2,9 +2,11 @@
 Base class for instrument objects.
 """
 
+import logging
 from collections import namedtuple
 
 import numpy as np
+import astropy.units as u
 
 Pair = namedtuple('Pair','x y')
 
@@ -15,6 +17,15 @@ class InstrumentBase(object):
     `Observer` class to get the detector counts.
     """
 
+
+    @u.quantity_input(observing_time=u.s)
+    def __init__(self,observing_time,observing_area=None):
+        self.logger = logging.getLogger(name=type(self).__name__)
+        self.observing_time = np.arange(
+                            observing_time[0].to(u.s).value,
+                            observing_time[1].to(u.s).value,
+                            self.cadence.value)*u.s
+        self.observing_area = observing_area
 
     def detect(self,loop,channel):
         """

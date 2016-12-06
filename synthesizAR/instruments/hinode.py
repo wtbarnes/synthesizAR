@@ -23,7 +23,7 @@ class InstrumentHinodeEIS(InstrumentBase):
     spatial, and temporal resolution along with the instrument response functions.
     """
 
-    name = 'Hinode/EIS'
+    name = 'Hinode_EIS'
     cadence = 10.0*u.s
     resolution = Pair(1.0*u.arcsec/u.pixel,2.0*u.arcsec/u.pixel)
     fits_template = sunpy.map.header.MapMeta()
@@ -32,8 +32,8 @@ class InstrumentHinodeEIS(InstrumentBase):
     fits_template['detector'] = 'EIS'
     fits_template['waveunit'] = 'angstrom'
 
-    def __init__(self,detector_file_dir):
-        self.logger = logging.getLogger(name=type(self).__name__)
+    def __init__(self,detector_file_dir,observing_time,observing_area=None):
+        super.__init__(observing_time,observing_area)
         self._setup_from_file(detector_file_dir)
 
     def _setup_from_file(self,detector_file_dir):
@@ -66,7 +66,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        counts = np._replace_zero_by_x_arrays(loop.density.shape)
+        counts = np.zeros(loop.density.shape)
         nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
         for wavelength in loop.wavelengths:
             if channel['response']['x'][0] <= wavelength <= channel['response']['x'][-1]:

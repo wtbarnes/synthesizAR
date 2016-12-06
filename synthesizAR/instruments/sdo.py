@@ -65,15 +65,9 @@ class InstrumentSDOAIA(InstrumentBase):
     cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel)
 
-
     def __init__(self, observing_time, observing_area=None,
     use_temperature_response_functions=True,response_function_file=''):
-        self.logger = logging.getLogger(name=type(self).__name__)
-        self.observing_time = np.arange(
-                            observing_time[0].to(u.s).value,
-                            observing_time[1].to(u.s).value,
-                            self.cadence.value)*u.s
-        self.observing_area = observing_area
+        super().__init__(observing_time,observing_area)
         self.use_temperature_response_functions = use_temperature_response_functions
         if self.use_temperature_response_functions and response_function_file:
             self._setup_response_functions(response_function_file)
