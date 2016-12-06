@@ -6,7 +6,7 @@ import os
 import logging
 
 import numpy as np
-from scipy.interpolate import splev,splrep,interp1d
+from scipy.interpolate import splev,splprep,interp1d
 import scipy.ndimage
 import astropy.units as u
 import sunpy.map
