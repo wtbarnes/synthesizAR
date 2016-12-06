@@ -33,7 +33,7 @@ class InstrumentHinodeEIS(InstrumentBase):
     fits_template['waveunit'] = 'angstrom'
 
     def __init__(self,detector_file_dir,observing_time,observing_area=None):
-        super.__init__(observing_time,observing_area)
+        super().__init__(observing_time,observing_area)
         self._setup_from_file(detector_file_dir)
 
     def _setup_from_file(self,detector_file_dir):
