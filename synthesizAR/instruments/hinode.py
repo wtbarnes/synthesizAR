@@ -41,7 +41,8 @@ class InstrumentHinodeEIS(InstrumentBase):
         Read instrument properties from files. This is a temporary solution and requires that the
         detector files all be collected into the same directory and be formatted in a specific way.
 
-        .. warning: This method will be modified once EIS response functions become available in a different format.
+        .. warning:: This method will be modified once EIS response functions become
+                    available in a different format.
         """
         eis_instr_files = glob.glob(os.path.join(detector_file_dir,'EIS_*_*.*.ins'))
         self.channels = []
@@ -65,8 +66,11 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        pass
-        #find which wavelengths fall inside the given channel
-        #interpolate to find the response function for those lines
-        #multiply this value by the emissivity
-        #repeat as needed for as many lines fall inside the channel
+        counts = np._replace_zero_by_x_arrays(loop.density.shape)
+        nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
+        for wavelength in loop.wavelengths:
+            if channel['response']['x'][0] <= wavelength <= channel['response']['x'][-1]:
+                response  = splev(wavelength,nots)
+                counts += response*loop.get_emissivity(wavelength)
+
+        return counts
