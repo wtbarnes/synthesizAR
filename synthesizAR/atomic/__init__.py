@@ -3,4 +3,4 @@ Emissivity models and atomic calculations for simulating radiation from coronal 
 """
 
 from .chianti import ChIon
-from .emiss_models import EquilibriumModel
+from .emission_models import EquilibriumEmissionModel
