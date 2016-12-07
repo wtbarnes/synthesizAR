@@ -48,8 +48,10 @@ class InstrumentHinodeEIS(InstrumentBase):
         self.channels = []
         for eif in eis_instr_files:
             #extract some metadata from the filename
-            wave = float('.'.join(os.path.basename(eif).split('_')[-1].split('.')[:-1]))*u.angstrom
-            name = '{} {}'.format(os.path.basename(eif).split('_')[1],wave.value)
+            base = os.path.splitext(os.path.basename(eif))[0]
+            wave = float(base.split('_')[-1])*u.angstrom
+            name = '{}_{}_{}'.format(base.split('_')[1][:2],base.split('_')[1][2:],
+                                    wave.value)
             #read the response function from the file
             with open(eif,'r') as f:
                 lines = f.readlines()
