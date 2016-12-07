@@ -7,6 +7,7 @@ import logging
 import datetime
 import pickle
 import glob
+import functools
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,7 +20,7 @@ import solarbextrapolation.map3dclasses
 import solarbextrapolation.extrapolators
 
 from synthesizAR.util import convert_angle_to_length,find_seed_points
-from .loop import Loop
+from synthesizAR import Loop
 
 
 class Skeleton(object):
@@ -28,18 +29,19 @@ class Skeleton(object):
 
     Parameters
     ----------
+    hmi_fits_file : `str`
+        Path to HMI magnetogram FITS file
 
     Examples
     --------
-    """
-    def __init__(self,hmi_fits_file=None,**kwargs):
-        """
-        Constructor
 
-        Notes
-        -----
-        Right now, this class just accepts an HMI fits file. Could be adjusted to do the actual query as well.
-        """
+    Notes
+    -----
+    Right now, this class just accepts an HMI fits file. Could be adjusted to do the actual query as well.
+    """
+
+
+    def __init__(self,hmi_fits_file=None,**kwargs):
         self.logger = logging.getLogger(name=type(self).__name__)
         if hmi_fits_file is not None:
             tmp_map = sunpy.map.Map(hmi_fits_file)
@@ -96,6 +98,11 @@ class Skeleton(object):
     def restore_field(cls,savedir):
         """
         Restore the field from a set of serialized files
+
+        Examples
+        --------
+        >>> import synthesizAR
+        >>> restored_field = synthesizAR.Skeleton.restored_field('/path/to/restored/field/dir')
         """
         #loops
         loop_files = glob.glob(os.path.join(savedir,'loops','*'))
@@ -165,8 +172,7 @@ class Skeleton(object):
     @u.quantity_input(loop_length_range=u.cm)
     def _filter_streamlines(self,streamline,close_threshold=0.05,loop_length_range=[2.e+9,5.e+10]*u.cm):
         """
-        Check extracted loop to make sure it fits given criteria. Return
-        True if it passes.
+        Check extracted loop to make sure it fits given criteria. Return True if it passes.
 
         Parameters
         ----------
@@ -185,6 +191,7 @@ class Skeleton(object):
         else:
             return True
 
+    @u.quantity_input(zrange=self.hmi_map.xrange.unit)
     def extrapolate_field(self,zshape,zrange,use_numba_for_extrapolation=True):
         """
         Extrapolate the 3D field and transform it into a yt data object.
@@ -199,12 +206,14 @@ class Skeleton(object):
         self.logger.debug('Transforming to yt data object')
         self._transform_to_yt(map_3d)
 
-    def extract_streamlines(self,number_fieldlines,max_tries=100):
+    def extract_streamlines(self,number_fieldlines,max_tries=100,**kwargs):
         """
         Trace the fieldlines through extrapolated 3D volume
         """
         #trace field and return list of field lines
         self.logger.info('Tracing fieldlines')
+        #wrap the streamline filter method so we can pass a loop length range to it
+        streamline_filter_wrapper = functools.partial(self._filter_streamlines,**kwargs)
         self.streamlines = []
         seed_points = []
         i_tries = 0
@@ -218,7 +227,7 @@ class Skeleton(object):
             streamlines.integrate_through_volume()
             streamlines.clean_streamlines()
             #filter
-            keep_streamline = list(map(self._filter_streamlines,streamlines.streamlines))
+            keep_streamline = list(map(streamline_filter_wrapper,streamlines.streamlines))
             if True not in keep_streamline:
                 i_tries += 1
                 self.logger.debug('No acceptable streamlines found. # of tries left = {}'.format(max_tries-i_tries))
@@ -287,27 +296,25 @@ class Skeleton(object):
                 loop._temperature = temperature
                 loop._density = density
 
-    def calculate_emissivity(self,emissivity_model,savefile=None,**kwargs):
+    def calculate_emission(self,emission_model,savefile=None,**kwargs):
         """
-        Calculate emissivity as function of time and space for each loop
+        Calculate emission (energy or photons per unit volume per unit time per unit solid angle) as function of time and space for each loop
         """
         for loop in self.loops:
             self.logger.debug('Calculating emissivity for loop {}'.format(loop.name))
             loop.wavelengths = emissivity_model.wavelengths
-            emiss = emissivity_model.calculate_emissivity(loop.temperature,
-                                                          loop.density,
-                                                          **kwargs)
+            emiss = emission_model.calculate_emission(loop.temperature,loop.density,**kwargs)
             if savefile is not None:
-                loop.emissivity_savefile = savefile
+                loop.emission_savefile = savefile
                 with h5py.File(savefile,'a') as hf:
                     if loop.name not in hf:
                         hf.create_group(loop.name)
                     for key in emiss:
-                        self.logger.debug('Saving emissivity for {}'.format(key))
+                        self.logger.debug('Saving emission for {}'.format(key))
                         dset = hf[loop.name].create_dataset(key.split(' ')[-2],
                                                             data=emiss[key].value)
                         dset.attrs['units'] = emiss[key].unit.to_string()
                         dset.attrs['wavelength_units'] = key.split(' ')[-1]
                         dset.attrs['ion_name'] = ' '.join(key.split(' ')[:2])
             else:
-                loop.emissivity = emiss
+                loop.emission = emiss

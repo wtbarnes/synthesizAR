@@ -24,9 +24,6 @@ class Loop(object):
 
 
     def __init__(self,name,coordinates,field_strength):
-        """
-        Constructor
-        """
         #set unique label for loop object
         self.name = name
         #Load in cartesian coordinates, assign units as centimeters
@@ -37,7 +34,7 @@ class Loop(object):
     @property
     def field_aligned_coordinate(self):
         """
-        Field-aligned coordinate s. This will have the same units the original coordinates.
+        Field-aligned coordinate :math:`s`. This will have the same units the original coordinates.
         """
         return np.append(0., np.linalg.norm(np.diff(self.coordinates.value,axis=0),
                                             axis=1).cumsum())*self.coordinates.unit
@@ -45,7 +42,7 @@ class Loop(object):
     @property
     def full_length(self):
         """
-        Loop full-length 2L. This will have the same units as the original coordinates.
+        Loop full-length :math:`2L`. This will have the same units as the original coordinates.
         """
         return np.sum(np.linalg.norm(np.diff(self.coordinates.value,axis=0),
                                     axis=1))*self.coordinates.unit
@@ -53,8 +50,8 @@ class Loop(object):
     @property
     def temperature(self):
         """
-        Return loop temperature as function of coordinate and time either
-        from file or from memory
+        Loop temperature as function of coordinate and time. Can be stored in memory or pulled from
+        an HDF5 file.
         """
         if hasattr(self,'parameters_savefile'):
             with h5py.File(self.parameters_savefile,'r') as hf:
@@ -67,8 +64,8 @@ class Loop(object):
     @property
     def density(self):
         """
-        Return loop density as a function of coordinate and time either from
-        file or from memory
+        Loop density as a function of coordinate and time. Can be stored in memory or pulled from an
+        HDF5 file.
         """
         if hasattr(self,'parameters_savefile'):
             with h5py.File(self.parameters_savefile,'r') as hf:
@@ -79,15 +76,16 @@ class Loop(object):
             return self._density
 
     @u.quantity_input(wavelength=u.angstrom)
-    def get_emissivity(self,wavelength):
+    def get_emission(self,wavelength):
         """
-        Get the calculated emissivity that was either set or saved to disk
+        Get the calculated emission (energy per unit volume per unit time per unit solid angle) for
+        a particular wavelength. Can be stored in memory or pulled from an HDF5 file.
         """
-        if hasattr(self,'emissivity_savefile'):
-            with h5py.File(self.emissivity_savefile,'r') as hf:
+        if hasattr(self,'emission_savefile'):
+            with h5py.File(self.emission_savefile,'r') as hf:
                 dset = hf[os.path.join(self.name,str(wavelength.to(u.angstrom).value))]
                 emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
-            emiss = self.emissivity[wavelength]
+            emiss = self.emission[wavelength]
 
         return emiss

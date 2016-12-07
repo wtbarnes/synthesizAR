@@ -73,6 +73,6 @@ class InstrumentHinodeEIS(InstrumentBase):
         for wavelength in loop.wavelengths:
             if channel['response']['x'][0] <= wavelength <= channel['response']['x'][-1]:
                 response  = splev(wavelength,nots)
-                counts += response*loop.get_emissivity(wavelength).value
+                counts += response*loop.get_emission(wavelength).value
 
-        return counts*loop.get_emissivity(wavelength).unit*channel['response']['y'].unit
+        return counts*loop.get_emission(wavelength).unit*channel['response']['y'].unit
