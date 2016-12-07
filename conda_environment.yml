@@ -17,6 +17,7 @@ dependencies:
 - seaborn
 - sunpy
 - wcsaxes
+- yt
 - pip:
   - git+git://github.com/sunpy/solarbextrapolation.git
   - git+git://github.com/chianti-atomic/ChiantiPy.git
