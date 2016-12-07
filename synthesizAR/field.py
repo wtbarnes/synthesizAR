@@ -191,7 +191,7 @@ class Skeleton(object):
         else:
             return True
 
-    @u.quantity_input(zrange=self.hmi_map.xrange.unit)
+    @u.quantity_input(zrange=u.arcsec)
     def extrapolate_field(self,zshape,zrange,use_numba_for_extrapolation=True):
         """
         Extrapolate the 3D field and transform it into a yt data object.
