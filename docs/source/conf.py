@@ -33,13 +33,18 @@ try:
     import astropy_helpers
 except ImportError:
     # Building from inside the docs/ directory?
-    if os.path.basename(os.getcwd()) == 'docs':
-        a_h_path = os.path.abspath(os.path.join('..', 'astropy_helpers'))
+    if os.path.basename(os.getcwd()) == 'source':
+        a_h_path = os.path.abspath(os.path.join('..','..', 'astropy_helpers'))
         if os.path.isdir(a_h_path):
             sys.path.insert(1, a_h_path)
 
 # Load all of the global Astropy configuration
 from astropy_helpers.sphinx.conf import *
+
+# Add some stuff to the intersphinx mapping
+intersphinx_mapping['sunpy'] = ('http://docs.sunpy.org/en/stable/',None)
+intersphinx_mapping['yt'] = ('http://yt-project.org/doc/',None)
+intersphinx_mapping['ChiantiPy'] = ('http://chiantipy.readthedocs.io/en/latest/',None)
 
 # Get configuration information from setup.cfg
 try:
@@ -47,8 +52,7 @@ try:
 except ImportError:
     from configparser import ConfigParser
 conf = ConfigParser()
-
-conf.read([os.path.join(os.path.dirname(__file__), '..', 'setup.cfg')])
+conf.read([os.path.join(os.path.dirname(__file__), '..','..', 'setup.cfg')])
 setup_cfg = dict(conf.items('metadata'))
 
 # -- General configuration ----------------------------------------------------
@@ -99,13 +103,19 @@ release = package.__version__
 # variables set in the global configuration. The variables set in the
 # global configuration are listed below, commented out.
 
+try:
+    import sphinx_rtd_theme
+    html_theme='sphinx_rtd_theme'
+    html_theme_path=[sphinx_rtd_theme.get_html_theme_path()]
+except ImportError:
+    html_theme='classic'
 
 # Please update these texts to match the name of your package.
-html_theme_options = {
-    'logotext1': 'package',  # white,  semi-bold
-    'logotext2': '-template',  # orange, light
-    'logotext3': ':docs'   # white,  light
-    }
+#html_theme_options = {
+#    'logotext1': 'package',  # white,  semi-bold
+#    'logotext2': '-template',  # orange, light
+#    'logotext3': ':docs'   # white,  light
+#    }
 
 # Add any paths that contain custom themes here, relative to this directory.
 # To use a different custom theme, add the directory containing the theme.
