@@ -115,7 +115,9 @@ class EquilibriumEmissionModel(object):
         for ion in self.ions:
             self.logger.info('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
             wvl,emiss = ion['ion'].calculate_emissivity()
-            transition_indices = [np.argwhere(wvl==t)[0][0] for t in ion['transitions']]
+            transition_indices = [np.argwhere(np.isclose(wvl.value,
+                                                        t.value,rtol=0.0,atol=1.e-5))[0][0] \
+                                for t in ion['transitions']]
             ion['emissivity'] = [np.reshape(emiss[ti,:],self.temperature_mesh.shape) \
                                 for ti in transition_indices]
 
