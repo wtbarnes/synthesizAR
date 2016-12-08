@@ -31,7 +31,7 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
 
     Parameters
     ----------
-    volume : yt uniform grid
+    volume : `~yt.frontends.stream.data_structures.StreamDataset`
         Dataset containing the 3D extrapolated vector field
     boundary_map : `~sunpy.map.Map`
         HMI magnetogram

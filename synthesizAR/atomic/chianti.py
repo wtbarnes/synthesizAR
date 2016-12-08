@@ -20,17 +20,15 @@ from synthesizAR.util import collect_points
 
 class ChIon(object):
     """
-    This is a stripped down version of the ChiantiPy ion object. It speeds up and
-    streamlines the emissivity calculation.
+    Stripped down version of `~ChiantiPy.core.ion`. It speeds up and streamlines the emissivity calculation.
+
+    .. warning:: This object will eventually be deprecated once improvements are made to `~ChiantiPy.core.ion`
 
     Parameters
     ----------
-    temperature : `astropy.Quantity`
-    density : `astropy.Quantity`
+    temperature : `~astropy.units.Quantity`
+    density : `~astropy.units.Quantity`
     setup : `bool`
-
-    .. warning:: This object should eventually be deprecated in favor of using the ion
-                object in ChiantiPy.
     """
 
 

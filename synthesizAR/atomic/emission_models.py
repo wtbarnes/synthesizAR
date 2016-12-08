@@ -136,9 +136,9 @@ class EquilibriumEmissionModel(object):
         :math:`\lambda`, in every ion :math:`X^{+m}`, as given by the equation,
 
         .. math::
-            P_{\lambda}(n,T) = \frac{1}{4\pi}0.83\mathrm{Ab}(X)\varepsilon_{\lambda}(n,T)\frac{N(X^{+m})}{N(X)}n
+            P_{\lambda}(n,T) = \\frac{1}{4\pi}0.83\mathrm{Ab}(X)\\varepsilon_{\lambda}(n,T)\\frac{N(X^{+m})}{N(X)}n
 
-        where :math:`\mathrm{Ab}(X)` is the abundance of element :math:`X`, :math:`\varepsilon_{\lambda}` is the emissivity for transition :math:`\lambda`, and :math:`N(X^{+m})/N(X)` is the ionization fraction of ion :math:`X^{+m}`. :math:`P_{\lambda}` is in units of erg cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `erg` and in units of photons cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `photon`.
+        where :math:`\\mathrm{Ab}(X)` is the abundance of element :math:`X`, :math:`\\varepsilon_{\lambda}` is the emissivity for transition :math:`\lambda`, and :math:`N(X^{+m})/N(X)` is the ionization fraction of ion :math:`X^{+m}`. :math:`P_{\lambda}` is in units of erg cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `erg` and in units of photons cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `photon`.
         """
         # interpolate indices
         nots_itemperature =splrep(self.temperature_mesh[:,0].value,
