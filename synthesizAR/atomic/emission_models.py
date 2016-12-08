@@ -3,6 +3,7 @@ Specific intensity for a variety of atomic transitions, assuming ionization equi
 """
 import os
 import sys
+import logging
 
 import numpy as np
 from scipy.interpolate import splrep,splev
