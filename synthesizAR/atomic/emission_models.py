@@ -10,6 +10,7 @@ from scipy.interpolate import splrep,splev
 from scipy.ndimage import map_coordinates
 import astropy.units as u
 import h5py
+from ChiantiPy.tools.io import elvlcRead,wgfaRead,scupsRead,splupsRead
 
 from synthesizAR.atomic import ChIon
 
@@ -60,27 +61,27 @@ class EquilibriumEmissionModel(object):
                 self.logger.info('Building entry for {}'.format(ion['name']))
                 #elvlc
                 self.logger.info('Building elvlc entry for {}'.format(ion['name']))
-                _tmp = ch_tools.io.elvlcRead(ion['name'])
+                _tmp = elvlcRead(ion['name'])
                 if _tmp['status']>0:
                     grp = hf.create_group(os.path.join('/',el,ion_label,'elvlc'))
                     self._check_keys(_tmp,grp)
                 #wgfa
                 self.logger.info('Building wgfa entry for {}'.format(ion['name']))
                 try:
-                    _tmp = ch_tools.io.wgfaRead(ion['name'])
+                    _tmp = wgfaRead(ion['name'])
                     grp = hf.create_group(os.path.join('/',el,ion_label,'wgfa'))
                     self._check_keys(_tmp,grp)
                 except IOError:
                     pass
                 #scups
                 self.logger.info('Building scups entry for {}'.format(ion['name']))
-                _tmp = ch_tools.io.scupsRead(ion['name'])
+                _tmp = scupsRead(ion['name'])
                 if 'status' not in _tmp:
                     grp = hf.create_group(os.path.join('/',el,ion_label,'scups'))
                     self._check_keys(_tmp,grp)
                 #psplups
                 self.logger.info('Building psplups entry for {}'.format(ion['name']))
-                _tmp = ch_tools.io.splupsRead(ion['name'],filetype='psplups')
+                _tmp = splupsRead(ion['name'],filetype='psplups')
                 if 'file not found' not in _tmp:
                     grp = hf.create_group(os.path.join('/',el,ion_label,'psplups'))
                     self._check_keys(_tmp,grp)
