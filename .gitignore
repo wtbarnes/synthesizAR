@@ -18,8 +18,8 @@ MANIFEST
 .ipynb_checkpoints
 
 # Sphinx
-docs/api
-docs/_build
+docs/source/api
+docs/build
 
 # Eclipse editor project files
 .project
