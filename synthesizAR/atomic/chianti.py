@@ -14,7 +14,9 @@ from scipy.interpolate import interp1d,splrep,splev
 import matplotlib.pyplot as plt
 import astropy.units as u
 import astropy.constants as const
-import ChiantiPy.tools as ch_tools
+from ChiantiPy.tools import io as ch_tools_io
+from ChiantiPy.tools import util as ch_tools_util
+from ChiantiPy.tools import data as ch_tools_data
 
 from synthesizAR.util import collect_points
 
@@ -35,13 +37,13 @@ class ChIon(object):
     @u.quantity_input(temperature=u.K,electron_density=u.cm**(-3))
     def __init__(self,ion_name,temperature,electron_density,chianti_db_h5,setup=True,**kwargs):
         self.logger = logging.getLogger(name=type(self).__name__)
-        if ion_name not in ch_tools.data.MasterList:
+        if ion_name not in ch_tools_data.MasterList:
             raise ValueError('{} not in CHIANTI database'.format(ion_name))
-        self.meta = ch_tools.util.convertName(ion_name)
+        self.meta = ch_tools_util.convertName(ion_name)
         self.meta['name'] = ion_name
-        self.meta['spectroscopic_name'] = ch_tools.util.zion2spectroscopic(self.meta['Z'],
+        self.meta['spectroscopic_name'] = ch_tools_util.zion2spectroscopic(self.meta['Z'],
                                                                             self.meta['Ion'])
-        self.meta['rcparams'] = ch_tools.data.Defaults.copy()
+        self.meta['rcparams'] = ch_tools_data.Defaults.copy()
         # set location of CHIANTI database
         self._chianti_db_h5 = chianti_db_h5
         # read ion data from CHIANTI database
@@ -64,7 +66,7 @@ class ChIon(object):
         """
         Read files from CHIANTI database for specified ion
         """
-        _tmp = ch_tools.io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
+        _tmp = ch_tools_io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
         self.abundance = _tmp['abundance'][self.meta['Z']-1]*u.s/u.s
         self.meta['abundance_filename'] = _tmp['abundancename']
         elvlc_lvl = self._read_chianti_db_h5('elvlc','lvl')
@@ -103,8 +105,8 @@ class ChIon(object):
         """
         Calculate proton density to electron density ratio from Eq. 7 of Young et al. (2003)
         """
-        _tmp_ioneq = ch_tools.io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
-        _tmp_abundance = ch_tools.io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
+        _tmp_ioneq = ch_tools_io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
+        _tmp_abundance = ch_tools_io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
         abundance = _tmp_abundance['abundance'][_tmp_abundance['abundance']>0]
 
         denominator = np.zeros(len(_tmp_ioneq['ioneqTemperature']))
@@ -288,7 +290,7 @@ class ChIon(object):
 
     def calculate_ionization_equilibrium(self):
         """Calculate ionization equilibrium."""
-        _tmp_ioneq = ch_tools.io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
+        _tmp_ioneq = ch_tools_io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
         match_indices = np.where(
             (self.temperature.value>=_tmp_ioneq['ioneqTemperature'].min()) & \
             (self.temperature.value<=_tmp_ioneq['ioneqTemperature'].max()))[0]
