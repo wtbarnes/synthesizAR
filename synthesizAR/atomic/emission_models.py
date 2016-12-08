@@ -35,7 +35,7 @@ class EquilibriumEmissionModel(object):
         # build CHIANTI database
         if chianti_db_filename is None:
             chianti_db_filename = 'tmp_chianti_db.h5'
-        self.logger.info('Creating CHIANTI HDF5 database in {}'.format(chianti_db_filename))
+        self.logger.info('Using CHIANTI HDF5 database in {}'.format(chianti_db_filename))
         self._build_chianti_db_h5(ions,chianti_db_filename)
         # build ion objects
         self.ions = []
