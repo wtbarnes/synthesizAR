@@ -302,7 +302,7 @@ class Skeleton(object):
         """
         for loop in self.loops:
             self.logger.debug('Calculating emissivity for loop {}'.format(loop.name))
-            loop.wavelengths = emissivity_model.wavelengths
+            loop.wavelengths = emission_model.wavelengths
             emiss = emission_model.calculate_emission(loop.temperature,loop.density,**kwargs)
             if savefile is not None:
                 loop.emission_savefile = savefile
