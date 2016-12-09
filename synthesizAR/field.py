@@ -75,7 +75,8 @@ class Skeleton(object):
         Save the components of the field object to be reloaded later.
         """
         if savedir is None:
-            savedir = 'synthesizAR-field-save_' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+            savedir = 'synthesizAR-{}-save_{}'.format(type(self).__name__,
+                                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))  
         if not os.path.exists(savedir):
             os.makedirs(savedir)
         #loops
@@ -301,7 +302,7 @@ class Skeleton(object):
         Calculate emission (energy or photons per unit volume per unit time per unit solid angle) as function of time and space for each loop
         """
         for loop in self.loops:
-            self.logger.debug('Calculating emissivity for loop {}'.format(loop.name))
+            self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
             loop.wavelengths = emission_model.wavelengths
             emiss = emission_model.calculate_emission(loop.temperature,loop.density,**kwargs)
             if savefile is not None:

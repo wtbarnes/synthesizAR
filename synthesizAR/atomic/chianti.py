@@ -7,6 +7,8 @@ import os
 import logging
 import copy
 import itertools
+import datetime
+import pickle
 
 import numpy as np
 import h5py
@@ -87,6 +89,32 @@ class ChIon(object):
             self._has_psplups = False
             self.logger.warning('{} psplups file not found'.format(self.meta['spectroscopic_name']))
         self.n_levels = np.min([np.max(elvlc_lvl),np.max(wgfa_lvl2),n_levels_scups])
+
+    def _save_ion(self,savedir=None):
+        """
+        Save ion object to be reloaded later.
+        """
+        if savedir is None:
+            savedir = 'synthesizAR-{}-save_{}'.format(type(self).__name__,
+                                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+        if not os.path.exists(savedir):
+            os.makedirs(savedir)
+        self.logger.debug('Saving ion information in {}'.format(
+                                                        os.path.join(savedir,'ion_info.pickle')))
+        with open(os.path.join(savedir,'ion_info.pickle'),'wb') as f:
+            pickle.dump([self.meta['name'],
+                        self.temperature,self.electron_density,self._chianti_db_h5],f)
+
+    @classmethod
+    def _restore_ion(cls,savedir):
+        """
+        Restore ion object from save file
+        """
+        self.logger.debug('Restoring ion from {}'.format(os.path.join(savedir,'ion_info.pickle')))
+        with open(os.path.join(savedir,'ion_info.pickle'),'rb') as f:
+            ion_name,temperature,density,db_filename = pickle.load(f)
+
+        return cls(ion_name,temperature,density,db_filename,setup=True)
 
     def _read_chianti_db_h5(self,filetype,data):
         """

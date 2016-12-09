@@ -4,6 +4,7 @@ Specific intensity for a variety of atomic transitions, assuming ionization equi
 import os
 import sys
 import logging
+import pickle
 
 import numpy as np
 from scipy.interpolate import splrep,splev
@@ -45,6 +46,65 @@ class EquilibriumEmissionModel(object):
                             chianti_db_filename)
             tmp_ion.meta['rcparams']['flux'] = energy_unit
             self.ions.append({'ion':tmp_ion,'transitions':ion['wavelengths']})
+
+    def save_model(self,savedir=None):
+        """
+        Save model object to be used later.
+        """
+        if savedir is None:
+            savedir = 'synthesizAR-{}-save_{}'.format(type(self).__name__,
+                                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+        if not os.path.exists(savedir):
+            os.makedirs(savedir)
+        self.logger.info('Saving emission model information in {}'.format(savedir))
+        # save temperature and density
+        with open(os.path.join(savedir,'temperature_density.pickle'),'wb') as f:
+            pickle.dump([self.temperature_mesh[:,0],self.density_mesh[0,:]],f)
+        # save some basic info
+        ions_info = []
+        for ion in self.ions:
+            ions_info.append({'name':ion['ion'].meta['name'],'wavelengths':ion['transitions']})
+        db_filename = self.ions[0]['ion']._chianti_db_h5
+        energy_unit = self.ions[0]['ion'].meta['rcparams']['flux']
+        with open(os.path.join(savedir,'ion_info.pickle'),'wb') as f:
+            pickle.dump([ions_info,db_filename,energy_unit],f)
+        # save emissivity and fractional ionization
+        if not os.path.exists(os.path.join(savedir,'emissivity')):
+            os.makedirs(os.path.join(savedir,'emissivity'))
+        if not os.path.exists(os.path.join(savedir,'fractional_ionization')):
+            os.makedirs(os.path.join(savedir,'fractional_ionization'))
+        for ion in self.ions:
+            if hasattr(ion,'emissivity'):
+                with open(os.path.join(savedir,'emissivity',
+                                        '{}.pickle'.format(ion['ion'].meta['name'])),'wb') as f:
+                    pickle.dump(ion['emissivity'],f)
+            if hasattr(ion,'fractional_ionization'):
+                with open(os.path.join(savedir,'fractional_ionization',
+                                        '{}.pickle'.format(ion['ion'].meta['name'])),'wb') as f:
+                    pickle.dump(ion['fractional_ionization'],f)
+
+    @classmethod
+    def restore_model(cls,savedir):
+        """
+        Restore emission model from savefile
+        """
+        self.logger.info('Restoring emission model from {}'.format(savedir))
+        with open(os.path.join(savedir,'temperature_density.pickle'),'rb') as f:
+            temperature,density = pickle.load(f)
+        with open(os.path.join(savedir,'ion_info.pickle'),'rb') as f:
+            ion_info,db_filename,energy_unit = pickle.load(f)
+        emiss_model = cls(ion_info,temperature=temperature,density=density,energy_unit=energy_unit,
+                            chianti_db_filename=db_filename)
+        for ion in emiss_model.ions:
+            tmp_ion_file = os.path.join(savedir,'{}','{}.pickle'.format(ion['ion'].meta['name']))
+            if os.path.isfile(tmp_ion_file.format('emissivity')):
+                with open(tmp_ion_file.format('emissivity'),'rb') as f:
+                    ion['emissivity'] = pickle.load(f)
+            if os.path.isfile(tmp_ion_file.format('fractional_ionization')):
+                with open(tmp_ion_file.format('fractional_ionization'),'rb') as f:
+                    ion['fractional_ionization'] = pickle.load(f)
+
+        return emiss_model
 
     def _build_chianti_db_h5(self,ions,filename):
         """
@@ -132,7 +192,7 @@ class EquilibriumEmissionModel(object):
         """
         for ion in self.ions:
             ioneq = ion['ion'].calculate_ionization_equilibrium()
-            ion['ionization_fraction'] = np.reshape(ioneq,self.temperature_mesh.shape)
+            ion['fractional_ionization'] = np.reshape(ioneq,self.temperature_mesh.shape)
 
     def calculate_emission(self,temperature,density):
         """
@@ -155,7 +215,7 @@ class EquilibriumEmissionModel(object):
         # calculate emissivity
         for ion in self.ions:
             self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            if 'ionization_fraction' not in ion.keys():
+            if 'fractional_ionization' not in ion.keys():
                 self._calculate_fractional_ionization()
             if 'emissivity' not in ion.keys():
                 self._calculate_emissivity()
@@ -163,7 +223,7 @@ class EquilibriumEmissionModel(object):
                 ion_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
                                             t.value,t.unit.to_string())
                 self.logger.debug('Calculating emission for {}'.format(ion_key))
-                _tmp_emiss = em*ion['ionization_fraction']
+                _tmp_emiss = em*ion['fractional_ionization']
                 _tmp = np.reshape(map_coordinates(_tmp_emiss.value,
                                                 np.vstack([itemperature,idensity])),
                                 temperature.shape)
