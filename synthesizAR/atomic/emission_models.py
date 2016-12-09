@@ -74,11 +74,11 @@ class EquilibriumEmissionModel(object):
         if not os.path.exists(os.path.join(savedir,'fractional_ionization')):
             os.makedirs(os.path.join(savedir,'fractional_ionization'))
         for ion in self.ions:
-            if hasattr(ion,'emissivity'):
+            if 'emissivity' in ion:
                 with open(os.path.join(savedir,'emissivity',
                                         '{}.pickle'.format(ion['ion'].meta['name'])),'wb') as f:
                     pickle.dump(ion['emissivity'],f)
-            if hasattr(ion,'fractional_ionization'):
+            if 'fractional_ionization' in ion:
                 with open(os.path.join(savedir,'fractional_ionization',
                                         '{}.pickle'.format(ion['ion'].meta['name'])),'wb') as f:
                     pickle.dump(ion['fractional_ionization'],f)
