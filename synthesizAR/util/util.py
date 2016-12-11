@@ -24,7 +24,6 @@ def convert_angle_to_length(hmi_map,angle_or_length,working_units=u.meter):
     else:
         return converted.to(u.arcsec)
 
-
 def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=[], mask_threshold=0.05, safety=1.2, max_failures=1000):
     """
     Given a 3D extrapolated field and the corresponding magnetogram, estimate the locations of the seed points for the fieldline tracing through the extrapolated 3D volume.
@@ -38,7 +37,6 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
     number_fieldlines : `int`
         Number of seed points
     """
-
     #mask the boundary map and estimate resampled resolution
     mask_above = mask_threshold*boundary_map.min()
     masked_boundary_map = np.ma.masked_greater(boundary_map.data,mask_above)
@@ -79,7 +77,6 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
         raise ValueError('Could not find desired number of seed points within failure tolerance of {}. Try increasing safety factor or the mask threshold'.format(max_failures))
 
     return seed_points
-
 
 def collect_points(x,y):
     """
