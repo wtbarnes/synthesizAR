@@ -70,13 +70,13 @@ class Skeleton(object):
 
         self.hmi_map = tmp_map
 
-    def save_field(self,savedir=None):
+    def save(self,savedir=None):
         """
         Save the components of the field object to be reloaded later.
         """
         if savedir is None:
             savedir = 'synthesizAR-{}-save_{}'.format(type(self).__name__,
-                                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))  
+                                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
         if not os.path.exists(savedir):
             os.makedirs(savedir)
         #loops
@@ -96,7 +96,7 @@ class Skeleton(object):
             pickle.dump(self._map_3d,f)
 
     @classmethod
-    def restore_field(cls,savedir):
+    def restore(cls,savedir):
         """
         Restore the field from a set of serialized files
 

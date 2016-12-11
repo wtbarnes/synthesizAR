@@ -47,7 +47,7 @@ class EquilibriumEmissionModel(object):
             tmp_ion.meta['rcparams']['flux'] = energy_unit
             self.ions.append({'ion':tmp_ion,'transitions':ion['wavelengths']})
 
-    def save_model(self,savedir=None):
+    def save(self,savedir=None):
         """
         Save model object to be used later.
         """
@@ -84,7 +84,7 @@ class EquilibriumEmissionModel(object):
                     pickle.dump(ion['fractional_ionization'],f)
 
     @classmethod
-    def restore_model(cls,savedir):
+    def restore(cls,savedir):
         """
         Restore emission model from savefile
         """

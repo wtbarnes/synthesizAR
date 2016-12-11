@@ -90,7 +90,7 @@ class ChIon(object):
             self.logger.warning('{} psplups file not found'.format(self.meta['spectroscopic_name']))
         self.n_levels = np.min([np.max(elvlc_lvl),np.max(wgfa_lvl2),n_levels_scups])
 
-    def _save_ion(self,savedir=None):
+    def save(self,savedir=None):
         """
         Save ion object to be reloaded later.
         """
@@ -106,7 +106,7 @@ class ChIon(object):
                         self.temperature,self.electron_density,self._chianti_db_h5],f)
 
     @classmethod
-    def _restore_ion(cls,savedir):
+    def restore(cls,savedir):
         """
         Restore ion object from save file
         """
