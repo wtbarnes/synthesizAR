@@ -48,10 +48,15 @@ class InstrumentHinodeEIS(InstrumentBase):
         self.channels = []
         for eif in eis_instr_files:
             #extract some metadata from the filename
-            base = os.path.splitext(os.path.basename(eif))[0]
-            wave = float(base.split('_')[-1])*u.angstrom
-            name = '{}_{}_{}'.format(base.split('_')[1][:2],base.split('_')[1][2:],
-                                    wave.value)
+            base = os.path.splitext(os.path.basename(eif))[0].split('_')
+            wave = float(base[-1])*u.angstrom
+            if base[0][1].islower():
+                el = base[0][:2]
+                ion = base[0][2:]
+            else:
+                el = base[0][0]
+                ion = base[0][1:]
+            name = '{}_{}_{}'.format(el,ion,wave.value)
             #read the response function from the file
             with open(eif,'r') as f:
                 lines = f.readlines()
@@ -69,17 +74,18 @@ class InstrumentHinodeEIS(InstrumentBase):
         Calculate response of Hinode/EIS detector for given loop object.
         """
         # only interpolate once
-        if not all([w in channel['response']['x'] for w in loop.wavelengths \
-                    if channel['response']['x'][0] <= w <= channel['response']['x'][-1]]):
+        channel_wvls = [w for w in loop.wavelengths \
+                        if channel['response']['x'][0] <= w <= channel['response']['x'][-1]]
+        channel_wvls *= loop.wavelengths.unit
+        if not all([w in channel['response']['x'] for w in channel_wvls]):
             self.logger.debug('Interpolating emission wavelengths into response array for channel {}'.format(channel['name']))
             nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
-            tmp_x = np.sort(np.hstack([channel['response']['x'].value,loop.wavelengths.value]))
+            tmp_x = np.sort(np.hstack([channel['response']['x'].value,channel_wvls.value]))
             channel['response']['y'] = splev(tmp_x,nots)*channel['response']['y'].unit
             channel['response']['x'] = tmp_x*channel['response']['x'].unit
 
         counts = np.zeros(loop.density.shape)
-        for wavelength in loop.wavelengths:
-            if wavelength in channel['response']['x']:
+        for wavelength in channel_wvls:
                 counts += channel['response']['y'][np.argwhere(channel['response']['x']==wavelength)[0][0]].value*loop.get_emission(wavelength).value
 
         return counts*loop.get_emission(wavelength).unit*channel['response']['y'].unit
