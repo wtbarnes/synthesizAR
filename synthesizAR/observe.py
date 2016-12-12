@@ -49,7 +49,8 @@ class Observer(object):
 
         for instr in self.instruments:
             instr.counts_file = file_template.format(instr.name)
-            with h5py.File(file_template.format(instr.name),'w') as hf:
+            self.logger.info('Creating instrument file {}'.format(instr.counts_file))
+            with h5py.File(instr.counts_file,'w') as hf:
                 for channel in instr.channels:
                     hf.create_dataset(channel['name'],(len(instr.observing_time),
                                         interpolated_points))
@@ -114,6 +115,8 @@ class Observer(object):
         Bin the counts into the detector array, project it down to 2 dimensions,
         and save it to a FITS file.
         """
+        if type(apply_psf) is bool:
+            apply_psf = len(self.instruments)*[apply_psf]
         fn_template = os.path.join(savedir,'{instr}','{channel}','map_t{time:06d}.fits')
         for instr in self.instruments:
             self.logger.info('Building maps for {}'.format(instr.name))
@@ -145,7 +148,7 @@ class Observer(object):
                                         weights=_tmp)
                         #project down to x-y plane
                         projection = np.dot(hist,np.diff(edges[2])).T
-                        if apply_psf:
+                        if apply_psf[self.instruments.index(instr)]:
                             projection = scipy.ndimage.filters.gaussian_filter(projection,
                                                                     channel['gaussian_width'].value)
                         header['t_obs'] = time
