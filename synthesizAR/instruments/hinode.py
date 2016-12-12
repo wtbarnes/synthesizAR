@@ -71,6 +71,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         # only interpolate once
         if not all([w in channel['response']['x'] for w in loop.wavelengths \
                     if channel['response']['x'][0] <= w <= channel['response']['x'][-1]]):
+            self.logger.debug('Interpolating emission wavelengths into response array for channel {}'.format(channel['name']))
             nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
             tmp_x = np.sort(np.hstack([channel['response']['x'].value,loop.wavelengths.value]))
             channel['response']['y'] = splev(tmp_x,nots)*channel['response']['y'].unit
