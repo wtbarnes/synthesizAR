@@ -48,7 +48,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         self.channels = []
         for eif in eis_instr_files:
             #extract some metadata from the filename
-            base = os.path.splitext(os.path.basename(eif))[0].split('_')
+            base = os.path.splitext(os.path.basename(eif))[0].split('_')[1:]
             wave = float(base[-1])*u.angstrom
             if base[0][1].islower():
                 el = base[0][:2]
