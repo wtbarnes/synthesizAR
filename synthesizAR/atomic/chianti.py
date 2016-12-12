@@ -292,7 +292,14 @@ class ChIon(object):
         return populations
 
     def calculate_emissivity(self):
-        """Calculate the emissivity for each transition"""
+        """
+        Calculate the emissivity for each transition using the equation,
+
+        .. math::
+            \\varepsilon_{\lambda}(n,T) = A_{ij}\\frac{N_j(X^{+m})}{N(X^{+m})}
+
+        in units of photons s\ :sup:`-1`. If `flux` is set to "erg" in the `chiantirc` file, then a factor of :math:`\\Delta E_{ij} = hc/\\lambda_{ij}` is included in the above expression and the units are erg s\ :sup:`-1`. 
+        """
         #find where wavelength is nonzero
         wavelength = np.fabs(self._read_chianti_db_h5('wgfa','wvl'))*u.angstrom
         lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
@@ -302,7 +309,7 @@ class ChIon(object):
         avalues = avalues[wavelength!=0]
         wavelength = wavelength[wavelength!=0]
         # set energy conversion factor
-        if self.meta['rcparams']['flux'] == 'energy':
+        if self.meta['rcparams']['flux'] == 'erg':
             energy_factor = (const.h*const.c).to(u.erg*u.angstrom)/wavelength
         else:
             self.logger.info('Expressing emissivity in units of photons')

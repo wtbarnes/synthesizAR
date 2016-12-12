@@ -168,7 +168,7 @@ class EquilibriumEmissionModel(object):
             else:
                 h5_group.attrs[key] = chianti_dict[key]
 
-    def _calculate_emissivity(self):
+    def calculate_emissivity(self):
         """
         Calculate emissivity (energy or photons per unit time) for all ions for the desired and transitions and reshape the data.
         """
@@ -181,7 +181,7 @@ class EquilibriumEmissionModel(object):
             ion['emissivity'] = [np.reshape(emiss[ti,:],self.temperature_mesh.shape) \
                                 for ti in transition_indices]
 
-    def _calculate_fractional_ionization(self):
+    def calculate_fractional_ionization(self):
         """
         Calculate fractional ionization as a function of temperature for each ion, assuming
         ionization equilibrium and reshape the data.
@@ -215,10 +215,10 @@ class EquilibriumEmissionModel(object):
         # calculate emissivity
         for ion in self.ions:
             self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            if 'fractional_ionization' not in ion.keys():
-                self._calculate_fractional_ionization()
-            if 'emissivity' not in ion.keys():
-                self._calculate_emissivity()
+            if 'fractional_ionization' not in ion:
+                self.calculate_fractional_ionization()
+            if 'emissivity' not in ion:
+                self.calculate_emissivity()
             for t,em in zip(ion['transitions'],ion['emissivity']):
                 ion_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
                                             t.value,t.unit.to_string())
