@@ -68,11 +68,17 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
+        # only interpolate once
+        if not all([w in channel['response']['x'] for w in loop.wavelengths /
+                        if channel['response']['x'][0] <= wavelength <= channel['response']['x'][-1]]):
+            nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
+            tmp_x = np.sort(np.hstack([channel['response']['x'].value,loop.wavelengths]))
+            channel['response']['y'] = splev(tmp_x,nots)*channel['response']['y'].unit
+            channel['response']['x'] = tmp_x*channel['response']['x'].unit
+
         counts = np.zeros(loop.density.shape)
-        nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
         for wavelength in loop.wavelengths:
-            if channel['response']['x'][0] <= wavelength <= channel['response']['x'][-1]:
-                response  = splev(wavelength,nots)
-                counts += response*loop.get_emission(wavelength).value
+            if wavelength in channel['response']['x']:
+                counts += channel['response']['y'][np.argwhere(channel['response']['x']==wavelength)[0][0]].value*loop.get_emission(wavelength).value
 
         return counts*loop.get_emission(wavelength).unit*channel['response']['y'].unit
