@@ -69,23 +69,23 @@ class InstrumentHinodeEIS(InstrumentBase):
 
         self.channels = sorted(self.channels,key=lambda x:x['wavelength'])
 
+
     def detect(self,loop,channel):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        # only interpolate once
-        channel_wvls = [w for w in loop.wavelengths \
-                        if channel['response']['x'][0] <= w <= channel['response']['x'][-1]]
-        channel_wvls *= loop.wavelengths.unit
-        if not all([w in channel['response']['x'] for w in channel_wvls]):
+        if 'model_wavelengths' not in channel:
+            # only interpolate once
+            channel_wvls = [w for w in loop.wavelengths \
+                            if channel['response']['x'][0] <= w <= channel['response']['x'][-1]]
+            channel_wvls *= loop.wavelengths.unit
             self.logger.debug('Interpolating emission wavelengths into response array for channel {}'.format(channel['name']))
             nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
-            tmp_x = np.sort(np.hstack([channel['response']['x'].value,channel_wvls.value]))
-            channel['response']['y'] = splev(tmp_x,nots)*channel['response']['y'].unit
-            channel['response']['x'] = tmp_x*channel['response']['x'].unit
+            channel['model_response'] = splev(channel_wvls.value,nots)*channel['response']['y'].unit
+            channel['model_wavelengths'] = channel_wvls
 
         counts = np.zeros(loop.density.shape)
-        for wavelength in channel_wvls:
-                counts += channel['response']['y'][np.argwhere(channel['response']['x']==wavelength)[0][0]].value*loop.get_emission(wavelength).value
+        for i,wavelength in enumerate(channel['model_wavelengths']):
+                counts += channel['model_response'][i].value*loop.get_emission(wavelength).value
 
         return counts*loop.get_emission(wavelength).unit*channel['response']['y'].unit
