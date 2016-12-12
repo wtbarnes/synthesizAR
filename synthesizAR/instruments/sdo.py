@@ -97,7 +97,8 @@ class InstrumentSDOAIA(InstrumentBase):
         Calculate counts using the density and temperature response functions.
         No emissivity model needed.
         """
-        response_function = channel['response_interpolator'](np.ravel(loop.temperature))*u.count*u.cm**5/u.s/u.pixel
+        response_function = scipy.interpolate.splev(
+            np.ravel(loop.temperature),channel['response_spline_nots'])*u.count*u.cm**5/u.s/u.pixel
 
         return np.reshape(np.ravel(loop.density**2)*response_function,
                           np.shape(loop.density))
@@ -132,4 +133,4 @@ class InstrumentSDOAIA(InstrumentBase):
         _tmp_temperature = 10**(_tmp[:,0])
         for i,channel in enumerate(self.channels):
             _tmp_response = _tmp[:,channel_order[channel['wavelength']]+1]
-            self.channels[i]['response_interpolator'] = scipy.interpolate.interp1d(_tmp_temperature,_tmp_response)
+            self.channels[i]['response_spline_nots'] = scipy.interpolate.splrep(_tmp_temperature,_tmp_response)
