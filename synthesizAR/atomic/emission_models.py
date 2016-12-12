@@ -88,13 +88,13 @@ class EquilibriumEmissionModel(object):
         """
         Restore emission model from savefile
         """
-        self.logger.info('Restoring emission model from {}'.format(savedir))
         with open(os.path.join(savedir,'temperature_density.pickle'),'rb') as f:
             temperature,density = pickle.load(f)
         with open(os.path.join(savedir,'ion_info.pickle'),'rb') as f:
             ion_info,db_filename,energy_unit = pickle.load(f)
         emiss_model = cls(ion_info,temperature=temperature,density=density,energy_unit=energy_unit,
                             chianti_db_filename=db_filename)
+        emiss_model.logger.info('Restoring emission model from {}'.format(savedir))
         for ion in emiss_model.ions:
             tmp_ion_file = os.path.join(savedir,'{}','{}.pickle'.format(ion['ion'].meta['name']))
             if os.path.isfile(tmp_ion_file.format('emissivity')):
