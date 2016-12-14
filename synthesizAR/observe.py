@@ -38,20 +38,20 @@ class Observer(object):
         if ds is None:
             ds = 0.1*np.min([min(instr.resolution.x.value,nstr.resolution.y.value) \
             for instr in self.instruments])*self.instruments[0].resolution.x.unit
-        self.ds = self.field._convert_angle_to_length(ds)
+        ds = self.field._convert_angle_to_length(ds)
+        self._interpolate_loops(ds)
 
-    def build_detector_files(self,savedir):
+    def _interpolate_loops(self,ds):
         """
-        Create files to store interpolated counts before binning.
+        Interpolate all loops to a resolution (`ds`) below the minimum bin width of all of the
+        instruments. This ensures that the image isn't 'patchy' when it is binned.
         """
-        file_template = os.path.join(savedir,'{}_counts.h5')
-        # interpolate all loops to desired resolution for binning
         # FIXME: memory requirements for this list will grow with number of loops, consider saving it to the instrument files, both the interpolated s and total_coordinates
         self.total_coordinates = []
         self._interpolated_loop_coordinates = []
         for loop in self.field.loops:
             self.logger.debug('Interpolating loop {}'.format(loop.name))
-            n_interp = int(np.ceil(loop.full_length/self.ds))
+            n_interp = int(np.ceil(loop.full_length/ds))
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
                                         loop.field_aligned_coordinate.value[-1],n_interp)
             self._interpolated_loop_coordinates.append(interpolated_s)
@@ -61,6 +61,11 @@ class Observer(object):
 
         self.total_coordinates = np.array(self.total_coordinates)*loop.coordinates.unit
 
+    def build_detector_files(self,savedir):
+        """
+        Create files to store interpolated counts before binning.
+        """
+        file_template = os.path.join(savedir,'{}_counts.h5')
         for instr in self.instruments:
             instr.counts_file = file_template.format(instr.name)
             self.logger.info('Creating instrument file {}'.format(instr.counts_file))
