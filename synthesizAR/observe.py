@@ -76,13 +76,14 @@ class Observer(object):
         """
         #rebuild detector files
         for instr in self.instruments:
+            self.logger.info('Calculating counts for {}'.format(instr.name))
             with h5py.File(instr.counts_file,'a') as hf:
                 for channel in instr.channels:
+                    self.logger.info('Calculating counts for channel {}'.format(channel['name']))
                     dset = hf[channel['name']]
                     start_index = 0
                     for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
-                        self.logger.debug('Calculating counts for channel {}'.format(
-                                                                                channel['name']))
+                        self.logger.debug('Calculating counts for {}'.format(loop.name))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
                         f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
