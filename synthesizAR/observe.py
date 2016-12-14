@@ -88,7 +88,7 @@ class Observer(object):
                         f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
                         interpolated_counts = interp1d(loop.time.value,f_s(interp_s),
                                                         axis=0)(instr.observing_time)
-                        dset[:,start_index:(start_index+len(interp_s))] = interpolated_counts.value
+                        dset[:,start_index:(start_index+len(interp_s))] = interpolated_counts
                         if 'units' not in dset.attrs:
                             dset.attrs['units'] = counts.unit.to_string()
                         start_index += len(interp_s)
