@@ -45,8 +45,20 @@ class Observer(object):
         Create files to store interpolated counts before binning.
         """
         file_template = os.path.join(savedir,'{}_counts.h5')
-        interpolated_points = sum([int(np.ceil(loop.full_length/self.ds)) \
-        for loop in self.field.loops])
+        # interpolate all loops to desired resolution for binning
+        self.total_coordinates = []
+        self._interpolated_loop_coordinates = []
+        for loop in self.field.loops:
+            self.logger.debug('Interpolating loop {}'.format(loop.name))
+            n_interp = int(np.ceil(loop.full_length/self.ds))
+            interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
+                                        loop.field_aligned_coordinate.value[-1],n_interp)
+            self._interpolated_loop_coordinates.append(interpolated_s)
+            nots,_ = splprep(loop.coordinates.value.T)
+            _tmp = splev(np.linspace(0,1,n_interp),nots)
+            self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]
+            
+        self.total_coordinates = np.array(self.total_coordinates)*loop.coordinates.unit
 
         for instr in self.instruments:
             instr.counts_file = file_template.format(instr.name)
@@ -54,64 +66,31 @@ class Observer(object):
             with h5py.File(instr.counts_file,'w') as hf:
                 for channel in instr.channels:
                     hf.create_dataset(channel['name'],(len(instr.observing_time),
-                                        interpolated_points))
+                                                       len(self.total_coordinates)))
 
     def calculate_detector_counts(self):
         """
         Calculate counts for each channel of each detector. Counts are interpolated to the
         desired spatial and temporal resolution.
         """
-        self.total_coordinates = []
-        # iterate over all loops in the field
-        for loop in self.field.loops:
-            total_coordinates = self._reshape_counts(loop)
-            self.total_coordinates += total_coordinates
-
         #rebuild detector files
         for instr in self.instruments:
             with h5py.File(instr.counts_file,'a') as hf:
                 for channel in instr.channels:
                     dset = hf[channel['name']]
-                    counts_files = glob.glob(os.path.join(os.path.dirname(instr.counts_file),
-                                'tmp_counts','*_{}_{}.pickle'.format(instr.name,channel['name'])))
                     start_index = 0
-                    for cf in counts_files:
-                        with open(cf,'rb') as f:
-                            counts = pickle.load(f)
-                            dset[:,start_index:(start_index+counts.shape[1])] = counts.value
-                            if 'units' not in dset.attrs:
-                                dset.attrs['units'] = counts.unit.to_string()
-                        start_index += counts.shape[1]
-
-        self.total_coordinates = np.array(self.total_coordinates)*loop.coordinates.unit
-
-    def _reshape_counts(self,loop):
-        """
-        Low-level worker that interpolates and saves to a temporary pickle file
-        """
-        self.logger.info('Calculating counts for loop {}'.format(loop.name))
-        n_interp = int(np.ceil(loop.full_length/self.ds))
-        interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
-                                    loop.field_aligned_coordinate.value[-1],n_interp)
-        nots,_ = splprep(loop.coordinates.value.T)
-        _tmp = splev(np.linspace(0,1,n_interp),nots)
-        total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]
-        #iterate over detectors
-        for instr in self.instruments:
-            self.logger.debug('Calculating counts for instrument {}'.format(instr.name))
-            #iterate over channels
-            for channel in instr.channels:
-                self.logger.debug('Calculating counts for channel{}'.format(channel['name']))
-                counts = instr.detect(loop,channel)
-                #interpolate in s and t
-                f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
-                interpolated_counts = interp1d(loop.time.value,f_s(interpolated_s),
-                                                axis=0)(instr.observing_time)
-                #save to file
-                with open(os.path.join(os.path.dirname(instr.counts_file),'tmp_counts',
-                        '{}_{}_{}.pickle'.format(loop.name,instr.name,channel['name'])),'wb') as f:
-                    pickle.dump(interpolated_counts*counts.unit,f)
-        return total_coordinates
+                    for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
+                        self.logger.debug('Calculating counts for channel {}'.format(
+                                                                                channel['name']))
+                        counts = instr.detect(loop,channel)
+                        #interpolate in s and t
+                        f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
+                        interpolated_counts = interp1d(loop.time.value,f_s(interp_s),
+                                                        axis=0)(instr.observing_time)
+                        dset[:,start_index:(start_index+len(interp_s))] = counts.value
+                        if 'units' not in dset.attrs:
+                            dset.attrs['units'] = counts.unit.to_string()
+                        start_index += len(interp_s)
 
     def _make_z_bins(self,instr):
         """
