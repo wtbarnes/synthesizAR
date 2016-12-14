@@ -46,6 +46,7 @@ class Observer(object):
         """
         file_template = os.path.join(savedir,'{}_counts.h5')
         # interpolate all loops to desired resolution for binning
+        # FIXME: memory requirements for this list will grow with number of loops, consider saving it to the instrument files, both the interpolated s and total_coordinates
         self.total_coordinates = []
         self._interpolated_loop_coordinates = []
         for loop in self.field.loops:
@@ -57,7 +58,7 @@ class Observer(object):
             nots,_ = splprep(loop.coordinates.value.T)
             _tmp = splev(np.linspace(0,1,n_interp),nots)
             self.total_coordinates += [(x,y,z) for x,y,z in zip(_tmp[0],_tmp[1],_tmp[2])]
-            
+
         self.total_coordinates = np.array(self.total_coordinates)*loop.coordinates.unit
 
         for instr in self.instruments:
@@ -87,7 +88,7 @@ class Observer(object):
                         f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
                         interpolated_counts = interp1d(loop.time.value,f_s(interp_s),
                                                         axis=0)(instr.observing_time)
-                        dset[:,start_index:(start_index+len(interp_s))] = counts.value
+                        dset[:,start_index:(start_index+len(interp_s))] = interpolated_counts.value
                         if 'units' not in dset.attrs:
                             dset.attrs['units'] = counts.unit.to_string()
                         start_index += len(interp_s)
