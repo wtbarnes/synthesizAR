@@ -90,32 +90,6 @@ class ChIon(object):
             self.logger.warning('{} psplups file not found'.format(self.meta['spectroscopic_name']))
         self.n_levels = np.min([np.max(elvlc_lvl),np.max(wgfa_lvl2),n_levels_scups])
 
-    def save(self,savedir=None):
-        """
-        Save ion object to be reloaded later.
-        """
-        if savedir is None:
-            savedir = 'synthesizAR-{}-save_{}'.format(type(self).__name__,
-                                                datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
-        if not os.path.exists(savedir):
-            os.makedirs(savedir)
-        self.logger.debug('Saving ion information in {}'.format(
-                                                        os.path.join(savedir,'ion_info.pickle')))
-        with open(os.path.join(savedir,'ion_info.pickle'),'wb') as f:
-            pickle.dump([self.meta['name'],
-                        self.temperature,self.electron_density,self._chianti_db_h5],f)
-
-    @classmethod
-    def restore(cls,savedir):
-        """
-        Restore ion object from save file
-        """
-        self.logger.debug('Restoring ion from {}'.format(os.path.join(savedir,'ion_info.pickle')))
-        with open(os.path.join(savedir,'ion_info.pickle'),'rb') as f:
-            ion_name,temperature,density,db_filename = pickle.load(f)
-
-        return cls(ion_name,temperature,density,db_filename,setup=True)
-
     def _read_chianti_db_h5(self,filetype,data):
         """
         Reader function for CHIANTI data from HDF5 file
@@ -298,7 +272,7 @@ class ChIon(object):
         .. math::
             \\varepsilon_{\lambda}(n,T) = A_{ij}\\frac{N_j(X^{+m})}{N(X^{+m})}
 
-        in units of photons s\ :sup:`-1`. If `flux` is set to "erg" in the `chiantirc` file, then a factor of :math:`\\Delta E_{ij} = hc/\\lambda_{ij}` is included in the above expression and the units are erg s\ :sup:`-1`. 
+        in units of photons s\ :sup:`-1`. If `flux` is set to "erg" in the `chiantirc` file, then a factor of :math:`\\Delta E_{ij} = hc/\\lambda_{ij}` is included in the above expression and the units are erg s\ :sup:`-1`.
         """
         #find where wavelength is nonzero
         wavelength = np.fabs(self._read_chianti_db_h5('wgfa','wvl'))*u.angstrom
