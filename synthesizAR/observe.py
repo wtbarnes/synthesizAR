@@ -64,7 +64,7 @@ class Observer(object):
         self.total_coordinates = []
         # iterate over all loops in the field
         for loop in self.field.loops:
-            total_coordinates = self._reshape_counts()
+            total_coordinates = self._reshape_counts(loop)
             self.total_coordinates += total_coordinates
 
         #rebuild detector files
