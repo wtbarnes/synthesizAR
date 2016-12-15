@@ -91,9 +91,10 @@ class Observer(object):
                         self.logger.debug('Calculating counts for {}'.format(loop.name))
                         counts = instr.detect(loop,channel)
                         #interpolate in s and t
-                        f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,axis=1)
+                        f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,
+                                        axis=1,kind='linear')
                         interpolated_counts = interp1d(loop.time.value,f_s(interp_s),
-                                                        axis=0,kind='cubic')(instr.observing_time)
+                                                        axis=0,kind='linear')(instr.observing_time)
                         dset[:,start_index:(start_index+len(interp_s))] = interpolated_counts
                         if 'units' not in dset.attrs:
                             dset.attrs['units'] = counts.unit.to_string()
