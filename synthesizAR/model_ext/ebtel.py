@@ -29,6 +29,7 @@ class EbtelInterface(object):
         Create EBTEL interface
         """
         self.logger = logging.getLogger(name=type(self).__name__)
+        self.name = 'EBTEL'
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config

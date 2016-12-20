@@ -49,6 +49,22 @@ class Skeleton(object):
         else:
             self.logger.warning('No HMI fits file supplied. A new HMI map object will not be created.')
 
+    def __repr__(self):
+        num_loops = ''
+        sim_type = ''
+        if hasattr(self,'loops'):
+            num_loops = len(self.loops)
+        if hasattr(self,'simulation_type'):
+            sim_type = self.simulation_type
+        return '''synthesizAR Field Object
+        ------------------------
+        Number of loops: {num_loops}
+        Simulation Type: {sim_type}
+        Magnetogram Info:
+        -----------------
+        {hmi_map_info}
+        '''.format(num_loops=num_loops,sim_type=sim_type,hmi_map_info=self.hmi_map.__repr__())
+
     def _process_map(self,tmp_map,crop=None,resample=None):
         """
         Rotate, crop and resample map if needed. Can do any other needed processing here too.
@@ -273,6 +289,7 @@ class Skeleton(object):
         """
         Configure hydrodynamic simulations for each loop object
         """
+        self.simulation_type = interface.name
         for loop in self.loops:
             interface.configure_input(loop,parent_config_dir,parent_results_dir)
 
