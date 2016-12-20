@@ -23,6 +23,7 @@ class EbtelInterface(object):
     heating_model
     """
 
+
     def __init__(self,base_config,heating_model):
         """
         Create EBTEL interface
@@ -31,7 +32,6 @@ class EbtelInterface(object):
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config
-
 
     def configure_input(self,loop,parent_config_dir,parent_results_dir):
         """
@@ -60,21 +60,25 @@ class EbtelInterface(object):
         oh.output_dict['config_filename'] = oh.output_filename
         loop.hydro_configuration = oh.output_dict
 
-
     def load_results(self,loop):
         """
         Load EBTEL output for a given loop object.
 
         Parameters
         ----------
-        loop
+        loop : `synthesizAR.Loop` object
         """
-        #load in data and interpolate to universal time
+        # load text
         N_s = len(loop.field_aligned_coordinate)
         _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
 
+        # reshape into a 1D loop structure with units
         time = _tmp[:,0]*u.s
         temperature = np.outer(_tmp[:,1],np.ones(N_s))*u.K
         density = np.outer(_tmp[:,3],np.ones(N_s))*(u.cm**(-3))
+        velocity = np.outer(_tmp[:,-2],np.ones(N_s))*u.cm/u.s
+        # flip sign of velocity at apex
+        i_mirror = np.where(np.diff(loop.coordinates.value[:,2])>0)[0][-1] + 2
+        velocity[:,i_mirror:] = -velocity[:,i_mirror:]
 
-        return time,temperature,density
+        return time,temperature,density,velocity

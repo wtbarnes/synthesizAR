@@ -75,6 +75,20 @@ class Loop(object):
         else:
             return self._density
 
+    @property
+    def velocity(self):
+        """
+        Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
+        time. Can be stored in memory or pulled from an HDF5 file.
+        """
+        if hasattr(self,'parameters_savefile'):
+            with h5py.File(self.parameters_savefile,'r') as hf:
+                dset = hf[os.path.join(self.name,'velocity')]
+                velocity = np.array(dset)*u.Unit(dset.attrs['units'])
+            return velocity
+        else:
+            return self._velocity
+
     @u.quantity_input(wavelength=u.angstrom)
     def get_emission(self,wavelength):
         """

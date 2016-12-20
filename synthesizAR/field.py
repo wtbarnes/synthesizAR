@@ -281,7 +281,7 @@ class Skeleton(object):
         Load in loop parameters from hydrodynamic results.
         """
         for loop in self.loops:
-            time,temperature,density = interface.load_results(loop,**kwargs)
+            time,temperature,density,velocity = interface.load_results(loop,**kwargs)
             loop.time = time
             if savefile is not None:
                 loop.parameters_savefile = savefile
@@ -293,9 +293,12 @@ class Skeleton(object):
                     dset_temperature.attrs['units'] = temperature.unit.to_string()
                     dset_density = hf[loop.name].create_dataset('density',data=density.value)
                     dset_density.attrs['units'] = density.unit.to_string()
+                    dset_velocity = hf[loop.name].create_dataset('velocity',data=velocity.value)
+                    dset_velocity.attrs['units'] = velocity.unit.to_string()
             else:
                 loop._temperature = temperature
                 loop._density = density
+                loop.velocity = velocity
 
     def calculate_emission(self,emission_model,savefile=None,**kwargs):
         """
