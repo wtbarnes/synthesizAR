@@ -57,12 +57,13 @@ class Skeleton(object):
         if hasattr(self,'simulation_type'):
             sim_type = self.simulation_type
         return '''synthesizAR Field Object
-        ------------------------
-        Number of loops: {num_loops}
-        Simulation Type: {sim_type}
-        Magnetogram Info:
-        -----------------
-        {hmi_map_info}
+------------------------
+Number of loops: {num_loops}
+Simulation Type: {sim_type}
+Magnetogram Info:
+-----------------
+{hmi_map_info}
+
         '''.format(num_loops=num_loops,sim_type=sim_type,hmi_map_info=self.hmi_map.__repr__())
 
     def _process_map(self,tmp_map,crop=None,resample=None):

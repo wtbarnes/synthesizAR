@@ -33,10 +33,10 @@ class Loop(object):
 
     def __repr__(self):
         return '''
-        Name : {name}
-        Loop full-length, 2L : {loop_length:.3f}
-        Footpoints : ({fp0}),({fp1}) {fpu}
-        maximum field strength : {max_b:.2f}
+Name : {name}
+Loop full-length, 2L : {loop_length:.3f}
+Footpoints : ({fp0}),({fp1}) {fpu}
+maximum field strength : {max_b:.2f}
         '''.format(name=self.name,
                    loop_length=self.full_length.to(u.Mm),
                    fp0=','.join(['{:.3g}'.format(l) for l in self.coordinates[0,:].value]),
