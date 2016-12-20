@@ -31,6 +31,19 @@ class Loop(object):
         #Load in field strength along the field line; convert from Tesla to Gauss
         self.field_strength = (np.array(field_strength)*u.T).to(u.Gauss)
 
+    def __repr__(self):
+        return '''
+        Name : {name}
+        Loop full-length, 2L : {loop_length:.3f}
+        Footpoints : ({fp0}),({fp1}) {fpu}
+        maximum field strength : {max_b:.2f}
+        '''.format(name=self.name,
+                   loop_length=self.full_length.to(u.Mm),
+                   fp0=','.join(['{:.3g}'.format(l) for l in self.coordinates[0,:].value]),
+                   fp1=','.join(['{:.3g}'.format(l) for l in self.coordinates[-1,:].value]),
+                   fpu=self.coordinates.unit.to_string(),
+                   max_b=np.max(self.field_strength))
+
     @property
     def field_aligned_coordinate(self):
         """
