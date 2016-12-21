@@ -301,22 +301,40 @@ Magnetogram Info:
         for loop in self.loops:
             time,temperature,density,velocity = interface.load_results(loop,**kwargs)
             loop.time = time
+            # convert velocity to cartesian coordinates
+            grad_xyz = np.gradient(loop.coordinates.value,axis=0)
+            s_hat = grad_xyz/np.expand_dims(np.linalg.norm(grad_xyz,axis=1),axis=-1)
+            velocity_xyz = np.stack([velocity.value*s_hat[:,0],
+                                     velocity.value*s_hat[:,1],
+                                     velocity.value*s_hat[:,2]],axis=2)
             if savefile is not None:
                 loop.parameters_savefile = savefile
                 with h5py.File(savefile,'a') as hf:
                     if loop.name not in hf:
                         hf.create_group(loop.name)
+                    # electron temperature
                     dset_temperature = hf[loop.name].create_dataset('temperature',
                                                                     data=temperature.value)
                     dset_temperature.attrs['units'] = temperature.unit.to_string()
+                    # number density
                     dset_density = hf[loop.name].create_dataset('density',data=density.value)
                     dset_density.attrs['units'] = density.unit.to_string()
+                    # field-aligned velocity
                     dset_velocity = hf[loop.name].create_dataset('velocity',data=velocity.value)
                     dset_velocity.attrs['units'] = velocity.unit.to_string()
+                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned firection'
+                    # Cartesian xyz velocity
+                    dset_velocity_xyz = hf[loop.name].create_dataset('velocity_xyz',
+                                                                    data=velocity_xyz)
+                    dset_velocity_xyz.attrs['units'] = velocity.unit.to_string()
+                    dset_velocity_xyz.attrs['note'] = '''Velocity in the Cartesian coordinate
+                                                        system of the extrapolated magnetic
+                                                        field. Index 0->x, index 1->y, index
+                                                        2->z.'''
             else:
                 loop._temperature = temperature
                 loop._density = density
-                loop.velocity = velocity
+                loop._velocity = velocity
 
     def calculate_emission(self,emission_model,savefile=None,**kwargs):
         """
