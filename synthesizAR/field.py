@@ -299,6 +299,7 @@ Magnetogram Info:
         Load in loop parameters from hydrodynamic results.
         """
         for loop in self.loops:
+            self.logger.debug('Loading parameters for {}'.format(loop.name))
             time,temperature,density,velocity = interface.load_results(loop,**kwargs)
             loop.time = time
             # convert velocity to cartesian coordinates
@@ -322,7 +323,7 @@ Magnetogram Info:
                     # field-aligned velocity
                     dset_velocity = hf[loop.name].create_dataset('velocity',data=velocity.value)
                     dset_velocity.attrs['units'] = velocity.unit.to_string()
-                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned firection'
+                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
                     # Cartesian xyz velocity
                     dset_velocity_xyz = hf[loop.name].create_dataset('velocity_xyz',
                                                                     data=velocity_xyz)
