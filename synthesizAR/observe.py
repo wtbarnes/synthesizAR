@@ -36,8 +36,8 @@ class Observer(object):
         self.field = field
         self.instruments = instruments
         if ds is None:
-            ds = 0.1*np.min([min(instr.resolution.x.value,nstr.resolution.y.value) \
-            for instr in self.instruments])*self.instruments[0].resolution.x.unit
+            ds = 0.1*np.min([min(instr.resolution.x.value,instr.resolution.y.value) \
+                            for instr in self.instruments])*self.instruments[0].resolution.x.unit
         ds = self.field._convert_angle_to_length(ds)
         self._interpolate_loops(ds)
 
