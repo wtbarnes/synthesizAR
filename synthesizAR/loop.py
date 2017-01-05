@@ -36,7 +36,7 @@ class Loop(object):
 Name : {name}
 Loop full-length, 2L : {loop_length:.3f}
 Footpoints : ({fp0}),({fp1}) {fpu}
-maximum field strength : {max_b:.2f}
+Maximum field strength : {max_b:.2f}
         '''.format(name=self.name,
                    loop_length=self.full_length.to(u.Mm),
                    fp0=','.join(['{:.3g}'.format(l) for l in self.coordinates[0,:].value]),
@@ -101,6 +101,20 @@ maximum field strength : {max_b:.2f}
             return velocity
         else:
             return self._velocity
+
+    @property
+    def velocity_xyz(self):
+        """
+        Velocity in the Cartesian coordinate system as defined by the HMI map as a function of
+        loop coordinate and time. Can be stored in memory or pulled from an HDF5 file.
+        """
+        if hasattr(self,'parameters_savefile'):
+            with h5py.File(self.parameters_savefile,'r') as hf:
+                dset = hf[os.path.join(self.name,'velocity_xyz')]
+                velocity_xyz = np.array(dset)*u.Unit(dset.attrs['units'])
+            return velocity_xyz
+        else:
+            return self._velocity_xyz
 
     @u.quantity_input(wavelength=u.angstrom)
     def get_emission(self,wavelength):

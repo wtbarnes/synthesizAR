@@ -336,6 +336,7 @@ Magnetogram Info:
                 loop._temperature = temperature
                 loop._density = density
                 loop._velocity = velocity
+                loop._velocity_xyz = velocity_xyz
 
     def calculate_emission(self,emission_model,savefile=None,**kwargs):
         """
