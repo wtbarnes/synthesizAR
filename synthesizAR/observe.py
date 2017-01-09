@@ -31,15 +31,30 @@ class Observer(object):
     """
 
 
-    def __init__(self,field,instruments,ds=None):
+    def __init__(self,field,instruments,ds=None,line_of_sight=(0,0,-1)):
         self.logger = logging.getLogger(name=type(self).__name__)
         self.field = field
         self.instruments = instruments
+        sefl._channels_setup()
+        self.line_of_sight = line_of_sight
         if ds is None:
             ds = 0.1*np.min([min(instr.resolution.x.value,instr.resolution.y.value) \
                             for instr in self.instruments])*self.instruments[0].resolution.x.unit
         ds = self.field._convert_angle_to_length(ds)
         self._interpolate_loops(ds)
+
+    def _channels_setup(self):
+        """
+        Tell each channel of each detector which wavelengths fall in it.
+        """
+        for instr in self.instruments:
+            for channel in instr.channels:
+                if channel['wavelength_range'] is not None:
+                    channel['model_wavelengths'] = []
+                    for wvl in self.field.loops[0].wavelengths:
+                        if channel['wavelength_range'][0] <= wvl <= channel['wavelength_range'][-1]:
+                            channel['model_wavelengths'].append(wvl)
+                    channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
 
     def _interpolate_loops(self,ds):
         """
@@ -67,14 +82,63 @@ class Observer(object):
         """
         file_template = os.path.join(savedir,'{}_counts.h5')
         for instr in self.instruments:
-            instr.counts_file = file_template.format(instr.name)
-            self.logger.info('Creating instrument file {}'.format(instr.counts_file))
-            with h5py.File(instr.counts_file,'w') as hf:
-                for channel in instr.channels:
-                    hf.create_dataset(channel['name'],(len(instr.observing_time),
-                                                       len(self.total_coordinates)))
+            instr.make_detector_array(self.field)
+            instr.build_detector_file(self.field,len(self.total_coordinates),file_template)
 
-    def calculate_detector_counts(self):
+    def flatten_detector_counts(self):
+        """
+        Interpolate and flatten emission data from loop objects.
+        """
+        for instr in self.instruments:
+            self.logger.info('Flattening counts for {}'.format(instr.name))
+            with h5py.File(instr.counts_file,'a') as hf:
+                start_index = 0
+                for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
+                    self.logger.debug('Flattening counts for {}'.format(loop.name))
+                    # LOS velocity
+                    los_velocity = np.dot(loop.velocity_xyz,self.line_of_sight)
+                    dset = hf['los_velocity/flat_counts']
+                    instr.interpolate_and_store(los_velocity,loop,interp_s,dset)
+                    # Average temperature
+                    dset = hf['average_temperature/flat_counts']
+                    instr.interpolate_and_store(loop.temperature,loop,interp_s,dset)
+                    # Counts/emission
+                    instr.flatten(loop,interp_s,hf,start_index)
+                    start_index += len(interp_s)
+
+    def bin_detector_counts(self):
+        """
+        Bin all channels or lines into a 3D histogram and project onto x-y plane
+        """
+        for instr in self.instruments:
+            self.logger.info('Binning counts for {}'.format(instr.name))
+            bins_z,bin_range_z = self._make_z_bins(instr)
+            # make coordinates histogram for normalization
+            hist_coordinates,_ = np.histogramdd(self.total_coordinates.value,
+                                        bins=[instr.bins.x,instr.bins.y,bins_z],
+                                        range=[instr.bin_range.x,instr.bin_range.y,bin_range_z])
+            with h5py.File(instr.counts_file,'a') as hf:
+                for group in hf:
+                    dset_flat = hf['{}/flat_counts'.format(group)]
+                    dset_map = hf['{}/map'.format(group)]
+                    if group=='los_velocity' or group=='average_temperature':
+                        dset_map.attrs['units'] = dset_flat.attrs['units']
+                    else:
+                        dset_map.attrs['units'] = (u.Unit(dset_flat.attrs['units'])*self.total_coordinates.unit).to_string()
+                    for i,time in enumerate(instr.observing_time.value):
+                        tmp = np.array(dset_flat[i,:])
+                        hist,edges = np.histogramdd(self.total_coordinates.value,
+                                            bins=[instr.bins.x,instr.bins.y,bins_z],
+                                            range=[instr.bin_range.x,instr.bin_range.y,bin_range_z],
+                                            weights=tmp)
+                        if group=='los_velocity' or group=='average_temperature':
+                            hist /= np.where(hist_coordinates==0,1,hist_coordinates)
+                            projection = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+                        else:
+                            projection = np.dot(hist,np.diff(edges[2])).T
+                        dset_map[:,:,i] = projection
+
+    def __calculate_detector_counts(self):
         """
         Calculate counts for each channel of each detector. Counts are interpolated to the
         desired spatial and temporal resolution.
@@ -116,7 +180,38 @@ class Observer(object):
 
         return bins_z,bin_range_z
 
-    def bin_detector_counts(self,savedir,apply_psf=False):
+    def make_data_products(self,savedir):
+        """
+        Assemble instrument data products and print to FITS file.
+        """
+        fn_template = os.path.join(savedir,'{instr}','{channel}','map_t{time:06d}.fits')
+        for instr in self.instruments:
+            self.logger.info('Building data products for {}'.format(instr.name))
+            with h5py.File(instr.counts_file,'r') as hf:
+                for channel in instr.channels:
+                    self.logger.info('Building data products for channel {}'.format(channel['name']))
+                    dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
+                                                                    channel=channel['name'],
+                                                                    time=0))
+                    if not os.path.exists(dummy_dir):
+                        os.makedirs(dummy_dir)
+                    #setup fits header
+                    header = instr.make_fits_header(self.field,channel)
+                    header['tunit'] = instr.observing_time.unit.to_string()
+                    #produce map for each timestep
+                    for i,time in enumerate(instr.observing_time.value):
+                        #combine lines for given channel
+                        data = instr.detect(hf,channel,i,header)
+                        #make SunPy map and save as FITS
+                        header['t_obs'] = time
+                        tmp_map = sunpy.map.Map(data,header)
+                        #crop to desired region and save
+                        if instr.observing_area is not None:
+                            tmp_map = tmp_map.crop(instr.observing_area)
+                        tmp_map.save(fn_template.format(instr=instr.name,channel=channel['name'],
+                                                        time=i))
+
+    def __bin_detector_counts(self,savedir,apply_psf=False):
         """
         Bin the counts into the detector array, project it down to 2 dimensions,
         and save it to a FITS file.

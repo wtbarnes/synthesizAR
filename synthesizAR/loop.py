@@ -117,7 +117,7 @@ Maximum field strength : {max_b:.2f}
             return self._velocity_xyz
 
     @u.quantity_input(wavelength=u.angstrom)
-    def get_emission(self,wavelength):
+    def get_emission(self,wavelength,return_ion_name=False):
         """
         Get the calculated emission (energy per unit volume per unit time per unit solid angle) for
         a particular wavelength. Can be stored in memory or pulled from an HDF5 file.
@@ -125,8 +125,12 @@ Maximum field strength : {max_b:.2f}
         if hasattr(self,'emission_savefile'):
             with h5py.File(self.emission_savefile,'r') as hf:
                 dset = hf[os.path.join(self.name,str(wavelength.to(u.angstrom).value))]
+                ion_name = dset.attrs['ion_name']
                 emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
             emiss = self.emission[wavelength]
 
-        return emiss
+        if return_ion_name:
+            return emiss,ion_name
+        else:
+            return emiss
