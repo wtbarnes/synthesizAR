@@ -19,5 +19,6 @@ dependencies:
 - wcsaxes
 - yt
 - pip:
+  - periodictable
   - git+git://github.com/sunpy/solarbextrapolation.git
   - git+git://github.com/chianti-atomic/ChiantiPy.git
