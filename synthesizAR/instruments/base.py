@@ -7,6 +7,7 @@ from collections import namedtuple
 
 import numpy as np
 import astropy.units as u
+import h5py
 
 Pair = namedtuple('Pair','x y')
 
@@ -16,7 +17,6 @@ class InstrumentBase(object):
     Base class for instruments. Need to at least implement a detect() method that is used by the
     `Observer` class to get the detector counts.
     """
-
 
     @u.quantity_input(observing_time=u.s)
     def __init__(self,observing_time,observing_area=None):
@@ -34,6 +34,31 @@ class InstrumentBase(object):
         """
         raise NotImplementedError('No detect method implemented.')
 
+    def build_detector_file(self,num_loop_coordinates,file_template):
+        """
+        Allocate space for counts data.
+        """
+        self.counts_file = file_template.format(self.name)
+        self.logger.info('Creating instrument file {}'.format(self.counts_file))
+        # Allocate space for LOS velocity and temperature
+        with h5py.File(self.counts_file,'a') as hf:
+            for name in ['average_temperature','los_velocity']:
+                hf.create_dataset('{}/flat_counts'.format(name),
+                                    (len(self.observing_time),num_loop_coordinates))
+                hf.create_dataset('{}/maps'.format(name),
+                                    (self.bins.y,self.bins.x,len(self.observing_time)))
+
+    def interpolate_and_store(self,y,loop,interp_s,dset):
+        """
+        Interpolate in time and space and write to HDF5 file.
+        """
+        f_s = interp1d(loop.field_aligned_coordinate.value,y.value,
+                        axis=1,kind='linear')
+        interpolated_y = interp1d(loop.time.value,f_s(interp_s),
+                                        axis=0,kind='linear')(instr.observing_time)
+        dset[:,start_index:(start_index+len(interp_s))] = interpolated_y
+        if 'units' not in dset.attrs:
+            dset.attrs['units'] = y.unit.to_string()
 
     def make_fits_header(self,field,channel):
         """
