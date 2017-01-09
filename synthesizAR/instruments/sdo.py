@@ -8,7 +8,8 @@ import sys
 import logging
 
 import numpy as np
-import scipy.interpolate
+from scipy.interpolate import splrep,splev,interp1d
+import scipy.ndimage
 import astropy.units as u
 import sunpy.map
 
@@ -61,60 +62,18 @@ class InstrumentSDOAIA(InstrumentBase):
         channel['name'] = str(channel['wavelength'].value).strip('.0')
         channel['instrument_label'] = '{}_{}'.format(fits_template['detector'],
                                                     channel['telescope_number'])
+        #TODO: this should be set once we use the wavelength response function for AIA
+        channel['wavelength_range'] = None
 
     cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel)
 
     def __init__(self, observing_time, observing_area=None,
-    use_temperature_response_functions=True,response_function_file=''):
+    use_temperature_response_functions=True,response_function_file='',apply_psf=True):
         super().__init__(observing_time,observing_area)
         self.use_temperature_response_functions = use_temperature_response_functions
         if self.use_temperature_response_functions and response_function_file:
             self._setup_response_functions(response_function_file)
-
-    def detect(self,loop,channel):
-        """
-        For a given loop object, calculate the counts detected by AIA in a
-        particular channel.
-
-        Parameters
-        ----------
-        loop : loop object
-        channel : `dict`
-
-        Returns
-        -------
-        counts : array-like
-        """
-        if self.use_temperature_response_functions:
-            counts = self._detect_simple(loop,channel)
-        else:
-            counts = self._detect_full(loop,channel)
-        return counts
-
-    def _detect_simple(self,loop,channel):
-        """
-        Calculate counts using the density and temperature response functions.
-        No emissivity model needed.
-        """
-        response_function = scipy.interpolate.splev(
-            np.ravel(loop.temperature),channel['response_spline_nots'])*u.count*u.cm**5/u.s/u.pixel
-
-        return np.reshape(np.ravel(loop.density**2)*response_function,
-                          np.shape(loop.density))
-
-    def _detect_full(self,loop,channel):
-        """
-        Calculate counts use emissivity for a large number of transitions.
-        Requires emissivity model.
-
-        Notes
-        -----
-        This is necessary when taking into account non-equilibrium ionization.
-        """
-        raise NotImplementedError('''Full detect function not yet implemented. Set
-                                    use_temperature_response_functions to True to use the
-                                    _detect_simple() method.''')
 
     def _setup_response_functions(self,filename):
         """
@@ -133,4 +92,77 @@ class InstrumentSDOAIA(InstrumentBase):
         _tmp_temperature = 10**(_tmp[:,0])
         for i,channel in enumerate(self.channels):
             _tmp_response = _tmp[:,channel_order[channel['wavelength']]+1]
-            self.channels[i]['response_spline_nots'] = scipy.interpolate.splrep(_tmp_temperature,_tmp_response)
+            self.channels[i]['response_spline_nots'] = splrep(_tmp_temperature,_tmp_response)
+
+    def build_detector_file(self,field,num_loop_coordinates,file_format):
+        """
+        Allocate space for counts data.
+        """
+        super().build_detector_file(num_loop_coordinates,file_format)
+        if self.use_temperature_response_functions:
+            with h5py.File(self.counts_file,'a') as hf:
+                for channel in self.channels:
+                    hf.create_dataset('{}/flat_counts'.format(channel['name']),
+                                        (len(self.observing_time),num_loop_coordinates))
+                    hf.create_dataset('{}/maps'.format(channel['name']),
+                                        (self.bins.y,self.bins.x,len(self.observing_time)))
+
+    def flatten(self,loop,interp_s,hf,start_index):
+        """
+        Flatten channel counts to HDF5 file
+        """
+        if self.use_temperature_response_functions:
+            for channel in self.channels:
+                response_function = splev(np.ravel(loop.temperature),
+                                        channel['response_spline_nots'])*u.count*u.cm**5/u.s/u.pixel
+                counts = np.reshape(np.ravel(loop.density**2)*response_function,
+                                    np.shape(loop.density))
+                dset = hf['{}/flat_counts'.format(channel['name'])]
+                self.interpolate_and_store(counts,loop,interp_s,dset)
+        else:
+            raise NotImplementedError('''Full detect function not yet implemented. Set
+                                        use_temperature_response_functions to True to use the
+                                        _detect_simple() method.''')
+
+    def detect(self,hf,channel,i_time,header):
+        """
+        For a given channel and timestep, return the observed intensity in each pixel.
+
+        Parameters
+        ----------
+        channel : `dict`
+
+        Returns
+        -------
+        counts : array-like
+        """
+        if self.use_temperature_response_functions:
+            counts = self._detect_simple(hf,channel,i_time,header)
+        else:
+            counts = self._detect_full(hf,channel,i_time,header)
+        if self.apply_psf:
+            counts = scipy.ndimage.filters.gaussian_filter(counts,
+                                                    channel['gaussian_width'].value)
+        return counts
+
+    def _detect_simple(self,hf,channel,i_time,header):
+        """
+        Calculate counts using the density and temperature response functions.
+        No emissivity model needed.
+        """
+        dset = hf['{}/map'.format(channel['name'])]
+        header['bunit'] = dset.attrs['units']
+        return np.array(dset[i_time,:,:])
+
+    def _detect_full(self,hf,channel,i_time,header):
+        """
+        Calculate counts use emissivity for a large number of transitions.
+        Requires emissivity model.
+
+        Notes
+        -----
+        This is necessary when taking into account non-equilibrium ionization.
+        """
+        raise NotImplementedError('''Full detect function not yet implemented. Set
+                                    use_temperature_response_functions to True to use the
+                                    _detect_simple() method.''')
