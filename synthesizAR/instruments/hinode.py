@@ -9,9 +9,12 @@ import sys
 import logging
 
 import numpy as np
-from scipy.interpolate import splrep,splev
+from scipy.interpolate import splrep,splev,interp1d
 import sunpy.map
 import astropy.units as u
+import astropy.constants as const
+import h5py
+import periodictable
 
 from synthesizAR.instruments import InstrumentBase,Pair
 
@@ -22,6 +25,7 @@ class InstrumentHinodeEIS(InstrumentBase):
     Converts emissivity calculations for each loop into detector units based on the spectral,
     spatial, and temporal resolution along with the instrument response functions.
     """
+
 
     name = 'Hinode_EIS'
     cadence = 10.0*u.s
@@ -65,27 +69,78 @@ class InstrumentHinodeEIS(InstrumentBase):
                 resp_x[i-1],resp_y[i-1] = list(filter(None,lines[i].split(' ')))
             self.channels.append({'wavelength':wave,'name':name,
                     'response':{'x':resp_x*u.angstrom,
-                                'y':resp_y*u.count/u.pixel/u.photon*u.steradian*u.cm**2}})
+                                'y':resp_y*u.count/u.pixel/u.photon*u.steradian*u.cm**2},
+                    'spectral_resolution':float(lines[int(lines[0])+1])*u.angstrom,
+                    'instrument_width':float(lines[int(lines[0])+2])*u.angstrom,
+                    'wavelength_range':[resp_x[0],resp_x[-1]]*u.angstrom})
 
         self.channels = sorted(self.channels,key=lambda x:x['wavelength'])
 
+    def make_fits_header(self,field,channel):
+        """
+        Extend base method to include extra wavelength dimension.
+        """
+        header = super().make_fits_header(field,channel)
+        header['naxis3'] = len(channel['response']['x'])
+        header['ctype3'] = 'wavelength'
+        header['cunit3'] = 'angstrom'
+        header['cdelt3'] = np.fabs(np.diff(channel['response']['x']).value[0])
+        return header
 
-    def detect(self,loop,channel):
+    def build_detector_file(self,field,num_loop_coordinates,file_format):
+        """
+        Build HDF5 files to store detector counts
+        """
+        super().build_detector_file(num_loop_coordinates,file_format)
+        with h5py.File(self.counts_file,'a') as hf:
+            for line in field.loops[0].wavelengths:
+                hf.create_dataset('{}/flat_counts'.format(str(line.value)),
+                                    (len(self.observing_time),num_loop_coordinates))
+                hf.create_dataset('{}/maps'.format(str(line.value)),
+                                    (self.bins.y,self.bins.x,len(self.observing_time)))
+
+    def flatten(self,loop,interp_s,hf,start_index):
+        """
+        Flatten loop emission to HDF5 file for given number of wavelengths
+        """
+        for wavelength in loop.wavelengths:
+            emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
+            dset = hf['{}/flat_counts'.format(str(wavelength.value))]
+            ion_mass = periodictable.elements.symbol(ion_name.split(' ')[0]).mass*const.u.cgs
+            hf['{}'.format(str(wavelength.value))].attrs['ion_name'] = ion_name
+            self.interpolate_and_store(y,loop,interp_s,dset)
+
+    def detect(self,hf,channel,i_time,header):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        if 'model_wavelengths' not in channel:
-            # only interpolate once
-            channel_wvls = [w for w in loop.wavelengths \
-                            if channel['response']['x'][0] <= w <= channel['response']['x'][-1]]
-            channel_wvls *= loop.wavelengths.unit
-            self.logger.debug('Interpolating emission wavelengths into response array for channel {}'.format(channel['name']))
-            nots = splrep(channel['response']['x'].value,channel['response']['y'].value)
-            channel['model_response'] = splev(channel_wvls.value,nots)*channel['response']['y'].unit
-            channel['model_wavelengths'] = channel_wvls
+        temperature = np.array(hf['average_temperature/map'][:,:,i_time])\
+                        *u.Unit(hf['average_temperature/map'].attrs['unit'])
+        los_velocity = np.array(hf['los_velocity/map'][:,:,i_time])\
+                        *u.Unit(hf['los_velocity/map'].attrs['unit'])
 
-        counts = np.zeros(loop.density.shape)
-        for i,wavelength in enumerate(channel['model_wavelengths']):
-                counts += channel['model_response'][i].value*loop.get_emission(wavelength).value
+        counts = np.zeros(temperature.shape[:-1]+channel['response']['x'].shape)
+        for wavelength in channel['model_wavelengths']:
+            #thermal width + instrument width
+            ion_name = hf['{}'.format(str(wavelength.value))].attrs['ion_name']
+            ion_mass = periodictable.elements.symbol(ion_name.split(' ')[0]).mass*const.u.cgs
+            thermal_velocity = 2.*const.k_B.cgs*temperature/ion_mass
+            thermal_velocity = np.expand_dims(thermal_velocity,axis=2)*thermal_velocity.unit
+            line_width = 2./3.*wavelength**2/(const.c.cgs**2)*thermal_velocity \
+                        + 0.36*channel['instrument_width']**2
+            #doppler shift due to LOS velocity
+            doppler_shift = wavelength*los_velocity/const.c.cgs
+            doppler_shift = np.expand_dims(doppler_shift,axis=2)*doppler_shift.unit
+            #combine emissivity with instrument response function
+            dset = hf['{}/map'.format(str(wavelength.value))]
+            emiss = np.expand(np.array(dset[:,:,i_time]),axis=2)*u.Unit(dset.attrs['units'])
+            intensity = emiss*channel['response']['y']/np.sqrt(np.pi*line_wdith)
+            intensity *= np.exp(-(channel['response']['x'] - wavelength - doppler_shift)**2\
+                        /line_width)
+            if not hasattr(counts,'unit'):
+                counts = counts*intensity.unit
+            counts += intensity
 
-        return counts*loop.get_emission(wavelength).unit*channel['response']['y'].unit
+        header['bunit'] = counts.unit.to_string()
+
+        return counts
