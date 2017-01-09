@@ -18,6 +18,7 @@ class InstrumentBase(object):
     `Observer` class to get the detector counts.
     """
 
+
     @u.quantity_input(observing_time=u.s)
     def __init__(self,observing_time,observing_area=None):
         self.logger = logging.getLogger(name=type(self).__name__)
