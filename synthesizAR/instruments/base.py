@@ -57,7 +57,7 @@ class InstrumentBase(object):
         f_s = interp1d(loop.field_aligned_coordinate.value,y.value,
                         axis=1,kind='linear')
         interpolated_y = interp1d(loop.time.value,f_s(interp_s),
-                                        axis=0,kind='linear')(instr.observing_time)
+                                        axis=0,kind='linear')(self.observing_time)
         dset[:,start_index:(start_index+len(interp_s))] = interpolated_y
         if 'units' not in dset.attrs:
             dset.attrs['units'] = y.unit.to_string()
@@ -92,6 +92,5 @@ class InstrumentBase(object):
                           field.clipped_hmi_map.yrange[0])
         self.bins = Pair(int(np.ceil(delta_x/self.resolution.x).value),
                          int(np.ceil(delta_y/self.resolution.y).value))
-        self.bin_range = Pair(
-            field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
-            field._convert_angle_to_length(field.clipped_hmi_map.yrange).value)
+        self.bin_range = Pair(field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
+                            field._convert_angle_to_length(field.clipped_hmi_map.yrange).value)
