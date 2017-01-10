@@ -71,6 +71,7 @@ class InstrumentSDOAIA(InstrumentBase):
     def __init__(self, observing_time, observing_area=None,
     use_temperature_response_functions=True,response_function_file='',apply_psf=True):
         super().__init__(observing_time,observing_area)
+        self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
         if self.use_temperature_response_functions and response_function_file:
             self._setup_response_functions(response_function_file)
