@@ -2,6 +2,7 @@
 Base class for instrument objects.
 """
 
+import os
 import logging
 from collections import namedtuple
 
@@ -43,12 +44,15 @@ class InstrumentBase(object):
         self.counts_file = file_template.format(self.name)
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
         # Allocate space for LOS velocity and temperature
-        with h5py.File(self.counts_file,'a') as hf:
-            for name in ['average_temperature','los_velocity']:
-                hf.create_dataset('{}/flat_counts'.format(name),
-                                    (len(self.observing_time),num_loop_coordinates))
-                hf.create_dataset('{}/maps'.format(name),
-                                    (self.bins.y,self.bins.x,len(self.observing_time)))
+        if os.path.exists(self.counts_file):
+            self.logger.warning('Instrument file not created. {} already exists'.format(self.counts_file))
+        else:
+            with h5py.File(self.counts_file,'a') as hf:
+                for name in ['average_temperature','los_velocity']:
+                    hf.create_dataset('{}/flat_counts'.format(name),
+                                        (len(self.observing_time),num_loop_coordinates))
+                    hf.create_dataset('{}/maps'.format(name),
+                                        (self.bins.y,self.bins.x,len(self.observing_time)))
 
     def interpolate_and_store(self,y,loop,interp_s,dset,start_index):
         """
