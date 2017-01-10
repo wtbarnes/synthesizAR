@@ -106,9 +106,8 @@ class InstrumentHinodeEIS(InstrumentBase):
         for wavelength in loop.wavelengths:
             emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
             dset = hf['{}/flat_counts'.format(str(wavelength.value))]
-            ion_mass = periodictable.elements.symbol(ion_name.split(' ')[0]).mass*const.u.cgs
             hf['{}'.format(str(wavelength.value))].attrs['ion_name'] = ion_name
-            self.interpolate_and_store(y,loop,interp_s,dset,start_index)
+            self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
 
     def detect(self,hf,channel,i_time,header):
         """
