@@ -155,7 +155,7 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         dset = hf['{}/maps'.format(channel['name'])]
         header['bunit'] = dset.attrs['units']
-        return np.array(dset[i_time,:,:])
+        return np.array(dset[:,:,i_time])
 
     def _detect_full(self,hf,channel,i_time,header):
         """
