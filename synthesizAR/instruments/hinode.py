@@ -115,9 +115,9 @@ class InstrumentHinodeEIS(InstrumentBase):
         Calculate response of Hinode/EIS detector for given loop object.
         """
         temperature = np.array(hf['average_temperature/maps'][:,:,i_time])\
-                        *u.Unit(hf['average_temperature/maps'].attrs['unit'])
+                        *u.Unit(hf['average_temperature/maps'].attrs['units'])
         los_velocity = np.array(hf['los_velocity/maps'][:,:,i_time])\
-                        *u.Unit(hf['los_velocity/maps'].attrs['unit'])
+                        *u.Unit(hf['los_velocity/maps'].attrs['units'])
 
         counts = np.zeros(temperature.shape[:-1]+channel['response']['x'].shape)
         for wavelength in channel['model_wavelengths']:
