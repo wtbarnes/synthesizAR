@@ -119,7 +119,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         los_velocity = np.array(hf['los_velocity/maps'][:,:,i_time])\
                         *u.Unit(hf['los_velocity/maps'].attrs['units'])
 
-        counts = np.zeros(temperature.shape[:-1]+channel['response']['x'].shape)
+        counts = np.zeros(temperature.shape+channel['response']['x'].shape)
         for wavelength in channel['model_wavelengths']:
             #thermal width + instrument width
             ion_name = hf['{}'.format(str(wavelength.value))].attrs['ion_name']
