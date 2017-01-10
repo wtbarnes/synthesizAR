@@ -35,7 +35,7 @@ class Observer(object):
         self.logger = logging.getLogger(name=type(self).__name__)
         self.field = field
         self.instruments = instruments
-        sefl._channels_setup()
+        self._channels_setup()
         self.line_of_sight = line_of_sight
         if ds is None:
             ds = 0.1*np.min([min(instr.resolution.x.value,instr.resolution.y.value) \
