@@ -152,7 +152,7 @@ class InstrumentSDOAIA(InstrumentBase):
         Calculate counts using the density and temperature response functions.
         No emissivity model needed.
         """
-        dset = hf['{}/map'.format(channel['name'])]
+        dset = hf['{}/maps'.format(channel['name'])]
         header['bunit'] = dset.attrs['units']
         return np.array(dset[i_time,:,:])
 

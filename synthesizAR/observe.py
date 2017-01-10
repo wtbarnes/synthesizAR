@@ -121,7 +121,7 @@ class Observer(object):
                 for group in hf:
                     self.logger.info('Binning counts for {}'.format(group))
                     dset_flat = hf['{}/flat_counts'.format(group)]
-                    dset_map = hf['{}/map'.format(group)]
+                    dset_map = hf['{}/maps'.format(group)]
                     if group=='los_velocity' or group=='average_temperature':
                         dset_map.attrs['units'] = dset_flat.attrs['units']
                     else:

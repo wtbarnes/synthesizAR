@@ -113,10 +113,10 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        temperature = np.array(hf['average_temperature/map'][:,:,i_time])\
-                        *u.Unit(hf['average_temperature/map'].attrs['unit'])
-        los_velocity = np.array(hf['los_velocity/map'][:,:,i_time])\
-                        *u.Unit(hf['los_velocity/map'].attrs['unit'])
+        temperature = np.array(hf['average_temperature/maps'][:,:,i_time])\
+                        *u.Unit(hf['average_temperature/maps'].attrs['unit'])
+        los_velocity = np.array(hf['los_velocity/maps'][:,:,i_time])\
+                        *u.Unit(hf['los_velocity/maps'].attrs['unit'])
 
         counts = np.zeros(temperature.shape[:-1]+channel['response']['x'].shape)
         for wavelength in channel['model_wavelengths']:
@@ -131,7 +131,7 @@ class InstrumentHinodeEIS(InstrumentBase):
             doppler_shift = wavelength*los_velocity/const.c.cgs
             doppler_shift = np.expand_dims(doppler_shift,axis=2)*doppler_shift.unit
             #combine emissivity with instrument response function
-            dset = hf['{}/map'.format(str(wavelength.value))]
+            dset = hf['{}/maps'.format(str(wavelength.value))]
             emiss = np.expand(np.array(dset[:,:,i_time]),axis=2)*u.Unit(dset.attrs['units'])
             intensity = emiss*channel['response']['y']/np.sqrt(np.pi*line_wdith)
             intensity *= np.exp(-(channel['response']['x'] - wavelength - doppler_shift)**2\
