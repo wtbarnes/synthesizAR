@@ -6,6 +6,7 @@ import logging
 from collections import namedtuple
 
 import numpy as np
+from scipy.interpolate import interp1d
 import astropy.units as u
 import h5py
 
