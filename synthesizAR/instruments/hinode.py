@@ -92,12 +92,13 @@ class InstrumentHinodeEIS(InstrumentBase):
         Build HDF5 files to store detector counts
         """
         super().build_detector_file(num_loop_coordinates,file_format)
-        with h5py.File(self.counts_file,'a') as hf:
-            for line in field.loops[0].wavelengths:
-                hf.create_dataset('{}/flat_counts'.format(str(line.value)),
-                                    (len(self.observing_time),num_loop_coordinates))
-                hf.create_dataset('{}/maps'.format(str(line.value)),
-                                    (self.bins.y,self.bins.x,len(self.observing_time)))
+        if not os.path.exists(self.counts_file):
+            with h5py.File(self.counts_file,'a') as hf:
+                for line in field.loops[0].wavelengths:
+                    hf.create_dataset('{}/flat_counts'.format(str(line.value)),
+                                        (len(self.observing_time),num_loop_coordinates))
+                    hf.create_dataset('{}/maps'.format(str(line.value)),
+                                        (self.bins.y,self.bins.x,len(self.observing_time)))
 
     def flatten(self,loop,interp_s,hf,start_index):
         """
