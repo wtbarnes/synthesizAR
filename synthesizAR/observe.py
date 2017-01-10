@@ -119,6 +119,7 @@ class Observer(object):
                                         range=[instr.bin_range.x,instr.bin_range.y,bin_range_z])
             with h5py.File(instr.counts_file,'a') as hf:
                 for group in hf:
+                    self.logger.info('Binning counts for {}'.format(group))
                     dset_flat = hf['{}/flat_counts'.format(group)]
                     dset_map = hf['{}/map'.format(group)]
                     if group=='los_velocity' or group=='average_temperature':
@@ -126,6 +127,7 @@ class Observer(object):
                     else:
                         dset_map.attrs['units'] = (u.Unit(dset_flat.attrs['units'])*self.total_coordinates.unit).to_string()
                     for i,time in enumerate(instr.observing_time.value):
+                        self.logger.debug('Binning counts for time = {t:.3f} {u}'.format(t=time,instr.observing_time.unit))
                         tmp = np.array(dset_flat[i,:])
                         hist,edges = np.histogramdd(self.total_coordinates.value,
                                             bins=[instr.bins.x,instr.bins.y,bins_z],
@@ -200,6 +202,7 @@ class Observer(object):
                     header['tunit'] = instr.observing_time.unit.to_string()
                     #produce map for each timestep
                     for i,time in enumerate(instr.observing_time.value):
+                        self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time,u=instr.observing_time.unit))
                         #combine lines for given channel
                         data = instr.detect(hf,channel,i,header)
                         #make SunPy map and save as FITS
