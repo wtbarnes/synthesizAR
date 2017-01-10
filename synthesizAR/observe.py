@@ -127,7 +127,7 @@ class Observer(object):
                     else:
                         dset_map.attrs['units'] = (u.Unit(dset_flat.attrs['units'])*self.total_coordinates.unit).to_string()
                     for i,time in enumerate(instr.observing_time.value):
-                        self.logger.debug('Binning counts for time = {t:.3f} {u}'.format(t=time,instr.observing_time.unit))
+                        self.logger.debug('Binning counts for time = {t:.3f} {u}'.format(t=time,u=instr.observing_time.unit))
                         tmp = np.array(dset_flat[i,:])
                         hist,edges = np.histogramdd(self.total_coordinates.value,
                                             bins=[instr.bins.x,instr.bins.y,bins_z],
