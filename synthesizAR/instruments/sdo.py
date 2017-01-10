@@ -12,6 +12,7 @@ from scipy.interpolate import splrep,splev,interp1d
 import scipy.ndimage
 import astropy.units as u
 import sunpy.map
+import h5py
 
 from synthesizAR.instruments import InstrumentBase,Pair
 
