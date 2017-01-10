@@ -134,7 +134,7 @@ class InstrumentHinodeEIS(InstrumentBase):
             #combine emissivity with instrument response function
             dset = hf['{}/maps'.format(str(wavelength.value))]
             emiss = np.expand_dims(np.array(dset[:,:,i_time]),axis=2)*u.Unit(dset.attrs['units'])
-            intensity = emiss*channel['response']['y']/np.sqrt(np.pi*line_wdith)
+            intensity = emiss*channel['response']['y']/np.sqrt(np.pi*line_width)
             intensity *= np.exp(-(channel['response']['x'] - wavelength - doppler_shift)**2\
                         /line_width)
             if not hasattr(counts,'unit'):
