@@ -50,7 +50,7 @@ class InstrumentBase(object):
                 hf.create_dataset('{}/maps'.format(name),
                                     (self.bins.y,self.bins.x,len(self.observing_time)))
 
-    def interpolate_and_store(self,y,loop,interp_s,dset):
+    def interpolate_and_store(self,y,loop,interp_s,dset,start_index):
         """
         Interpolate in time and space and write to HDF5 file.
         """

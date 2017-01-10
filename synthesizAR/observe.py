@@ -98,10 +98,10 @@ class Observer(object):
                     # LOS velocity
                     los_velocity = np.dot(loop.velocity_xyz,self.line_of_sight)
                     dset = hf['los_velocity/flat_counts']
-                    instr.interpolate_and_store(los_velocity,loop,interp_s,dset)
+                    instr.interpolate_and_store(los_velocity,loop,interp_s,dset,start_index)
                     # Average temperature
                     dset = hf['average_temperature/flat_counts']
-                    instr.interpolate_and_store(loop.temperature,loop,interp_s,dset)
+                    instr.interpolate_and_store(loop.temperature,loop,interp_s,dset,start_index)
                     # Counts/emission
                     instr.flatten(loop,interp_s,hf,start_index)
                     start_index += len(interp_s)

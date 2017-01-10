@@ -120,7 +120,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
                 dset = hf['{}/flat_counts'.format(channel['name'])]
-                self.interpolate_and_store(counts,loop,interp_s,dset)
+                self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
         else:
             raise NotImplementedError('''Full detect function not yet implemented. Set
                                         use_temperature_response_functions to True to use the
