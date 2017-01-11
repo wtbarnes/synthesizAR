@@ -189,7 +189,7 @@ class Observer(object):
                                     weights=np.array(hf['average_temperature'][i,:]))
                     hist /= np.where(hist_coordinates==0,1,hist_coordinates)
                     average_temperature = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
-                    average_temperature = average_temperature/
+                    average_temperature = average_temperature\
                                             *u.Unit(hf['average_temperature'].attrs['units'])
                     # LOS velocity map
                     hist,edges = np.histogramdd(self.total_coordinates.value,
