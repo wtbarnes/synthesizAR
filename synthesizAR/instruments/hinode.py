@@ -92,11 +92,11 @@ class InstrumentHinodeEIS(InstrumentBase):
         Build HDF5 files to store detector counts
         """
         super().build_detector_file(num_loop_coordinates,file_format)
-        if not os.path.exists(self.counts_file):
-            with h5py.File(self.counts_file,'a') as hf:
-                for line in field.loops[0].wavelengths:
+        with h5py.File(self.counts_file,'a') as hf:
+            for line in field.loops[0].wavelengths:
+                if str(line.value) not in hf:
                     hf.create_dataset('{}'.format(str(line.value)),
-                                        (len(self.observing_time),num_loop_coordinates))
+                                    (len(self.observing_time),num_loop_coordinates))
 
     def flatten(self,loop,interp_s,hf,start_index):
         """
@@ -105,7 +105,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         for wavelength in loop.wavelengths:
             emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
             dset = hf['{}'.format(str(wavelength.value))]
-            hf['{}'.format(str(wavelength.value))].attrs['ion_name'] = ion_name
+            dset.attrs['ion_name'] = ion_name
             self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
 
     def detect(self,hf,channel,i_time,header,temperature,los_velocity):

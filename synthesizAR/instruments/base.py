@@ -44,12 +44,11 @@ class InstrumentBase(object):
         self.counts_file = file_template.format(self.name)
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
         # Allocate space for LOS velocity and temperature
-        if os.path.exists(self.counts_file):
-            self.logger.warning('Instrument file not created. {} already exists'.format(self.counts_file))
-        else:
-            with h5py.File(self.counts_file,'a') as hf:
+        with h5py.File(self.counts_file,'a') as hf:
+            if 'average_temperature' not in hf:
                 hf.create_dataset('average_temperature',
                                 (len(self.observing_time),num_loop_coordinates))
+            if 'los_velocity' not in hf:
                 hf.create_dataset('los_velocity',(len(self.observing_time),num_loop_coordinates))
 
     def interpolate_and_store(self,y,loop,interp_s,dset,start_index):
