@@ -29,7 +29,7 @@ class InstrumentHinodeEIS(InstrumentBase):
 
     name = 'Hinode_EIS'
     cadence = 10.0*u.s
-    resolution = Pair(1.0*u.arcsec/u.pixel,2.0*u.arcsec/u.pixel)
+    resolution = Pair(1.0*u.arcsec/u.pixel,2.0*u.arcsec/u.pixel,None)
     fits_template = sunpy.map.header.MapMeta()
     fits_template['telescop'] = 'Hinode'
     fits_template['instrume'] = 'EIS'

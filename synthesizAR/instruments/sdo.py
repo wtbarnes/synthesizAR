@@ -67,7 +67,7 @@ class InstrumentSDOAIA(InstrumentBase):
         channel['wavelength_range'] = None
 
     cadence = 10.0*u.s
-    resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel)
+    resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel,None)
 
     def __init__(self, observing_time, observing_area=None,
     use_temperature_response_functions=True,response_function_file='',apply_psf=True):
