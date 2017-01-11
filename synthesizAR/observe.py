@@ -198,7 +198,7 @@ class Observer(object):
                                     weights=np.array(hf['los_velocity'][i,:]))
                     hist /= np.where(hist_coordinates==0,1,hist_coordinates)
                     los_velocity = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
-                    los_velocity = los_velocity*u.Unit(hf['los_velocity'].attrs['unit'])
+                    los_velocity = los_velocity*u.Unit(hf['los_velocity'].attrs['units'])
                     for channel in instr.channels:
                         if i==0:
                             self.logger.info('Building data products for channel {}'.format(channel['name']))
