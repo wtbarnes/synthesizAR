@@ -95,10 +95,8 @@ class InstrumentHinodeEIS(InstrumentBase):
         if not os.path.exists(self.counts_file):
             with h5py.File(self.counts_file,'a') as hf:
                 for line in field.loops[0].wavelengths:
-                    hf.create_dataset('{}/flat_counts'.format(str(line.value)),
+                    hf.create_dataset('{}'.format(str(line.value)),
                                         (len(self.observing_time),num_loop_coordinates))
-                    hf.create_dataset('{}/maps'.format(str(line.value)),
-                                        (self.bins.y,self.bins.x,len(self.observing_time)))
 
     def flatten(self,loop,interp_s,hf,start_index):
         """
@@ -106,19 +104,14 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         for wavelength in loop.wavelengths:
             emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
-            dset = hf['{}/flat_counts'.format(str(wavelength.value))]
+            dset = hf['{}'.format(str(wavelength.value))]
             hf['{}'.format(str(wavelength.value))].attrs['ion_name'] = ion_name
             self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
 
-    def detect(self,hf,channel,i_time,header):
+    def detect(self,hf,channel,i_time,header,temperature,los_velocity):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        temperature = np.array(hf['average_temperature/maps'][:,:,i_time])\
-                        *u.Unit(hf['average_temperature/maps'].attrs['units'])
-        los_velocity = np.array(hf['los_velocity/maps'][:,:,i_time])\
-                        *u.Unit(hf['los_velocity/maps'].attrs['units'])
-
         counts = np.zeros(temperature.shape+channel['response']['x'].shape)
         for wavelength in channel['model_wavelengths']:
             #thermal width + instrument width
@@ -132,8 +125,14 @@ class InstrumentHinodeEIS(InstrumentBase):
             doppler_shift = wavelength*los_velocity/const.c.cgs
             doppler_shift = np.expand_dims(doppler_shift,axis=2)*doppler_shift.unit
             #combine emissivity with instrument response function
-            dset = hf['{}/maps'.format(str(wavelength.value))]
-            emiss = np.expand_dims(np.array(dset[:,:,i_time]),axis=2)*u.Unit(dset.attrs['units'])
+            dset = hf['{}'.format(str(wavelength.value))]
+            hist,edges = np.histogramdd(self.total_coordinates.value,
+                                        bins=[self.bins.x,self.bins.y,self.bins.z],
+                                        range=[self.bin_range.x,self.bin_range.y,self.bin_range.z],
+                                        weights=np.array(dset[i_time,:]))
+            emiss = np.dot(hist,np.diff(edges[2])).T
+            emiss = np.expand_dims(emiss,axis=2)\
+                    *u.Unit(dset.attrs['units'])*self.total_coordinates.unit
             intensity = emiss*channel['response']['y']/np.sqrt(np.pi*line_width)
             intensity *= np.exp(-(channel['response']['x'] - wavelength - doppler_shift)**2\
                         /line_width)

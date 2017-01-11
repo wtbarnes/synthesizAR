@@ -105,10 +105,8 @@ class InstrumentSDOAIA(InstrumentBase):
             if self.use_temperature_response_functions:
                 with h5py.File(self.counts_file,'a') as hf:
                     for channel in self.channels:
-                        hf.create_dataset('{}/flat_counts'.format(channel['name']),
+                        hf.create_dataset('{}'.format(channel['name']),
                                             (len(self.observing_time),num_loop_coordinates))
-                        hf.create_dataset('{}/maps'.format(channel['name']),
-                                            (self.bins.y,self.bins.x,len(self.observing_time)))
 
     def flatten(self,loop,interp_s,hf,start_index):
         """
@@ -120,14 +118,14 @@ class InstrumentSDOAIA(InstrumentBase):
                                         channel['response_spline_nots'])*u.count*u.cm**5/u.s/u.pixel
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
-                dset = hf['{}/flat_counts'.format(channel['name'])]
+                dset = hf['{}'.format(channel['name'])]
                 self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
         else:
             raise NotImplementedError('''Full detect function not yet implemented. Set
                                         use_temperature_response_functions to True to use the
                                         _detect_simple() method.''')
 
-    def detect(self,hf,channel,i_time,header):
+    def detect(self,hf,channel,i_time,header,temperature,los_velocity):
         """
         For a given channel and timestep, return the observed intensity in each pixel.
 
@@ -153,9 +151,13 @@ class InstrumentSDOAIA(InstrumentBase):
         Calculate counts using the density and temperature response functions.
         No emissivity model needed.
         """
-        dset = hf['{}/maps'.format(channel['name'])]
+        dset = hf['{}'.format(channel['name'])]
+        hist,edges = np.histogramdd(self.total_coordinates.value,
+                                    bins=[self.bins.x,self.bins.y,self.bins.z],
+                                    range=[self.bin_range.x,self.bin_range.y,self.bin_range.z],
+                                    weights=np.array(dset[i_time,:]))
         header['bunit'] = dset.attrs['units']
-        return np.array(dset[:,:,i_time])
+        return np.dot(hist,np.diff(edges[2])).T
 
     def _detect_full(self,hf,channel,i_time,header):
         """

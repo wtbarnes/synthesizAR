@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 import astropy.units as u
 import h5py
 
-Pair = namedtuple('Pair','x y')
+Pair = namedtuple('Pair','x y z')
 
 
 class InstrumentBase(object):
@@ -48,11 +48,9 @@ class InstrumentBase(object):
             self.logger.warning('Instrument file not created. {} already exists'.format(self.counts_file))
         else:
             with h5py.File(self.counts_file,'a') as hf:
-                for name in ['average_temperature','los_velocity']:
-                    hf.create_dataset('{}/flat_counts'.format(name),
-                                        (len(self.observing_time),num_loop_coordinates))
-                    hf.create_dataset('{}/maps'.format(name),
-                                        (self.bins.y,self.bins.x,len(self.observing_time)))
+                hf.create_dataset('average_temperature',
+                                (len(self.observing_time),num_loop_coordinates))
+                hf.create_dataset('los_velocity',(len(self.observing_time),num_loop_coordinates))
 
     def interpolate_and_store(self,y,loop,interp_s,dset,start_index):
         """
@@ -94,7 +92,15 @@ class InstrumentBase(object):
                           field.clipped_hmi_map.xrange[0])
         delta_y = np.fabs(field.clipped_hmi_map.yrange[1] -
                           field.clipped_hmi_map.yrange[0])
+        min_z = min(field.extrapolated_3d_field.domain_left_edge[2].value,
+                    self.total_coordinates[:,2].min().value)
+        max_z = max(field.extrapolated_3d_field.domain_right_edge[2].value,
+                    self.total_coordinates[:,2].max().value)
+        delta_z = field._convert_angle_to_length(
+                max(self.resolution.x,self.resolution.y)).value
         self.bins = Pair(int(np.ceil(delta_x/self.resolution.x).value),
-                         int(np.ceil(delta_y/self.resolution.y).value))
+                         int(np.ceil(delta_y/self.resolution.y).value),
+                         int(np.ceil(np.fabs(max_z-min_z)/delta_z)))
         self.bin_range = Pair(field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
-                            field._convert_angle_to_length(field.clipped_hmi_map.yrange).value)
+                              field._convert_angle_to_length(field.clipped_hmi_map.yrange).value,
+                              np.array([min_z,max_z]))

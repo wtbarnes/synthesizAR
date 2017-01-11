@@ -82,6 +82,7 @@ class Observer(object):
         """
         file_template = os.path.join(savedir,'{}_counts.h5')
         for instr in self.instruments:
+            instr.total_coordinates = self.total_coordinates
             instr.make_detector_array(self.field)
             instr.build_detector_file(self.field,len(self.total_coordinates),file_template)
 
@@ -97,10 +98,10 @@ class Observer(object):
                     self.logger.debug('Flattening counts for {}'.format(loop.name))
                     # LOS velocity
                     los_velocity = np.dot(loop.velocity_xyz,self.line_of_sight)
-                    dset = hf['los_velocity/flat_counts']
+                    dset = hf['los_velocity']
                     instr.interpolate_and_store(los_velocity,loop,interp_s,dset,start_index)
                     # Average temperature
-                    dset = hf['average_temperature/flat_counts']
+                    dset = hf['average_temperature']
                     instr.interpolate_and_store(loop.temperature,loop,interp_s,dset,start_index)
                     # Counts/emission
                     instr.flatten(loop,interp_s,hf,start_index)
@@ -166,22 +167,6 @@ class Observer(object):
                             dset.attrs['units'] = counts.unit.to_string()
                         start_index += len(interp_s)
 
-    def _make_z_bins(self,instr):
-        """
-        Make z bins and ranges. The bin width isn't all that important since
-        the final data product will be integrated along the LOS.
-        """
-        min_z = min(self.field.extrapolated_3d_field.domain_left_edge[2].value,
-                self.total_coordinates[:,2].min().value)
-        max_z = max(self.field.extrapolated_3d_field.domain_right_edge[2].value,
-                self.total_coordinates[:,2].max().value)
-        delta_z = self.field._convert_angle_to_length(
-                max(instr.resolution.x,instr.resolution.y)).value
-        bins_z = int(np.ceil(np.fabs(max_z-min_z)/delta_z))
-        bin_range_z = [min_z,max_z]
-
-        return bins_z,bin_range_z
-
     def make_data_products(self,savedir):
         """
         Assemble instrument data products and print to FITS file.
@@ -189,24 +174,47 @@ class Observer(object):
         fn_template = os.path.join(savedir,'{instr}','{channel}','map_t{time:06d}.fits')
         for instr in self.instruments:
             self.logger.info('Building data products for {}'.format(instr.name))
+            # make coordinates histogram for normalization
+            hist_coordinates,_ = np.histogramdd(self.total_coordinates.value,
+                                    bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                                    range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z])
             with h5py.File(instr.counts_file,'r') as hf:
-                for channel in instr.channels:
-                    self.logger.info('Building data products for channel {}'.format(channel['name']))
-                    dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
-                                                                    channel=channel['name'],
-                                                                    time=0))
-                    if not os.path.exists(dummy_dir):
-                        os.makedirs(dummy_dir)
-                    #setup fits header
-                    header = instr.make_fits_header(self.field,channel)
-                    header['tunit'] = instr.observing_time.unit.to_string()
-                    #produce map for each timestep
-                    for i,time in enumerate(instr.observing_time.value):
-                        self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time,u=instr.observing_time.unit))
-                        #combine lines for given channel
-                        data = instr.detect(hf,channel,i,header)
-                        #make SunPy map and save as FITS
+                #produce map for each timestep
+                for i,time in enumerate(instr.observing_time.value):
+                    self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time,u=instr.observing_time.unit))
+                    # temperature map
+                    hist,edges = np.histogramdd(self.total_coordinates.value,
+                                    bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                                    range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z],
+                                    weights=np.array(hf['average_temperature'][i,:]))
+                    hist /= np.where(hist_coordinates==0,1,hist_coordinates)
+                    average_temperature = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+                    average_temperature = average_temperature/
+                                            *u.Unit(hf['average_temperature'].attrs['units'])
+                    # LOS velocity map
+                    hist,edges = np.histogramdd(self.total_coordinates.value,
+                                    bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                                    range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z],
+                                    weights=np.array(hf['los_velocity'][i,:]))
+                    hist /= np.where(hist_coordinates==0,1,hist_coordinates)
+                    los_velocity = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+                    los_velocity = los_velocity*u.Unit(hf['los_velocity'].attrs['unit'])
+                    for channel in instr.channels:
+                        if i==0:
+                            self.logger.info('Building data products for channel {}'.format(channel['name']))
+                        dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
+                                                                        channel=channel['name'],
+                                                                        time=0))
+                        if not os.path.exists(dummy_dir):
+                            os.makedirs(dummy_dir)
+                        #setup fits header
+                        header = instr.make_fits_header(self.field,channel)
+                        header['tunit'] = instr.observing_time.unit.to_string()
                         header['t_obs'] = time
+                        #combine lines for given channel
+                        data = instr.detect(hf,channel,i,header,average_temperature,los_velocity)
+                        #make SunPy map and save as FITS
+                        #FIXME: need to create mapcube for 3D data objects
                         tmp_map = sunpy.map.Map(data,header)
                         #crop to desired region and save
                         if instr.observing_area is not None:
