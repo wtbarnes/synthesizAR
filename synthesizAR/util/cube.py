@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 import astropy.io.fits
+import astropy.units as u
 from sunpy.map import Map,MapCube,MapMeta
 from sunpy.io.fits import get_header
 
