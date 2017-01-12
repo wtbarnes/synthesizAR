@@ -149,11 +149,8 @@ class Observer(object):
                         header = instr.make_fits_header(self.field,channel)
                         header['tunit'] = instr.observing_time.unit.to_string()
                         header['t_obs'] = time
-                        #combine lines for given channel
-                        data = instr.detect(hf,channel,i,header,average_temperature,los_velocity)
-                        #make SunPy map and save as FITS
-                        #FIXME: need to create mapcube for 3D data objects
-                        tmp_map = sunpy.map.Map(data,header)
+                        #combine lines for given channel and return SunPy Map
+                        tmp_map = instr.detect(hf,channel,i,header,average_temperature,los_velocity)
                         #crop to desired region and save
                         if instr.observing_area is not None:
                             tmp_map = tmp_map.crop(instr.observing_area)

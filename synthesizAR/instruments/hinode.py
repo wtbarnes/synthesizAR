@@ -10,14 +10,14 @@ import logging
 
 import numpy as np
 from scipy.interpolate import splrep,splev,interp1d
-import sunpy.map
+from sunpy.map import MapMeta
 import astropy.units as u
 import astropy.constants as const
 import h5py
 import periodictable
 
 from synthesizAR.instruments import InstrumentBase,Pair
-
+from synthesizAR.util import EISCube
 
 class InstrumentHinodeEIS(InstrumentBase):
     """
@@ -30,7 +30,7 @@ class InstrumentHinodeEIS(InstrumentBase):
     name = 'Hinode_EIS'
     cadence = 10.0*u.s
     resolution = Pair(1.0*u.arcsec/u.pixel,2.0*u.arcsec/u.pixel,None)
-    fits_template = sunpy.map.header.MapMeta()
+    fits_template = MapMeta()
     fits_template['telescop'] = 'Hinode'
     fits_template['instrume'] = 'EIS'
     fits_template['detector'] = 'EIS'
@@ -143,4 +143,4 @@ class InstrumentHinodeEIS(InstrumentBase):
 
         header['bunit'] = counts.unit.to_string()
 
-        return counts
+        return EISCube(data=counts,header=header,wavelength=channel['response']['x'])

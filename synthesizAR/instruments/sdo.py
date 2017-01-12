@@ -11,7 +11,7 @@ import numpy as np
 from scipy.interpolate import splrep,splev,interp1d
 import scipy.ndimage
 import astropy.units as u
-import sunpy.map
+from sunpy.map import Map,MapMeta
 import h5py
 
 from synthesizAR.instruments import InstrumentBase,Pair
@@ -40,7 +40,7 @@ class InstrumentSDOAIA(InstrumentBase):
     """
 
 
-    fits_template = sunpy.map.header.MapMeta()
+    fits_template = MapMeta()
     fits_template['telescop'] = 'SDO/AIA'
     fits_template['detector'] = 'AIA'
     fits_template['waveunit'] = 'angstrom'
@@ -144,7 +144,7 @@ class InstrumentSDOAIA(InstrumentBase):
         if self.apply_psf:
             counts = scipy.ndimage.filters.gaussian_filter(counts,
                                                     channel['gaussian_width'].value)
-        return counts
+        return Map(counts,header)
 
     def _detect_simple(self,hf,channel,i_time,header):
         """
