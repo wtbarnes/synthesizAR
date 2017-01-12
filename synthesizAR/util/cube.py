@@ -58,7 +58,7 @@ class EISCube(MapCube):
                                                 header=astropy.io.fits.Header(header))
         #write to file
         hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
-        hdulist.writeto(filename,output_verify='fix')
+        hdulist.writeto(filename,output_verify='silentfix')
 
     def _restore_from_fits(self,filename):
         """
