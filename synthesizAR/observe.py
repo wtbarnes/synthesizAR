@@ -200,8 +200,6 @@ class Observer(object):
                     los_velocity = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
                     los_velocity = los_velocity*u.Unit(hf['los_velocity'].attrs['units'])
                     for channel in instr.channels:
-                        if i==0:
-                            self.logger.info('Building data products for channel {}'.format(channel['name']))
                         dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
                                                                         channel=channel['name'],
                                                                         time=0))
