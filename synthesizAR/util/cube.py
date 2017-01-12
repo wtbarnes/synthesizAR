@@ -16,7 +16,16 @@ class EISCube(MapCube):
     """
 
 
-    def __init__(self,data,header,wavelength):
+    def __init__(self,*args,**kwargs):
+        if len(args)==1 and os.path.exists(args[0]):
+            data,header,wavelength = self._restore_from_fits(args[0])
+        elif all([k in kwargs for k in ['data','header','wavelength']]):
+            data = kwargs.get('data')
+            header = kwargs.get('header')
+            wavelength = kwargs.get('wavelength')
+        else:
+            raise ValueError('''EISCube can only be initialized with a valid FITS file or NumPy
+                                array with an associated wavelength and header.''')
         self.meta = header.copy()
         self.wavelength = wavelength
         # construct individual maps
@@ -51,9 +60,14 @@ class EISCube(MapCube):
         hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
         hdulist.writeto(filename)
 
-    @classmethod
-    def restore(self,filename):
+    def _restore_from_fits(self,filename):
         """
-        Restore from FITS file
+        Helper to load cube from FITS file
         """
-        pass
+        tmp = astropy.io.fits.open(filename)
+        data = tmp[0].data
+        header = MapMeta(get_header(tmp)[0])
+        wavelength = tmp[1].data.field(0)*u.Unit(tmp[1].header['TUNIT1'])
+        tmp.close()
+
+        return data,header,wavelength
