@@ -81,6 +81,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         Extend base method to include extra wavelength dimension.
         """
         header = super().make_fits_header(field,channel)
+        header['wavelnth'] = channel['wavelength'].value
         header['naxis3'] = len(channel['response']['x'])
         header['ctype3'] = 'wavelength'
         header['cunit3'] = 'angstrom'
