@@ -2,7 +2,7 @@
 Object to deal with x,y,lambda data cubes
 """
 
-import copy
+import os
 
 import numpy as np
 import astropy.io.fits
