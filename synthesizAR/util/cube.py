@@ -33,34 +33,10 @@ class EISCube(MapCube):
         """
         Save to FITS file
         """
-        #build header (steal some code here from SunPy)
+        #sanitize header
         header = self.meta.copy()
-        # The comments need to be added to the header separately from the normal
-        # kwargs. Find and deal with them:
-        fits_header = astropy.io.fits.Header()
-        key_comments = header.pop('KEYCOMMENTS', False)
-
-        for k,v in header.items():
-            if isinstance(v, astropy.io.fits.header._HeaderCommentaryCards):
-                if k == 'comments':
-                    comments = str(v).split('\n')
-                    for com in comments:
-                        fits_header.add_comments(com)
-                elif k == 'history':
-                    hists = str(v).split('\n')
-                    for hist in hists:
-                        fits_header.add_history(hist)
-                elif k != '':
-                    fits_header.append(astropy.io.fits.Card(k, str(v).split('\n')))
-
-            else:
-                fits_header.append(astropy.io.fits.Card(k, v))
-
-        if isinstance(key_comments, dict):
-            for k,v in key_comments.items():
-                fits_header.comments[k] = v
-        elif key_comments:
-            raise TypeError("KEYCOMMENTS must be a dictionary")
+        if 'keycomments' in header:
+            del header['keycomments']
 
         #create table file to hold wavelength array
         table_hdu = astropy.io.fits.BinTableHDU.from_columns(
@@ -69,7 +45,8 @@ class EISCube(MapCube):
                                     unit=self.wavelength.unit.to_string(),
                                     array=self.wavelength.value)])
         #create image file to hold 3D array
-        image_hdu = astropy.io.fits.PrimaryHDU(self.as_array(),header=header)
+        image_hdu = astropy.io.fits.PrimaryHDU(self.as_array(),
+                                                header=astropy.io.fits.Header(header))
         #write to file
         hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
         hdulist.writeto(filename)
