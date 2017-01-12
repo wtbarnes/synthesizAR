@@ -37,7 +37,7 @@ class EISCube(MapCube):
         header = self.meta.copy()
         # The comments need to be added to the header separately from the normal
         # kwargs. Find and deal with them:
-        fits_header = fits.Header()
+        fits_header = astropy.io.fits.Header()
         key_comments = header.pop('KEYCOMMENTS', False)
 
         for k,v in header.items():
