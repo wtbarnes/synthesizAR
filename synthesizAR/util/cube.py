@@ -71,7 +71,7 @@ class EISCube(MapCube):
         #create image file to hold 3D array
         image_hdu = astropy.io.fits.PrimaryHDU(self.as_array())
         #write to file
-        hdulist = astropy.io.fits.HDUList([table_hdu,image_hdu])
+        hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
         hdulist.writeto(filename)
 
     @classmethod
