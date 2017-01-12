@@ -30,7 +30,7 @@ class InstrumentBase(object):
                             self.cadence.value)*u.s
         self.observing_area = observing_area
 
-    def detect(self,loop,channel):
+    def detect(self,*args,**kwargs):
         """
         Converts emissivity for a particular transition to counts per detector channel. When writing
         a new instrument class, this method should be overridden.
