@@ -107,67 +107,7 @@ class Observer(object):
                     instr.flatten(loop,interp_s,hf,start_index)
                     start_index += len(interp_s)
 
-    def bin_detector_counts(self):
-        """
-        Bin all channels or lines into a 3D histogram and project onto x-y plane
-        """
-        for instr in self.instruments:
-            self.logger.info('Binning counts for {}'.format(instr.name))
-            bins_z,bin_range_z = self._make_z_bins(instr)
-            # make coordinates histogram for normalization
-            hist_coordinates,_ = np.histogramdd(self.total_coordinates.value,
-                                        bins=[instr.bins.x,instr.bins.y,bins_z],
-                                        range=[instr.bin_range.x,instr.bin_range.y,bin_range_z])
-            with h5py.File(instr.counts_file,'a') as hf:
-                for group in hf:
-                    self.logger.info('Binning counts for {}'.format(group))
-                    dset_flat = hf['{}/flat_counts'.format(group)]
-                    dset_map = hf['{}/maps'.format(group)]
-                    if group=='los_velocity' or group=='average_temperature':
-                        dset_map.attrs['units'] = dset_flat.attrs['units']
-                    else:
-                        dset_map.attrs['units'] = (u.Unit(dset_flat.attrs['units'])*self.total_coordinates.unit).to_string()
-                    for i,time in enumerate(instr.observing_time.value):
-                        self.logger.debug('Binning counts for time = {t:.3f} {u}'.format(t=time,u=instr.observing_time.unit))
-                        tmp = np.array(dset_flat[i,:])
-                        hist,edges = np.histogramdd(self.total_coordinates.value,
-                                            bins=[instr.bins.x,instr.bins.y,bins_z],
-                                            range=[instr.bin_range.x,instr.bin_range.y,bin_range_z],
-                                            weights=tmp)
-                        if group=='los_velocity' or group=='average_temperature':
-                            hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-                            projection = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
-                        else:
-                            projection = np.dot(hist,np.diff(edges[2])).T
-                        dset_map[:,:,i] = projection
-
-    def __calculate_detector_counts(self):
-        """
-        Calculate counts for each channel of each detector. Counts are interpolated to the
-        desired spatial and temporal resolution.
-        """
-        #rebuild detector files
-        for instr in self.instruments:
-            self.logger.info('Calculating counts for {}'.format(instr.name))
-            with h5py.File(instr.counts_file,'a') as hf:
-                for channel in instr.channels:
-                    self.logger.info('Calculating counts for channel {}'.format(channel['name']))
-                    dset = hf[channel['name']]
-                    start_index = 0
-                    for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
-                        self.logger.debug('Calculating counts for {}'.format(loop.name))
-                        counts = instr.detect(loop,channel)
-                        #interpolate in s and t
-                        f_s = interp1d(loop.field_aligned_coordinate.value,counts.value,
-                                        axis=1,kind='linear')
-                        interpolated_counts = interp1d(loop.time.value,f_s(interp_s),
-                                                        axis=0,kind='linear')(instr.observing_time)
-                        dset[:,start_index:(start_index+len(interp_s))] = interpolated_counts
-                        if 'units' not in dset.attrs:
-                            dset.attrs['units'] = counts.unit.to_string()
-                        start_index += len(interp_s)
-
-    def make_data_products(self,savedir):
+    def bin_detector_counts(self,savedir):
         """
         Assemble instrument data products and print to FITS file.
         """
@@ -214,55 +154,6 @@ class Observer(object):
                         #make SunPy map and save as FITS
                         #FIXME: need to create mapcube for 3D data objects
                         tmp_map = sunpy.map.Map(data,header)
-                        #crop to desired region and save
-                        if instr.observing_area is not None:
-                            tmp_map = tmp_map.crop(instr.observing_area)
-                        tmp_map.save(fn_template.format(instr=instr.name,channel=channel['name'],
-                                                        time=i))
-
-    def __bin_detector_counts(self,savedir,apply_psf=False):
-        """
-        Bin the counts into the detector array, project it down to 2 dimensions,
-        and save it to a FITS file.
-        """
-        if type(apply_psf) is bool:
-            apply_psf = len(self.instruments)*[apply_psf]
-        fn_template = os.path.join(savedir,'{instr}','{channel}','map_t{time:06d}.fits')
-        for instr in self.instruments:
-            self.logger.info('Building maps for {}'.format(instr.name))
-            #create instrument array bins
-            bins_z,bin_range_z = self._make_z_bins(instr)
-            instr.make_detector_array(self.field)
-            with h5py.File(instr.counts_file,'r') as hf:
-                for channel in instr.channels:
-                    self.logger.info('Building maps for channel {}'.format(channel['name']))
-                    dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
-                                                                    channel=channel['name'],
-                                                                    time=0))
-                    if not os.path.exists(dummy_dir):
-                        os.makedirs(dummy_dir)
-                    dset = hf[channel['name']]
-                    #setup fits header
-                    header = instr.make_fits_header(self.field,channel)
-                    header['tunit'] = instr.observing_time.unit.to_string()
-                    header['bunit'] = (u.Unit(dset.attrs['units'])*self.total_coordinates.unit).to_string()
-                    for i,time in enumerate(instr.observing_time.value):
-                        self.logger.debug('Building map at t={}'.format(time))
-                        #slice at particular time
-                        _tmp = np.array(dset[i,:])
-                        #bin counts into 3D histogram
-                        hist,edges = np.histogramdd(
-                                        self.total_coordinates.value,
-                                        bins=[instr.bins.x,instr.bins.y,bins_z],
-                                        range=[instr.bin_range.x,instr.bin_range.y,bin_range_z],
-                                        weights=_tmp)
-                        #project down to x-y plane
-                        projection = np.dot(hist,np.diff(edges[2])).T
-                        if apply_psf[self.instruments.index(instr)]:
-                            projection = scipy.ndimage.filters.gaussian_filter(projection,
-                                                                    channel['gaussian_width'].value)
-                        header['t_obs'] = time
-                        tmp_map = sunpy.map.Map(projection,header)
                         #crop to desired region and save
                         if instr.observing_area is not None:
                             tmp_map = tmp_map.crop(instr.observing_area)
