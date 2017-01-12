@@ -31,6 +31,7 @@ class EISCube(MapCube):
         self.wavelength = wavelength
         # construct individual maps
         meta_map2d = header.copy()
+        meta_map2d['naxis'] = 2
         for k in ['naxis3','ctype3','cunit3','cdelt3']:
             del meta_map2d[k]
         map_list = []
