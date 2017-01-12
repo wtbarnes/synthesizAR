@@ -29,7 +29,7 @@ class EISCube(MapCube):
             map_list.append(Map(data[:,:,i],meta_map2d.copy()))
         super().__init__(map_list)
 
-    def save(filename):
+    def save(self,filename):
         """
         Save to FITS file
         """
@@ -75,7 +75,7 @@ class EISCube(MapCube):
         hdulist.writeto(filename)
 
     @classmethod
-    def restore(filename):
+    def restore(self,filename):
         """
         Restore from FITS file
         """
