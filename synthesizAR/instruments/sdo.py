@@ -156,7 +156,7 @@ class InstrumentSDOAIA(InstrumentBase):
                                     bins=[self.bins.x,self.bins.y,self.bins.z],
                                     range=[self.bin_range.x,self.bin_range.y,self.bin_range.z],
                                     weights=np.array(dset[i_time,:]))
-        header['bunit'] = dset.attrs['units']
+        header['bunit'] = (u.Unit(dset.attrs['units'])*self.total_coordinates.unit).to_string()
         return np.dot(hist,np.diff(edges[2])).T
 
     def _detect_full(self,hf,channel,i_time,header):
