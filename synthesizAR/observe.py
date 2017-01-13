@@ -188,7 +188,7 @@ class Observer(object):
         meta['bunit'] = units.to_string()
         meta['detector'] = 'LOS Velocity'
         meta['comment'] = 'LOS velocity calculated by synthesizAR'
-        tmp_map = sunpy.map.Map(los_velocity,meta)
+        tmp_map = sunpy.map.GenericMap(los_velocity,meta)
         tmp_map.plot_settings.update({
             'cmap':matplotlib.colors.ListedColormap(sns.color_palette('coolwarm',n_colors=1000)),
             'norm':matplotlib.colors.SymLogNorm(10,vmin=-1e8,vmax=1e8)
@@ -225,7 +225,7 @@ class Observer(object):
         meta['bunit'] = units.to_string()
         meta['detector'] = 'LOS Velocity'
         meta['comment'] = 'LOS velocity calculated by synthesizAR'
-        tmp_map = sunpy.map.Map(temperature,meta)
+        tmp_map = sunpy.map.GenericMap(temperature,meta)
         tmp_map.plot_settings.update({'cmap':sns.cubehelix_palette(reverse=True,rot=.4,
                                                                     as_cmap=True)})
 
