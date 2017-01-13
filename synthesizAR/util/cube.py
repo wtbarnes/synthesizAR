@@ -59,7 +59,7 @@ class EISCube(MapCube):
                                     unit=self.wavelength.unit.to_string(),
                                     array=self.wavelength.value)])
         #create image file to hold 3D array
-        image_hdu = astropy.io.fits.PrimaryHDU(self.as_array(),
+        image_hdu = astropy.io.fits.PrimaryHDU(np.swapaxes(self.as_array().T,1,2),
                                                 header=astropy.io.fits.Header(header))
         #write to file
         hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
@@ -75,4 +75,4 @@ class EISCube(MapCube):
         wavelength = tmp[1].data.field(0)*u.Unit(tmp[1].header['TUNIT1'])
         tmp.close()
 
-        return data,header,wavelength
+        return np.swapaxes(data.T,0,1),header,wavelength
