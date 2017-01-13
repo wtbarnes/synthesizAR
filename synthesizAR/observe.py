@@ -159,10 +159,17 @@ class Observer(object):
                         tmp_map.save(fn_template.format(instr=instr.name,channel=channel['name'],
                                                         time=i))
 
-    def make_los_velocity_map(self,time,instr):
+    def make_los_velocity_map(self,time,instr,**kwargs):
         """
         Return map of LOS velocity at a given time for a given instrument resolution.
         """
+        plot_settings = {
+            'cmap':matplotlib.colors.ListedColormap(sns.color_palette('coolwarm',n_colors=1000)),
+            'norm':matplotlib.colors.SymLogNorm(10,vmin=-1e8,vmax=1e8)
+        }
+        if 'plot_settings' in kwargs:
+            plot_settings.update(kwargs.get('plot_settings'))
+
         i_time = np.where(instr.observing_time==time)[0]
         if len(i_time)==0:
             raise ValueError('{} is not a valid time in observing time for {}'.format(time,
@@ -188,18 +195,17 @@ class Observer(object):
         meta['bunit'] = units.to_string()
         meta['detector'] = 'LOS Velocity'
         meta['comment'] = 'LOS velocity calculated by synthesizAR'
-        tmp_map = sunpy.map.GenericMap(los_velocity,meta)
-        tmp_map.plot_settings.update({
-            'cmap':matplotlib.colors.ListedColormap(sns.color_palette('coolwarm',n_colors=1000)),
-            'norm':matplotlib.colors.SymLogNorm(10,vmin=-1e8,vmax=1e8)
-        })
 
-        return tmp_map
+        return sunpy.map.GenericMap(los_velocity,meta,plot_settings=plot_settings)
 
     def make_temperature_map(self,time,instr):
         """
         Return map of average temperature at a given time for a given instrument resolution.
         """
+        plot_settings = {'cmap':sns.cubehelix_palette(reverse=True,rot=.4,as_cmap=True)}
+        if 'plot_settings' in kwargs:
+            plot_settings.update(kwargs.get('plot_settings'))
+
         i_time = np.where(instr.observing_time==time)[0]
         if len(i_time)==0:
             raise ValueError('{} is not a valid time in observing time for {}'.format(time,
@@ -223,10 +229,7 @@ class Observer(object):
         del meta['wavelnth']
         del meta['waveunit']
         meta['bunit'] = units.to_string()
-        meta['detector'] = 'LOS Velocity'
-        meta['comment'] = 'LOS velocity calculated by synthesizAR'
-        tmp_map = sunpy.map.GenericMap(temperature,meta)
-        tmp_map.plot_settings.update({'cmap':sns.cubehelix_palette(reverse=True,rot=.4,
-                                                                    as_cmap=True)})
+        meta['detector'] = 'Temperature'
+        meta['comment'] = 'Average temperature calculated by synthesizAR'
 
-        return tmp_map
+        return sunpy.map.GenericMap(temperature,meta,plot_settings=plot_settings)
