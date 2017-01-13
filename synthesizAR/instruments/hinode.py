@@ -120,7 +120,7 @@ class InstrumentHinodeEIS(InstrumentBase):
             ion_mass = periodictable.elements.symbol(ion_name.split(' ')[0]).mass*const.u.cgs
             thermal_velocity = 2.*const.k_B.cgs*temperature/ion_mass
             thermal_velocity = np.expand_dims(thermal_velocity,axis=2)*thermal_velocity.unit
-            line_width = 2./3.*wavelength**2/(const.c.cgs**2)*thermal_velocity
+            line_width = 2./3.*wavelength**2/(const.c.cgs**2)*thermal_velocity\
                         + 0.36*channel['instrument_width']**2
             #doppler shift due to LOS velocity
             doppler_shift = wavelength*los_velocity/const.c.cgs
