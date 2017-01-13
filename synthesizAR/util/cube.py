@@ -75,4 +75,4 @@ class EISCube(MapCube):
         wavelength = tmp[1].data.field(0)*u.Unit(tmp[1].header['TUNIT1'])
         tmp.close()
 
-        return np.swapaxes(data.T,0,1),header,wavelength
+        return data,header,wavelength
