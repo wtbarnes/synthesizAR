@@ -7,6 +7,7 @@ import os
 import numpy as np
 import astropy.io.fits
 import astropy.units as u
+import sunpy.cm
 from sunpy.map import Map,MapCube,MapMeta
 from sunpy.io.fits import get_header
 
@@ -38,6 +39,8 @@ class EISCube(MapCube):
         for i,wvl in enumerate(self.wavelength):
             meta_map2d['wavelnth'] = wvl.value
             map_list.append(Map(data[:,:,i],meta_map2d.copy()))
+            map_list[i].plot_settings.update({'cmap':kwargs.get('cmap',
+                                                                sunpy.cm.get_cmap('hinodexrt'))})
         super().__init__(map_list)
         #all dimensions are the same
         self.meta['naxis1'] = self.maps[0].meta['naxis1']
@@ -76,3 +79,17 @@ class EISCube(MapCube):
         tmp.close()
 
         return np.swapaxes(data.T,0,1),header,wavelength
+
+    @property
+    def integrated_intensity(self):
+        """
+        Map of the intensity integrated over wavelength.
+        """
+        tmp = np.dot(self.as_array(),np.gradient(self.wavelength.value))
+        tmp_meta = self.maps[0].meta.copy()
+        tmp_meta['wavelnth'] = self.meta['wavelnth']
+        tmp_meta['bunit'] = (u.Unit(self.meta['bunit'])*self.wavelength.unit).to_string()
+        tmp_map = Map(tmp,tmp_meta)
+        tmp_map.plot_settings.update({'cmap':self.maps[0].plot_settings['cmap']})
+
+        return tmp_map
