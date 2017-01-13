@@ -46,6 +46,9 @@ class EISCube(MapCube):
         self.meta['naxis1'] = self.maps[0].meta['naxis1']
         self.meta['naxis2'] = self.maps[0].meta['naxis2']
 
+    def __repr__(self):
+        return [m.__repr__() for m in self.maps]
+
     def save(self,filename):
         """
         Save to FITS file
