@@ -9,6 +9,8 @@ import pickle
 import numpy as np
 from scipy.interpolate import splev,splprep,interp1d
 import scipy.ndimage
+import matplotlib.colors
+import seaborn.apionly as sns
 import astropy.units as u
 import sunpy.map
 import h5py
@@ -156,3 +158,75 @@ class Observer(object):
                             tmp_map = tmp_map.crop(instr.observing_area)
                         tmp_map.save(fn_template.format(instr=instr.name,channel=channel['name'],
                                                         time=i))
+
+    def make_los_velocity_map(self,time,instr):
+        """
+        Return map of LOS velocity at a given time for a given instrument resolution.
+        """
+        i_time = np.where(instr.observing_time==time)[0]
+        if len(i_time)==0:
+            raise ValueError('{} is not a valid time in observing time for {}'.format(time,
+                                                                                     instr.name))
+        else:
+            i_time = i_time[0]
+
+        hist_coordinates,_ = np.histogramdd(self.total_coordinates.value,
+                                bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                                range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z])
+        with h5py.File(instr.counts_file,'r') as hf:
+            tmp = np.array(hf['los_velocity'][i_time,:])
+            units = u.Unit(hf['los_velocity'].attrs['units'])
+        hist,edges = np.histogramdd(self.total_coordinates.value,
+                        bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                        range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z],
+                        weights=tmp)
+        hist /= np.where(hist_coordinates==0,1,hist_coordinates)
+        los_velocity = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+        meta = instr.make_fits_header(self.field,instr.channels[0])
+        del meta['wavelnth']
+        del meta['waveunit']
+        meta['bunit'] = units.to_string()
+        meta['detector'] = 'LOS Velocity'
+        meta['comment'] = 'LOS velocity calculated by synthesizAR'
+        tmp_map = sunpy.map.Map(los_velocity,meta)
+        tmp_map.plot_settings.update({
+            'cmap':matplotlib.colors.ListedColormap(sns.color_palette('coolwarm',n_colors=1000)),
+            'norm':matplotlib.colors.SymLogNorm(10,vmin=-1e8,vmax=1e8)
+        })
+
+        return tmp_map
+
+    def make_temperature_map(self,time,instr):
+        """
+        Return map of average temperature at a given time for a given instrument resolution.
+        """
+        i_time = np.where(instr.observing_time==time)[0]
+        if len(i_time)==0:
+            raise ValueError('{} is not a valid time in observing time for {}'.format(time,
+                                                                                     instr.name))
+        else:
+            i_time = i_time[0]
+
+        hist_coordinates,_ = np.histogramdd(self.total_coordinates.value,
+                                bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                                range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z])
+        with h5py.File(instr.counts_file,'r') as hf:
+            tmp = np.array(hf['average_temperature'][i_time,:])
+            units = u.Unit(hf['average_temperature'].attrs['units'])
+        hist,edges = np.histogramdd(self.total_coordinates.value,
+                        bins=[instr.bins.x,instr.bins.y,instr.bins.z],
+                        range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z],
+                        weights=tmp)
+        hist /= np.where(hist_coordinates==0,1,hist_coordinates)
+        temperature = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+        meta = instr.make_fits_header(self.field,instr.channels[0])
+        del meta['wavelnth']
+        del meta['waveunit']
+        meta['bunit'] = units.to_string()
+        meta['detector'] = 'LOS Velocity'
+        meta['comment'] = 'LOS velocity calculated by synthesizAR'
+        tmp_map = sunpy.map.Map(temperature,meta)
+        tmp_map.plot_settings.update({'cmap':sns.cubehelix_palette(reverse=True,rot=.4,
+                                                                    as_cmap=True)})
+
+        return tmp_map
