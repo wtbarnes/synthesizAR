@@ -39,6 +39,9 @@ class EISCube(MapCube):
             meta_map2d['wavelnth'] = wvl.value
             map_list.append(Map(data[:,:,i],meta_map2d.copy()))
         super().__init__(map_list)
+        #all dimensions are the same
+        self.meta['naxis1'] = self.maps[0].meta['naxis1']
+        self.meta['naxis2'] = self.maps[0].meta['naxis2']
 
     def save(self,filename):
         """
