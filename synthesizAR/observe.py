@@ -196,8 +196,10 @@ class Observer(object):
         meta['bunit'] = units.to_string()
         meta['detector'] = 'LOS Velocity'
         meta['comment'] = 'LOS velocity calculated by synthesizAR'
+        tmp_map = sunpy.map.GenericMap(los_velocity,meta)
+        tmp_map.plot_settings.update(plot_settings)
 
-        return sunpy.map.GenericMap(los_velocity,meta,plot_settings=plot_settings)
+        return tmp_map
 
     def make_temperature_map(self,time,instr):
         """
@@ -233,5 +235,7 @@ class Observer(object):
         meta['bunit'] = units.to_string()
         meta['detector'] = 'Temperature'
         meta['comment'] = 'Average temperature calculated by synthesizAR'
+        tmp_map = sunpy.map.GenericMap(temperature,meta)
+        tmp_map.plot_settings.update(plot_settings)
 
-        return sunpy.map.GenericMap(temperature,meta,plot_settings=plot_settings)
+        return tmp_map
