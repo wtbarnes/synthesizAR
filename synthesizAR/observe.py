@@ -201,7 +201,7 @@ class Observer(object):
 
         return tmp_map
 
-    def make_temperature_map(self,time,instr):
+    def make_temperature_map(self,time,instr,**kwargs):
         """
         Return map of average temperature at a given time for a given instrument resolution.
         """
