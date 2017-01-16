@@ -189,7 +189,7 @@ class Observer(object):
                         range=[instr.bin_range.x,instr.bin_range.y],#,instr.bin_range.z],
                         weights=tmp)
         hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-        los_velocity = hist#np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+        los_velocity = hist.T#np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
         meta = instr.make_fits_header(self.field,instr.channels[0])
         del meta['wavelnth']
         del meta['waveunit']
@@ -228,7 +228,7 @@ class Observer(object):
                         range=[instr.bin_range.x,instr.bin_range.y],#,instr.bin_range.z],
                         weights=tmp)
         hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-        temperature = hist#np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
+        temperature = hist.T#np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
         meta = instr.make_fits_header(self.field,instr.channels[0])
         del meta['wavelnth']
         del meta['waveunit']
