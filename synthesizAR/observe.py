@@ -116,31 +116,28 @@ class Observer(object):
         fn_template = os.path.join(savedir,'{instr}','{channel}','map_t{time:06d}.fits')
         for instr in self.instruments:
             self.logger.info('Building data products for {}'.format(instr.name))
-            # make coordinates histogram for normalization
-            hist_coordinates,_ = np.histogramdd(self.total_coordinates.value,
-                                    bins=[instr.bins.x,instr.bins.y,instr.bins.z],
-                                    range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z])
+            # make coordinates histogram for normalization, only need them in 2D
+            hist_coordinates,_ = np.histogramdd(self.total_coordinates.value[:,:2],
+                                                bins=[instr.bins.x,instr.bins.y],
+                                                range=[instr.bin_range.x,instr.bin_range.y])
             with h5py.File(instr.counts_file,'r') as hf:
                 #produce map for each timestep
                 for i,time in enumerate(instr.observing_time.value):
                     self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time,u=instr.observing_time.unit))
                     # temperature map
-                    hist,edges = np.histogramdd(self.total_coordinates.value,
-                                    bins=[instr.bins.x,instr.bins.y,instr.bins.z],
-                                    range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z],
-                                    weights=np.array(hf['average_temperature'][i,:]))
+                    hist,_ = np.histogramdd(self.total_coordinates.value[:,:2],
+                                                bins=[instr.bins.x,instr.bins.y],
+                                                range=[instr.bin_range.x,instr.bin_range.y],
+                                                weights=np.array(hf['average_temperature'][i,:]))
                     hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-                    average_temperature = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
-                    average_temperature = average_temperature\
-                                            *u.Unit(hf['average_temperature'].attrs['units'])
+                    average_temperature = hist.T*u.Unit(hf['average_temperature'].attrs['units'])
                     # LOS velocity map
-                    hist,edges = np.histogramdd(self.total_coordinates.value,
-                                    bins=[instr.bins.x,instr.bins.y,instr.bins.z],
-                                    range=[instr.bin_range.x,instr.bin_range.y,instr.bin_range.z],
-                                    weights=np.array(hf['los_velocity'][i,:]))
+                    hist,_ = np.histogramdd(self.total_coordinates.value[:,:2],
+                                                bins=[instr.bins.x,instr.bins.y],
+                                                range=[instr.bin_range.x,instr.bin_range.y],
+                                                weights=np.array(hf['los_velocity'][i,:]))
                     hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-                    los_velocity = np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
-                    los_velocity = los_velocity*u.Unit(hf['los_velocity'].attrs['units'])
+                    los_velocity = hist.T*u.Unit(hf['los_velocity'].attrs['units'])
                     for channel in instr.channels:
                         dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
                                                                         channel=channel['name'],
@@ -159,6 +156,7 @@ class Observer(object):
                         tmp_map.save(fn_template.format(instr=instr.name,channel=channel['name'],
                                                         time=i))
 
+    @u.quantity_input(time=u.s)
     def make_los_velocity_map(self,time,instr,**kwargs):
         """
         Return map of LOS velocity at a given time for a given instrument resolution.
@@ -178,29 +176,28 @@ class Observer(object):
             i_time = i_time[0]
 
         hist_coordinates,_ = np.histogramdd(self.total_coordinates.value[:,:2],
-                                bins=[instr.bins.x,instr.bins.y],#,instr.bins.z],
-                                range=[instr.bin_range.x,instr.bin_range.y],#instr.bin_range.z]
-                                )
+                                bins=[instr.bins.x,instr.bins.y],
+                                range=[instr.bin_range.x,instr.bin_range.y])
         with h5py.File(instr.counts_file,'r') as hf:
             tmp = np.array(hf['los_velocity'][i_time,:])
             units = u.Unit(hf['los_velocity'].attrs['units'])
-        hist,edges = np.histogramdd(self.total_coordinates.value[:,:2],
-                        bins=[instr.bins.x,instr.bins.y],#,instr.bins.z],
-                        range=[instr.bin_range.x,instr.bin_range.y],#,instr.bin_range.z],
+        hist,_ = np.histogramdd(self.total_coordinates.value[:,:2],
+                        bins=[instr.bins.x,instr.bins.y],
+                        range=[instr.bin_range.x,instr.bin_range.y],
                         weights=tmp)
         hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-        los_velocity = hist.T#np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
         meta = instr.make_fits_header(self.field,instr.channels[0])
         del meta['wavelnth']
         del meta['waveunit']
         meta['bunit'] = units.to_string()
         meta['detector'] = 'LOS Velocity'
         meta['comment'] = 'LOS velocity calculated by synthesizAR'
-        tmp_map = sunpy.map.GenericMap(los_velocity,meta)
+        tmp_map = sunpy.map.GenericMap(hist.T,meta)
         tmp_map.plot_settings.update(plot_settings)
 
         return tmp_map
 
+    @u.quantity_input(time=u.s)
     def make_temperature_map(self,time,instr,**kwargs):
         """
         Return map of average temperature at a given time for a given instrument resolution.
@@ -217,25 +214,23 @@ class Observer(object):
             i_time = i_time[0]
 
         hist_coordinates,_ = np.histogramdd(self.total_coordinates.value[:,:2],
-                                bins=[instr.bins.x,instr.bins.y],#,instr.bins.z],
-                                range=[instr.bin_range.x,instr.bin_range.y],#instr.bin_range.z]
-                                )
+                                bins=[instr.bins.x,instr.bins.y],
+                                range=[instr.bin_range.x,instr.bin_range.y])
         with h5py.File(instr.counts_file,'r') as hf:
             tmp = np.array(hf['average_temperature'][i_time,:])
             units = u.Unit(hf['average_temperature'].attrs['units'])
-        hist,edges = np.histogramdd(self.total_coordinates.value[:,:2],
-                        bins=[instr.bins.x,instr.bins.y],#,instr.bins.z],
-                        range=[instr.bin_range.x,instr.bin_range.y],#,instr.bin_range.z],
+        hist,_ = np.histogramdd(self.total_coordinates.value[:,:2],
+                        bins=[instr.bins.x,instr.bins.y],
+                        range=[instr.bin_range.x,instr.bin_range.y],
                         weights=tmp)
         hist /= np.where(hist_coordinates==0,1,hist_coordinates)
-        temperature = hist.T#np.dot(hist,np.diff(edges[2])).T/np.sum(np.diff(edges[2]))
         meta = instr.make_fits_header(self.field,instr.channels[0])
         del meta['wavelnth']
         del meta['waveunit']
         meta['bunit'] = units.to_string()
         meta['detector'] = 'Temperature'
         meta['comment'] = 'Average temperature calculated by synthesizAR'
-        tmp_map = sunpy.map.GenericMap(temperature,meta)
+        tmp_map = sunpy.map.GenericMap(hist.T,meta)
         tmp_map.plot_settings.update(plot_settings)
 
         return tmp_map
