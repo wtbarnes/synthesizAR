@@ -13,7 +13,7 @@ from ChiantiPy.tools.util import el2z,zion2name
 
 from synthesizAR.util import _numba_interpolator_wrapper,_numba_lagrange_interpolator
 
-def get_ion_info(element,zrange=None,logTa=4.0,logTb=9.0,dlogT=0.01):
+def get_ion_data(element,zrange=None,logTa=4.0,logTb=9.0,dlogT=0.01):
     """
     Get needed ionization rates, recombination rates, and equilibrium populations
     for a range of ions for a given element over a course temperature range.
