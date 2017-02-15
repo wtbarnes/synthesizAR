@@ -128,9 +128,24 @@ Maximum field strength : {max_b:.2f}
                 ion_name = dset.attrs['ion_name']
                 emiss = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
-            emiss = self.emission[wavelength]
+            emiss = self._emission[wavelength]
 
         if return_ion_name:
             return emiss,ion_name
         else:
             return emiss
+
+    def get_fractional_ionization(self,element,ion):
+        """
+        Get ionization state from the ionization balance equations. If these solutions have not
+        been computed, return None.
+        """
+        ion_key = '{}_{}'.format(element.lower(),ion)
+        if hasattr(self,'fractional_ionization_savefile'):
+            with h5py.File(self.fractional_ionization_savefile,'r') as hf:
+                dset = hf[os.path.join(self.name,ion_key)]
+                fractional_ionization = np.array(dset)*u.Unit(dset.attrs['units'])
+        else:
+            fractional_ionization = self._fractional_ionization
+
+        return fractional_ionization
