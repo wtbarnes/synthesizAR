@@ -11,7 +11,7 @@ import numpy as np
 import astropy.units as u
 
 from synthesizAR.util import InputHandler,OutputHandler
-from synthesizAR.atomic import get_ion_info,solve_nei_populations
+from synthesizAR.atomic import get_ion_data,solve_nei_populations
 
 
 class EbtelInterface(object):
@@ -86,10 +86,13 @@ class EbtelInterface(object):
 
         return time,temperature,density,velocity
 
-    def get_fractional_ionization(self,ion_list,loop):
+    def get_fractional_ionization(self,ion_list,loop,**kwargs):
         """
         Solve the ionization balance equation for a particular loop and ion.
         """
+        ion_data_options = kwargs.get('ion_data_options',{})
+        nei_solver_options = kwargs.get('nei_solver_options',{})
+
         fractional_ionization = {}
         #group ions by element and remove any duplicates
         grouped_ions = {key:set(sorted([g[1] for g in group])) \
@@ -101,21 +104,24 @@ class EbtelInterface(object):
                 self._rate_data = {}
             if element not in self._rate_data:
                 self.logger.debug('Retrieving rate information for {}'.format(element))
-                irate,rrate,eq_pop,temperature = get_ion_info(element,
+                irate,rrate,eq_pop,temperature = get_ion_data(element,
                                                             zrange=[np.min(grouped_ions[element]),
-                                                                    np.max(grouped_ions[element])])
+                                                                    np.max(grouped_ions[element])],
+                                                            **ion_data_options)
                 self._rate_data[element]['ionization_rate'] = irate
                 self._rate_data[element]['recombination_rate'] = rrate
                 self._rate_data[element]['equilibrium_populations'] = eq_pop
                 self._rate_data[element]['temperature'] = temperature
 
             #calculate the NEI populations
+            self.logger.debug('Calculating NEI populations for {}'.format(element))
             nei_populations = solve_nei_populations(loop.time.value,
                                                 loop.temperature.value[:,0],
                                                 loop.density.value[:,0],
                                                 self._rate_data[element]['ionization_rate'],
                                                 self._rate_data[element]['recombination_rate'],
-                                                self._rate_data[element['equilibrium_populations']],self._rate_data[element]['temperature'])
+                                                self._rate_data[element['equilibrium_populations']],self._rate_data[element]['temperature'],
+                                                **nei_solver_options)
             for ion in grouped_ions[element]:
                 ion_index = ion - np.min(grouped_ions[element])
                 fractional_ionization['{}_{}'.format(element,ion)] = np.repeat(
