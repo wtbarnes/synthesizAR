@@ -95,7 +95,7 @@ def solve_nei_populations(time,temperature,density,ionization_rate,
             save_this_step = True
         #update
         cur_time += dt
-        cur_populations[1:-1] = cur_pops[1:-1] + dydt*dt
+        cur_populations[1:-1] = cur_populations[1:-1] + dydt*dt
         cur_populations /= np.sum(cur_populations)
         cur_populations = np.where(cur_populations<cutoff,np.zeros(len(cur_populations)),
                                     cur_populations)
