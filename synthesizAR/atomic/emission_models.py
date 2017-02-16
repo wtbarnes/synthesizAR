@@ -181,7 +181,7 @@ class EquilibriumEmissionModel(object):
             ion['emissivity'] = [np.reshape(emiss[ti,:],self.temperature_mesh.shape) \
                                 for ti in transition_indices]
 
-    def calculate_fractional_ionization(self):
+    def calculate_equilibrium_fractional_ionization(self):
         """
         Calculate fractional ionization as a function of temperature for each ion, assuming
         ionization equilibrium and reshape the data.
@@ -191,10 +191,10 @@ class EquilibriumEmissionModel(object):
         For a full non-equilibrium treatment, this method needs to be overridden.
         """
         for ion in self.ions:
-            ioneq = ion['ion'].calculate_ionization_equilibrium()
-            ion['fractional_ionization'] = np.reshape(ioneq,self.temperature_mesh.shape)
+            ioneq = ion['ion'].equilibrium_fractional_ionization
+            ion['equilibrium_fractional_ionization'] = np.reshape(ioneq,self.temperature_mesh.shape)
 
-    def calculate_emission(self,temperature,density):
+    def calculate_emission(self,loop):
         """
         Calculate power per unit volume for a given temperature and density for every transition,
         :math:`\lambda`, in every ion :math:`X^{+m}`, as given by the equation,
@@ -208,26 +208,31 @@ class EquilibriumEmissionModel(object):
         nots_itemperature =splrep(self.temperature_mesh[:,0].value,
                                 np.arange(self.temperature_mesh.shape[0]))
         nots_idensity = splrep(self.density_mesh[0,:].value,np.arange(self.density_mesh.shape[1]))
-        itemperature = splev(np.ravel(temperature.value),nots_itemperature)
-        idensity = splev(np.ravel(density.value),nots_idensity)
+        itemperature = splev(np.ravel(loop.temperature.value),nots_itemperature)
+        idensity = splev(np.ravel(loop.density.value),nots_idensity)
 
         emiss = {}
         # calculate emissivity
         for ion in self.ions:
             self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            if 'fractional_ionization' not in ion:
-                self.calculate_fractional_ionization()
+            nei_fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['name'])
+            if 'equilibrium_fractional_ionization' not in ion:
+                self.calculate_equilibrium_fractional_ionization()
             if 'emissivity' not in ion:
                 self.calculate_emissivity()
             for t,em in zip(ion['transitions'],ion['emissivity']):
-                ion_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
+                transition_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
                                             t.value,t.unit.to_string())
-                self.logger.debug('Calculating emission for {}'.format(ion_key))
-                _tmp_emiss = em*ion['fractional_ionization']
+                self.logger.debug('Calculating emission for {}'.format(transition_key))
+                _tmp_emiss = em
+                if nei_fractional_ionization is None:
+                    _tmp_emiss *= ion['equilibrium_fractional_ionization']
                 _tmp = np.reshape(map_coordinates(_tmp_emiss.value,
                                                 np.vstack([itemperature,idensity])),
-                                temperature.shape)
+                                loop.temperature.shape)
                 _tmp = np.where(_tmp>0.0,_tmp,0.0)
-                emiss[ion_key] = _tmp*em.unit*density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
+                emiss[transition_key] = _tmp*em.unit*density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
+                if nei_fractional_ionization is not None:
+                    emiss[transition_key] *= nei_fractional_ionization
 
         return emiss

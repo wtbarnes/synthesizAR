@@ -345,7 +345,7 @@ Magnetogram Info:
         for loop in self.loops:
             self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
             loop.wavelengths = emission_model.wavelengths
-            emiss = emission_model.calculate_emission(loop.temperature,loop.density,**kwargs)
+            emiss = emission_model.calculate_emission(loop)
             if savefile is not None:
                 loop.emission_savefile = savefile
                 with h5py.File(savefile,'a') as hf:
