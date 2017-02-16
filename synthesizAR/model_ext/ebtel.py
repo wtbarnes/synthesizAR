@@ -95,7 +95,7 @@ class EbtelInterface(object):
 
         fractional_ionization = {}
         #group ions by element and remove any duplicates
-        grouped_ions = {key:set(sorted([g[1] for g in group])) \
+        grouped_ions = {key:list(set(sorted([g[1] for g in group]))) \
                         for key,group in itertools.groupby(sorted(ion_list),lambda x:x[0])}
         #iterate over elements
         for element in grouped_ions:
