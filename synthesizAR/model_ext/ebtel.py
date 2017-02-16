@@ -104,7 +104,7 @@ class EbtelInterface(object):
                 self._rate_data = {}
             if element not in self._rate_data:
                 self._rate_data[element] = {}
-                self.logger.debug('Retrieving rate information for {}'.format(element))
+                self.logger.info('Retrieving rate information for {}'.format(element))
                 irate,rrate,eq_pop,temperature = get_ion_data(element,
                                                             zrange=[np.min(grouped_ions[element]),
                                                                     np.max(grouped_ions[element])],
