@@ -130,7 +130,7 @@ def _numba_lagrange_interpolator(x_data,y_data,x):
 def _numba_interpolator_wrapper(x_data,y_array_data,x,normalize=False,cutoff=0.):
     y = np.zeros(y_array_data.shape[1])
     for i in range(y_array_data.shape[1]):
-        y[i] = numba_lagrange_interpolator(x_data,y_array_data[:,i],x)
+        y[i] = _numba_lagrange_interpolator(x_data,y_array_data[:,i],x)
     y = np.where(y<cutoff,np.zeros(len(y)),y)
     if normalize:
         y /= np.sum(y)
