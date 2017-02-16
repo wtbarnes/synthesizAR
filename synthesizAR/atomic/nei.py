@@ -6,7 +6,7 @@ Low-level functions for computing non-equilibrium population fractions
 import os
 import logging
 
-import numpy
+import numpy as np
 import numba
 from ChiantiPy.core import ion
 from ChiantiPy.tools.util import el2z,zion2name
