@@ -145,7 +145,9 @@ Maximum field strength : {max_b:.2f}
             with h5py.File(self.fractional_ionization_savefile,'r') as hf:
                 dset = hf[os.path.join(self.name,ion_key)]
                 fractional_ionization = np.array(dset)*u.Unit(dset.attrs['units'])
-        else:
+        elif hasattr(self,'_fractional_ionization'):
             fractional_ionization = self._fractional_ionization
+        else:
+            fractional_ionization = None
 
         return fractional_ionization
