@@ -121,7 +121,7 @@ class EbtelInterface(object):
                                                 loop.density.value[:,0],
                                                 self._rate_data[element]['ionization_rate'],
                                                 self._rate_data[element]['recombination_rate'],
-                                                self._rate_data[element['equilibrium_populations']],self._rate_data[element]['temperature'],
+                                                self._rate_data[element]['equilibrium_populations'],self._rate_data[element]['temperature'],
                                                 **nei_solver_options)
             for ion in grouped_ions[element]:
                 ion_index = ion - np.min(grouped_ions[element])
