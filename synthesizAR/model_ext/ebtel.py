@@ -124,7 +124,7 @@ class EbtelInterface(object):
                                                 self._rate_data[element]['equilibrium_populations'],self._rate_data[element]['temperature'],
                                                 **nei_solver_options)
             for ion in grouped_ions[element]:
-                ion_index = ion - np.min(grouped_ions[element])
+                ion_index = ion - np.min(grouped_ions[element]) + 1
                 fractional_ionization['{}_{}'.format(element,ion)] = np.repeat(
                                                             nei_populations[:,ion_index,np.newaxis],
                                                             loop.temperature.shape[1],axis=1)
