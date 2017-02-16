@@ -297,7 +297,8 @@ class ChIon(object):
 
         return wavelength,emissivity
 
-    def calculate_ionization_equilibrium(self):
+    @property
+    def equilibrium_fractional_ionization(self):
         """Calculate ionization equilibrium."""
         _tmp_ioneq = ch_tools_io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
         match_indices = np.where(
