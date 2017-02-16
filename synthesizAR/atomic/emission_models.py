@@ -232,7 +232,7 @@ class EquilibriumEmissionModel(object):
                                                 np.vstack([itemperature,idensity])),
                                 loop.temperature.shape)
                 _tmp = np.where(_tmp>0.0,_tmp,0.0)
-                emiss[transition_key] = _tmp*em.unit*density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
+                emiss[transition_key] = _tmp*em.unit*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
                 if nei_fractional_ionization is not None:
                     emiss[transition_key] *= nei_fractional_ionization
 
