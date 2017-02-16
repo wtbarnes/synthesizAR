@@ -361,30 +361,30 @@ Magnetogram Info:
             else:
                 loop._emission = emiss
 
-        def calculate_fractional_ionization(self,emission_model,interface,savefile=None,**kwargs):
-            """
-            Find the fractional ionization for each loop in the model as defined by the loop
-            model interface.
-            """
-            ion_list = [(i['ion'].meta['Element'],i['ion'].meta['Ion']) \
-                        for i in emission_model.ions]
-            for loop in self.loops:
-                fractional_ionization = interface.get_fractional_ionization(ion_list,loop,**kwargs)
-                if savefile is not None:
-                    loop.fractional_ionization_savefile = savefile
-                    with h5py.File(savefile,'a') as hf:
-                        if loop.name not in hf:
-                            hf.create_group(loop.name)
-                        for key in fractional_ionization:
-                            self.logger.debug('Saving fractional ionization for {}'.format(key))
-                            dset = hf[loop.name].create_dataset(key,data=fractional_ionization[key])
-                            dset.attrs['description'] = '''Ion populations as a function of
-                                                            temperature and density as calculated
-                                                            with the ionization balance equations,
-                                                            accounting for non-equilibrium
-                                                            ionization.'''
-                            dset.attrs['units'] = (u.m/u.m).to_string() #unitless
-                            dset.attrs['element'] = key.split('_')[0]
-                            dset.attrs['ion'] = key.split('_')[1]
-                else:
-                    loop._fractional_ionization = fractional_ionization
+    def calculate_fractional_ionization(self,emission_model,interface,savefile=None,**kwargs):
+        """
+        Find the fractional ionization for each loop in the model as defined by the loop
+        model interface.
+        """
+        ion_list = [(i['ion'].meta['Element'],i['ion'].meta['Ion']) \
+                    for i in emission_model.ions]
+        for loop in self.loops:
+            fractional_ionization = interface.get_fractional_ionization(ion_list,loop,**kwargs)
+            if savefile is not None:
+                loop.fractional_ionization_savefile = savefile
+                with h5py.File(savefile,'a') as hf:
+                    if loop.name not in hf:
+                        hf.create_group(loop.name)
+                    for key in fractional_ionization:
+                        self.logger.debug('Saving fractional ionization for {}'.format(key))
+                        dset = hf[loop.name].create_dataset(key,data=fractional_ionization[key])
+                        dset.attrs['description'] = '''Ion populations as a function of
+                                                        temperature and density as calculated
+                                                        with the ionization balance equations,
+                                                        accounting for non-equilibrium
+                                                        ionization.'''
+                        dset.attrs['units'] = (u.m/u.m).to_string() #unitless
+                        dset.attrs['element'] = key.split('_')[0]
+                        dset.attrs['ion'] = key.split('_')[1]
+            else:
+                loop._fractional_ionization = fractional_ionization
