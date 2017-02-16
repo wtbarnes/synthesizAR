@@ -111,4 +111,4 @@ def solve_nei_populations(time,temperature,density,ionization_rate,
             step += 1
             save_this_step = False
 
-    return nei_populations[1:-1]
+    return nei_populations[:,1:-1]
