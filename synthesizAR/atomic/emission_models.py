@@ -215,7 +215,8 @@ class EquilibriumEmissionModel(object):
         # calculate emissivity
         for ion in self.ions:
             self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            nei_fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['name'])
+            nei_fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
+                                                                        ion['ion'].meta['Ion'])
             if 'equilibrium_fractional_ionization' not in ion:
                 self.calculate_equilibrium_fractional_ionization()
             if 'emissivity' not in ion:
