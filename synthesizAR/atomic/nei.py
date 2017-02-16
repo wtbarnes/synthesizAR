@@ -41,9 +41,9 @@ def get_ion_data(element,zrange=None,logTa=4.0,logTb=9.0,dlogT=0.01):
         #equilibrium populations
         info_ion.ioneqOne()
         #save
-        ionization_rates[:,i] = info_ion.IonizRate['rate']
-        recombination_rates[:,i] = info_ion.RecombRate['rate']
-        equilibrium_ionization_fractions[:,i] = info_ion.IoneqOne
+        ionization_rates[:,i-zrange[0]-1] = info_ion.IonizRate['rate']
+        recombination_rates[:,i-zrange[0]-1] = info_ion.RecombRate['rate']
+        equilibrium_ionization_fractions[:,i-zrange[0]-1] = info_ion.IoneqOne
 
     return ionization_rates,recombination_rates,equilibrium_ionization_fractions,temperature
 
