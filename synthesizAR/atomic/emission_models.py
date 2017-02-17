@@ -16,7 +16,7 @@ from ChiantiPy.tools.io import elvlcRead,wgfaRead,scupsRead,splupsRead
 from synthesizAR.atomic import ChIon
 
 
-class EquilibriumEmissionModel(object):
+class EmissionModel(object):
     """
     Calculate emission for given set of transitions, assuming ionization equilibrium.
 
