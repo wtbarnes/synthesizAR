@@ -121,9 +121,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 dset = hf['{}'.format(channel['name'])]
                 self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
         else:
-            raise NotImplementedError('''Full detect function not yet implemented. Set
-                                        use_temperature_response_functions to True to use the
-                                        _detect_simple() method.''')
+            super().flatten(loop,interp_s,hf,start_index)
 
     def detect(self,hf,channel,i_time,header,temperature,los_velocity):
         """

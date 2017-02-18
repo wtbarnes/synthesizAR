@@ -30,6 +30,16 @@ class InstrumentBase(object):
                             self.cadence.value)*u.s
         self.observing_area = observing_area
 
+    def flatten(self,loop,interp_s,hf,start_index):
+        """
+        Flatten loop emission to HDF5 file for given number of wavelengths
+        """
+        for wavelength in loop.wavelengths:
+            emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
+            dset = hf['{}'.format(str(wavelength.value))]
+            dset.attrs['ion_name'] = ion_name
+            self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
+
     def detect(self,*args,**kwargs):
         """
         Converts emissivity for a particular transition to counts per detector channel. When writing

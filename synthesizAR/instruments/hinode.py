@@ -99,16 +99,6 @@ class InstrumentHinodeEIS(InstrumentBase):
                     hf.create_dataset('{}'.format(str(line.value)),
                                     (len(self.observing_time),num_loop_coordinates))
 
-    def flatten(self,loop,interp_s,hf,start_index):
-        """
-        Flatten loop emission to HDF5 file for given number of wavelengths
-        """
-        for wavelength in loop.wavelengths:
-            emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
-            dset = hf['{}'.format(str(wavelength.value))]
-            dset.attrs['ion_name'] = ion_name
-            self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
-
     def detect(self,hf,channel,i_time,header,temperature,los_velocity):
         """
         Calculate response of Hinode/EIS detector for given loop object.
