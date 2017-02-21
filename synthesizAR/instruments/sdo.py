@@ -89,13 +89,12 @@ class InstrumentSDOAIA(InstrumentBase):
         with open(aia_fn,'r') as f:
             aia_info = json.load(f)
 
-        if self.use_temperature_response_functions:
-            for channel in self.channels:
+        for channel in self.channels:
+            if self.use_temperature_response_functions:
                 x = aia_info[channel['name']]['temperature_response_x']
                 y = aia_info[channel['name']]['temperature_response_y']
                 channel['temperature_response_spline_nots'] = splrep(x,y)
-        else:
-            for channel in self.channels:
+            else:
                 x = aia_info[channel['name']]['response_x']
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline_nots'] = splrep(x,y)
@@ -118,18 +117,26 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         Flatten channel counts to HDF5 file
         """
-        if self.use_temperature_response_functions:
-            for channel in self.channels:
+        for channel in self.channels:
+            dset = hf['{}'.format(channel['name'])]
+            if self.use_temperature_response_functions:
                 response_function = splev(np.ravel(loop.temperature),
                                             channel['temperature_response_spline_nots']
                                          )*u.count*u.cm**5/u.s/u.pixel
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
-                dset = hf['{}'.format(channel['name'])]
-                self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
-        else:
-            raise NotImplementedError('''Full detect function not yet implemented. Set
-                                        use_temperature_response_functions to True''')
+            else:
+                counts = np.zeros(np.shape(loop.density))
+                for wavelength in channel['model_wavelengths']:
+                    emiss = loop.get_emission(wavelength)
+                    response = splev(wavelength.value,channel['wavelength_response_spline_nots'])
+                    response = response*u.count/u.photon*u.steradian/u.pixel*u.cm**2
+                    if not hasattr(counts,'unit'):
+                        counts = counts*emiss.unit*response.unit
+                    counts += emiss*response
+
+            self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
+
 
     def detect(self,hf,channel,i_time,header,*args):
         """
