@@ -72,7 +72,7 @@ class InstrumentSDOAIA(InstrumentBase):
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel,None)
 
     def __init__(self, observing_time, observing_area=None,
-    use_temperature_response_functions=True,response_function_file='',apply_psf=True):
+    use_temperature_response_functions=True,apply_psf=True):
         super().__init__(observing_time,observing_area)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions

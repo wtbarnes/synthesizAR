@@ -38,11 +38,11 @@ class InstrumentHinodeEIS(InstrumentBase):
     fits_template['detector'] = 'EIS'
     fits_template['waveunit'] = 'angstrom'
 
-    def __init__(self,detector_file_dir,observing_time,observing_area=None):
+    def __init__(self,observing_time,observing_area=None):
         super().__init__(observing_time,observing_area)
-        self._setup_from_file(detector_file_dir)
+        self._setup_channels()
 
-    def _setup_from_file(self,detector_file_dir):
+    def _setup_channels(self):
         """
         Read instrument properties from files. This is a temporary solution and requires that the
         detector files all be collected into the same directory and be formatted in a specific way.
