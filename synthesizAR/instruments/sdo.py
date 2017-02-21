@@ -61,12 +61,6 @@ class InstrumentSDOAIA(InstrumentBase):
             'gaussian_width':1.199*u.pixel},
         {'wavelength':335*u.angstrom,'telescope_number':1,
             'gaussian_width':0.962*u.pixel}]
-    for channel in channels:
-        channel['name'] = str(channel['wavelength'].value).strip('.0')
-        channel['instrument_label'] = '{}_{}'.format(fits_template['detector'],
-                                                    channel['telescope_number'])
-        #TODO: this should be set once we use the wavelength response function for AIA
-        channel['wavelength_range'] = None
 
     cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel,None)
@@ -78,14 +72,19 @@ class InstrumentSDOAIA(InstrumentBase):
         self.use_temperature_response_functions = use_temperature_response_functions
         self._setup_response_functions()
 
-    def _setup_response_functions(self):
+    def _setup_channels(self):
         """
-        Setup either wavelength or temperature response functions.
+        Setup channel, specifically the wavelength or temperature response functions.
 
         Notes
         -----
         This should be replaced once the response functions are available in SunPy. Probably should configure wavelength response function interpolators also.
         """
+        for channel in self.channels:
+            channel['name'] = str(channel['wavelength'].value).strip('.0')
+            channel['instrument_label'] = '{}_{}'.format(self.fits_template['detector'],
+                                                        channel['telescope_number'])
+
         aia_fn = pkg_resources.resource_filename('synthesizAR','instruments/data/sdo_aia.json')
         with open(aia_fn,'r') as f:
             aia_info = json.load(f)
