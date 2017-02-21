@@ -86,7 +86,7 @@ class InstrumentSDOAIA(InstrumentBase):
         -----
         This should be replaced once the response functions are available in SunPy. Probably should configure wavelength response function interpolators also.
         """
-        aia_fn = pkg_resources.resouce_filename('synthesizAR','instruments/data/sdo_aia.json')
+        aia_fn = pkg_resources.resource_filename('synthesizAR','instruments/data/sdo_aia.json')
         with open(aia_fn,'r') as f:
             aia_info = json.load(f)
 

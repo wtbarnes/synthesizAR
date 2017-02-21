@@ -50,7 +50,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         .. warning:: This method will be modified once EIS response functions become
                     available in a different format.
         """
-        hinode_fn = pkg_resources.resouce_filename('synthesizAR',
+        hinode_fn = pkg_resources.resource_filename('synthesizAR',
                                                     'instruments/data/hinode_eis.json')
         with open(hinode_fn,'r') as f:
             eis_info = json.load(f)
