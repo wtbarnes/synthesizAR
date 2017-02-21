@@ -75,18 +75,19 @@ class InstrumentSDOAIA(InstrumentBase):
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
         if self.use_temperature_response_functions and response_function_file:
-            self._setup_response_functions(response_function_file)
+            self._setup_temperature_response_functions(response_function_file)
+        elif response_function_file:
+            self._setup_wavelength_response_functions(response_function_file)
+        else:
+            raise ValueError('Need to supply a valid response function filename or directory.')
 
-    def _setup_response_functions(self,filename):
+    def _setup_temperature_response_functions(self,filename):
         """
         Setup interpolators from the AIA temperature response functions.
 
         Notes
         -----
-        This should be replaced once the response functions are available in
-        SunPy.
-        Probably should configure wavelength response function
-        interpolators also.
+        This should be replaced once the response functions are available in SunPy. Probably should configure wavelength response function interpolators also.
         """
         _tmp = np.loadtxt(filename)
         channel_order = {c:i for c,i in zip([94,131,171,
@@ -95,6 +96,16 @@ class InstrumentSDOAIA(InstrumentBase):
         for i,channel in enumerate(self.channels):
             _tmp_response = _tmp[:,channel_order[channel['wavelength']]+1]
             self.channels[i]['response_spline_nots'] = splrep(_tmp_temperature,_tmp_response)
+
+    def _setup_wavelength_response_functions(self,dirname):
+        """
+        Setup AIA wavelength response functions.
+
+        Notes
+        -----
+        This should be replaced once the response functions are available in SunPy. For now, we are reading this data from very specifically formatted response function files.
+        """
+        pass
 
     def build_detector_file(self,field,num_loop_coordinates,file_format):
         """
@@ -121,33 +132,24 @@ class InstrumentSDOAIA(InstrumentBase):
                 dset = hf['{}'.format(channel['name'])]
                 self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
         else:
-            super().flatten(loop,interp_s,hf,start_index)
+            raise NotImplementedError('''Full detect function not yet implemented. Set
+                                        use_temperature_response_functions to True''')
 
-    def detect(self,hf,channel,i_time,header,temperature,los_velocity):
+    def detect(self,hf,channel,i_time,header,*args):
         """
-        For a given channel and timestep, return the observed intensity in each pixel.
+        For a given channel and timestep, map the intensity along the loop to the 3D field and
+        return the AIA data product.
 
         Parameters
         ----------
+        hf : `~h5py.File`
         channel : `dict`
+        i_time : `int`
+        header : `~sunpy.MapMeta`
 
         Returns
         -------
-        counts : array-like
-        """
-        if self.use_temperature_response_functions:
-            counts = self._detect_simple(hf,channel,i_time,header)
-        else:
-            counts = self._detect_full(hf,channel,i_time,header)
-        if self.apply_psf:
-            counts = scipy.ndimage.filters.gaussian_filter(counts,
-                                                    channel['gaussian_width'].value)
-        return Map(counts,header)
-
-    def _detect_simple(self,hf,channel,i_time,header):
-        """
-        Calculate counts using the density and temperature response functions.
-        No emissivity model needed.
+        AIA data product : `~sunpy.Map`
         """
         dset = hf['{}'.format(channel['name'])]
         hist,edges = np.histogramdd(self.total_coordinates.value,
@@ -155,17 +157,9 @@ class InstrumentSDOAIA(InstrumentBase):
                                     range=[self.bin_range.x,self.bin_range.y,self.bin_range.z],
                                     weights=np.array(dset[i_time,:]))
         header['bunit'] = (u.Unit(dset.attrs['units'])*self.total_coordinates.unit).to_string()
-        return np.dot(hist,np.diff(edges[2])).T
+        counts = np.dot(hist,np.diff(edges[2])).T
 
-    def _detect_full(self,hf,channel,i_time,header):
-        """
-        Calculate counts use emissivity for a large number of transitions.
-        Requires emissivity model.
-
-        Notes
-        -----
-        This is necessary when taking into account non-equilibrium ionization.
-        """
-        raise NotImplementedError('''Full detect function not yet implemented. Set
-                                    use_temperature_response_functions to True to use the
-                                    _detect_simple() method.''')
+        if self.apply_psf:
+            counts = scipy.ndimage.filters.gaussian_filter(counts,
+                                                    channel['gaussian_width'].value)
+        return Map(counts,header)

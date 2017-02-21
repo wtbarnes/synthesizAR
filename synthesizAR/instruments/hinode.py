@@ -7,6 +7,8 @@ import os
 import glob
 import sys
 import logging
+import json
+import pkg_resources
 
 import numpy as np
 from scipy.interpolate import splrep,splev,interp1d
@@ -48,31 +50,24 @@ class InstrumentHinodeEIS(InstrumentBase):
         .. warning:: This method will be modified once EIS response functions become
                     available in a different format.
         """
-        eis_instr_files = glob.glob(os.path.join(detector_file_dir,'EIS_*_*.*.ins'))
+        with open(pkg_resources.resouce_filename(__name__,
+                                                'instruments/data/hinode_eis.json'),'r') as f:
+            eis_info = json.load(f)
+
         self.channels = []
-        for eif in eis_instr_files:
-            #extract some metadata from the filename
-            base = os.path.splitext(os.path.basename(eif))[0].split('_')[1:]
-            wave = float(base[-1])*u.angstrom
-            if base[0][1].islower():
-                el = base[0][:2]
-                ion = base[0][2:]
-            else:
-                el = base[0][0]
-                ion = base[0][1:]
-            name = '{}_{}_{}'.format(el,ion,wave.value)
-            #read the response function from the file
-            with open(eif,'r') as f:
-                lines = f.readlines()
-            resp_x,resp_y = np.empty(int(lines[0])),np.empty(int(lines[0]))
-            for i in range(1,int(lines[0])+1):
-                resp_x[i-1],resp_y[i-1] = list(filter(None,lines[i].split(' ')))
-            self.channels.append({'wavelength':wave,'name':name,
-                    'response':{'x':resp_x*u.angstrom,
-                                'y':resp_y*u.count/u.pixel/u.photon*u.steradian*u.cm**2},
-                    'spectral_resolution':float(lines[int(lines[0])+1])*u.angstrom,
-                    'instrument_width':float(lines[int(lines[0])+2])*u.angstrom,
-                    'wavelength_range':[resp_x[0],resp_x[-1]]*u.angstrom})
+        for key in eis_info:
+            name = '{}_{}_{}'.format(eis_info[key]['element'],eis_info[key]['ion'],
+                                    eis_info[key]['wavelength'])
+            self.channels.append({
+                'wavelength':eis_info[key]['wavelength']*u.Unit(eis_info[key]['wavelength_units']),
+                'name':name,
+                'response':{
+                    'x':eis_info[key]['response_x']*u.Unit(eis_info[key]['response_x_units']),
+                    'y':eis_info[key]['response_y']*u.Unit(eis_info[key]['response_y_units'])},
+                'spectral_resolution':eis_info[key]['spectral_resolution']*u.Unit(eis_info[key]['spectral_resolution_units']),
+                'instrument_width':eis_info[key]['instrument_width']*u.Unit(eis_info[key]['instrument_width_units']),
+                'wavelength_range':[eis_info[key]['response_x'][0],
+                                    eis_info[key]['response_x'][-1]*u.Unit(eis_info[key]['response_x_unit'])})
 
         self.channels = sorted(self.channels,key=lambda x:x['wavelength'])
 
@@ -98,6 +93,16 @@ class InstrumentHinodeEIS(InstrumentBase):
                 if str(line.value) not in hf:
                     hf.create_dataset('{}'.format(str(line.value)),
                                     (len(self.observing_time),num_loop_coordinates))
+
+    def flatten(self,loop,interp_s,hf,start_index):
+        """
+        Flatten loop emission to HDF5 file for given number of wavelengths
+        """
+        for wavelength in loop.wavelengths:
+            emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
+            dset = hf['{}'.format(str(wavelength.value))]
+            dset.attrs['ion_name'] = ion_name
+            self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
 
     def detect(self,hf,channel,i_time,header,temperature,los_velocity):
         """
