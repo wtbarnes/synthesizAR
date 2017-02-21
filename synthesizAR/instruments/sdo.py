@@ -6,6 +6,8 @@ spatial and spectroscopic resolution.
 import os
 import sys
 import logging
+import json
+import pkg_resources
 
 import numpy as np
 from scipy.interpolate import splrep,splev,interp1d
@@ -74,38 +76,32 @@ class InstrumentSDOAIA(InstrumentBase):
         super().__init__(observing_time,observing_area)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
-        if self.use_temperature_response_functions and response_function_file:
-            self._setup_temperature_response_functions(response_function_file)
-        elif response_function_file:
-            self._setup_wavelength_response_functions(response_function_file)
-        else:
-            raise ValueError('Need to supply a valid response function filename or directory.')
+        self._setup_response_functions()
 
-    def _setup_temperature_response_functions(self,filename):
+    def _setup_response_functions(self):
         """
-        Setup interpolators from the AIA temperature response functions.
+        Setup either wavelength or temperature response functions.
 
         Notes
         -----
         This should be replaced once the response functions are available in SunPy. Probably should configure wavelength response function interpolators also.
         """
-        _tmp = np.loadtxt(filename)
-        channel_order = {c:i for c,i in zip([94,131,171,
-                                             193,211,335]*u.angstrom,range(6))}
-        _tmp_temperature = 10**(_tmp[:,0])
-        for i,channel in enumerate(self.channels):
-            _tmp_response = _tmp[:,channel_order[channel['wavelength']]+1]
-            self.channels[i]['response_spline_nots'] = splrep(_tmp_temperature,_tmp_response)
+        aia_fn = pkg_resources.resouce_filename('synthesizAR','instruments/data/sdo_aia.json')
+        with open(aia_fn,'r') as f:
+            aia_info = json.load(f)
 
-    def _setup_wavelength_response_functions(self,dirname):
-        """
-        Setup AIA wavelength response functions.
-
-        Notes
-        -----
-        This should be replaced once the response functions are available in SunPy. For now, we are reading this data from very specifically formatted response function files.
-        """
-        pass
+        if self.use_temperature_response_functions:
+            for channel in self.channels:
+                x = aia_info[channel['name']]['temperature_response_x']
+                y = aia_info[channel['name']]['temperature_response_y']
+                channel['temperature_response_spline_nots'] = splrep(x,y)
+        else:
+            for channel in self.channels:
+                x = aia_info[channel['name']]['response_x']
+                y = aia_info[channel['name']]['response_y']
+                channel['wavelength_response_spline_nots'] = splrep(x,y)
+                channel['wavelength_range'] = [x[0],x[-1]]\
+                                    *u.Unit(aia_info[channel['name']]['response_x_units'])
 
     def build_detector_file(self,field,num_loop_coordinates,file_format):
         """
@@ -126,7 +122,8 @@ class InstrumentSDOAIA(InstrumentBase):
         if self.use_temperature_response_functions:
             for channel in self.channels:
                 response_function = splev(np.ravel(loop.temperature),
-                                        channel['response_spline_nots'])*u.count*u.cm**5/u.s/u.pixel
+                                            channel['temperature_response_spline_nots']
+                                         )*u.count*u.cm**5/u.s/u.pixel
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
                 dset = hf['{}'.format(channel['name'])]
