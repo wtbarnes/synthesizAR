@@ -57,18 +57,19 @@ class InstrumentHinodeEIS(InstrumentBase):
 
         self.channels = []
         for key in eis_info:
-            name = '{}_{}_{}'.format(eis_info[key]['element'],eis_info[key]['ion'],
-                                    eis_info[key]['wavelength'])
-            self.channels.append({
-                'wavelength':eis_info[key]['wavelength']*u.Unit(eis_info[key]['wavelength_units']),
-                'name':name,
-                'response':{
-                    'x':eis_info[key]['response_x']*u.Unit(eis_info[key]['response_x_units']),
-                    'y':eis_info[key]['response_y']*u.Unit(eis_info[key]['response_y_units'])},
-                'spectral_resolution':eis_info[key]['spectral_resolution']*u.Unit(eis_info[key]['spectral_resolution_units']),
-                'instrument_width':eis_info[key]['instrument_width']*u.Unit(eis_info[key]['instrument_width_units']),
-                'wavelength_range':[eis_info[key]['response_x'][0],
-                                    eis_info[key]['response_x'][-1]]*u.Unit(eis_info[key]['response_x_units'])})
+            if key != 'name' and key != 'description':
+                name = '{}_{}_{}'.format(eis_info[key]['element'],eis_info[key]['ion'],
+                                        eis_info[key]['wavelength'])
+                self.channels.append({
+                    'wavelength':eis_info[key]['wavelength']*u.Unit(eis_info[key]['wavelength_units']),
+                    'name':name,
+                    'response':{
+                        'x':eis_info[key]['response_x']*u.Unit(eis_info[key]['response_x_units']),
+                        'y':eis_info[key]['response_y']*u.Unit(eis_info[key]['response_y_units'])},
+                    'spectral_resolution':eis_info[key]['spectral_resolution']*u.Unit(eis_info[key]['spectral_resolution_units']),
+                    'instrument_width':eis_info[key]['instrument_width']*u.Unit(eis_info[key]['instrument_width_units']),
+                    'wavelength_range':[eis_info[key]['response_x'][0],
+                                        eis_info[key]['response_x'][-1]]*u.Unit(eis_info[key]['response_x_units'])})
 
         self.channels = sorted(self.channels,key=lambda x:x['wavelength'])
 
