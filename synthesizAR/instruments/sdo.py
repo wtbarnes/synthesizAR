@@ -137,7 +137,6 @@ class InstrumentSDOAIA(InstrumentBase):
 
             self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
 
-
     def detect(self,hf,channel,i_time,header,*args):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
