@@ -70,7 +70,7 @@ class InstrumentSDOAIA(InstrumentBase):
         super().__init__(observing_time,observing_area)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
-        self._setup_response_functions()
+        self._setup_channels()
 
     def _setup_channels(self):
         """
