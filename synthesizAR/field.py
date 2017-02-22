@@ -286,13 +286,13 @@ Magnetogram Info:
             loops.append(Loop('loop{}'.format(i), stream[0].value, stream[1].value))
         self.loops = loops
 
-    def configure_loop_simulations(self, interface, parent_config_dir='config', parent_results_dir='results'):
+    def configure_loop_simulations(self, interface):
         """
         Configure hydrodynamic simulations for each loop object
         """
         self.simulation_type = interface.name
         for loop in self.loops:
-            interface.configure_input(loop,parent_config_dir,parent_results_dir)
+            interface.configure_input(loop)
 
     def load_loop_simulations(self,interface,savefile=None,**kwargs):
         """

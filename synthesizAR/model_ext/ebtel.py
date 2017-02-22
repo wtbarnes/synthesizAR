@@ -26,7 +26,7 @@ class EbtelInterface(object):
     """
 
 
-    def __init__(self,base_config,heating_model):
+    def __init__(self,base_config,heating_model,parent_config_dir,parent_results_dir):
         """
         Create EBTEL interface
         """
@@ -35,19 +35,15 @@ class EbtelInterface(object):
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config
+        self.parent_config_dir = parent_config_dir
+        self.parent_results_dir = parent_results_dir
 
-    def configure_input(self,loop,parent_config_dir,parent_results_dir):
+    def configure_input(self,loop):
         """
         Configure EBTEL input for a given loop object.
-
-        Parameters
-        ----------
-        loop
-        parent_config_dir : `string`
-        parent_results_dir : `string`
         """
-        oh = OutputHandler(os.path.join(parent_config_dir,loop.name+'.xml'), copy.deepcopy(self.base_config))
-        oh.output_dict['output_filename'] = os.path.join(parent_results_dir,loop.name)
+        oh = OutputHandler(os.path.join(self.parent_config_dir,loop.name+'.xml'), copy.deepcopy(self.base_config))
+        oh.output_dict['output_filename'] = os.path.join(self.parent_results_dir,loop.name)
         oh.output_dict['loop_length'] = loop.full_length.value/2.0
         event_properties = self.heating_model.calculate_event_properties(loop)
         events = []
