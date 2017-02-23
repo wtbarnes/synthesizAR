@@ -43,8 +43,8 @@ Dimension : {dim}
 Scale : {scale}
 Wavelength range : {wvl_range}
 Wavelength dimension : {wvl_dim}
-        """.format(obj_name=self.__name__,tel=self.meta['telescop'],instr=self.meta['instrume'],
-                    dim=u.Quantity(self[0]),scale=u.Quantity(self[0]),
+        """.format(obj_name=type(self).__name__,tel=self.meta['telescop'],
+                    instr=self.meta['instrume'],dim=u.Quantity(self[0]),scale=u.Quantity(self[0]),
                     wvl_range=u.Quantity([self.wavelength[0],self.wavelength[-1]]),
                     wvl_dim=len(self.wavelength))
 
@@ -55,14 +55,14 @@ Wavelength dimension : {wvl_dim}
         if type(self.wavelength[key].value)==np.ndarray:
             new_meta = self.meta.copy()
             new_meta['wavelnth'] = (self.wavelength[key][0].value+self.wavelength[key][1].value)/2.
-            return EISCube(data=self.data[:,:,key],meta=new_meta,wavelength=self.wavelength[key])
+            return EISCube(data=self.data[:,:,key],header=new_meta,wavelength=self.wavelength[key])
         else:
             meta_map2d = self.meta.copy()
             meta_map2d['naxis'] = 2
             for k in ['naxis3','ctype3','cunit3','cdelt3']:
                 del meta_map2d[k]
             meta_map2d['wavelnth'] = self.wavelength[key].value
-            tmp_map = Map(data[:,:,key],meta_map2d)
+            tmp_map = Map(self.data[:,:,key],meta_map2d)
             tmp_map.plot_settings.update({'cmap':self.cmap})
             return tmp_map
 
