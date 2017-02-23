@@ -44,9 +44,9 @@ Wavelength range : {wvl_range}
 Wavelength dimension : {wvl_dim}
 
         '''.format(obj_name=type(self).__name__,tel=self.meta['telescop'],
-                    instr=self.meta['instrume'],dim=u.Quantity(self[0]),scale=u.Quantity(self[0]),
-                    wvl_range=u.Quantity([self.wavelength[0],self.wavelength[-1]]),
-                    wvl_dim=len(self.wavelength))
+                    instr=self.meta['instrume'],dim=u.Quantity(self[0].dimensions),
+                    scale=u.Quantity(self[0].scale),wvl_dim=len(self.wavelength),
+                    wvl_range=u.Quantity([self.wavelength[0],self.wavelength[-1]]))
 
     def __getitem__(self,key):
         """
