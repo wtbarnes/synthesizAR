@@ -58,11 +58,9 @@ class InstrumentHinodeEIS(InstrumentBase):
         self.channels = []
         for key in eis_info:
             if key != 'name' and key != 'description':
-                name = '{}_{}_{}'.format(eis_info[key]['element'],eis_info[key]['ion'],
-                                        eis_info[key]['wavelength'])
                 self.channels.append({
                     'wavelength':eis_info[key]['wavelength']*u.Unit(eis_info[key]['wavelength_units']),
-                    'name':name,
+                    'name':key,
                     'response':{
                         'x':eis_info[key]['response_x']*u.Unit(eis_info[key]['response_x_units']),
                         'y':eis_info[key]['response_y']*u.Unit(eis_info[key]['response_y_units'])},
