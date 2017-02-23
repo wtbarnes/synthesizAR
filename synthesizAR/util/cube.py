@@ -34,16 +34,16 @@ class EISCube(object):
         self.cmap = kwargs.get('cmap',sunpy.cm.get_cmap('hinodexrt'))
 
     def __repr__(self):
-        return """
-        synthesizAR {obj_name}
--------------------------------------------------------
+        return '''synthesizAR {obj_name}
+-----------------------------------------
 Telescope : {tel}
 Instrument : {instr}
 Dimension : {dim}
 Scale : {scale}
 Wavelength range : {wvl_range}
 Wavelength dimension : {wvl_dim}
-        """.format(obj_name=type(self).__name__,tel=self.meta['telescop'],
+
+        '''.format(obj_name=type(self).__name__,tel=self.meta['telescop'],
                     instr=self.meta['instrume'],dim=u.Quantity(self[0]),scale=u.Quantity(self[0]),
                     wvl_range=u.Quantity([self.wavelength[0],self.wavelength[-1]]),
                     wvl_dim=len(self.wavelength))
