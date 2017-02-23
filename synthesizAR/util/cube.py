@@ -8,11 +8,11 @@ import numpy as np
 import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
-from sunpy.map import Map,MapCube,MapMeta
+from sunpy.map import Map,MapMeta
 from sunpy.io.fits import get_header
 
 
-class EISCube(MapCube):
+class EISCube(object):
     """
     Spectral and spatial cube for holding Hinode EIS data
     """
@@ -30,24 +30,41 @@ class EISCube(MapCube):
                                 array with an associated wavelength and header.''')
         self.meta = header.copy()
         self.wavelength = wavelength
-        # construct individual maps
-        meta_map2d = header.copy()
-        meta_map2d['naxis'] = 2
-        for k in ['naxis3','ctype3','cunit3','cdelt3']:
-            del meta_map2d[k]
-        map_list = []
-        for i,wvl in enumerate(self.wavelength):
-            meta_map2d['wavelnth'] = wvl.value
-            map_list.append(Map(data[:,:,i],meta_map2d.copy()))
-            map_list[i].plot_settings.update({'cmap':kwargs.get('cmap',
-                                                                sunpy.cm.get_cmap('hinodexrt'))})
-        super().__init__(map_list)
-        #all dimensions are the same
-        self.meta['naxis1'] = self.maps[0].meta['naxis1']
-        self.meta['naxis2'] = self.maps[0].meta['naxis2']
+        self.data = data
+        self.cmap = kwargs.get('cmap',sunpy.cm.get_cmap('hinodexrt'))
 
     def __repr__(self):
-        return [m.__repr__() for m in self.maps]
+        return """
+        synthesizAR {obj_name}
+-------------------------------------------------------
+Telescope : {tel}
+Instrument : {instr}
+Dimension : {dim}
+Scale : {scale}
+Wavelength range : {wvl_range}
+Wavelength dimension : {wvl_dim}
+        """.format(obj_name=self.__name__,tel=self.meta['telescop'],instr=self.meta['instrume'],
+                    dim=u.Quantity(self[0]),scale=u.Quantity(self[0]),
+                    wvl_range=u.Quantity([self.wavelength[0],self.wavelength[-1]]),
+                    wvl_dim=len(self.wavelength))
+
+    def __getitem__(self,key):
+        """
+        Overriding indexing. If key is just one index, returns a normal `Map` object. Otherwise, another `EISCube` object is returned.
+        """
+        if type(self.wavelength[key].value)==np.ndarray:
+            new_meta = self.meta.copy()
+            new_meta['wavelnth'] = (self.wavelength[key][0].value+self.wavelength[key][1].value)/2.
+            return EISCube(data=self.data[:,:,key],meta=new_meta,wavelength=self.wavelength[key])
+        else:
+            meta_map2d = self.meta.copy()
+            meta_map2d['naxis'] = 2
+            for k in ['naxis3','ctype3','cunit3','cdelt3']:
+                del meta_map2d[k]
+            meta_map2d['wavelnth'] = self.wavelength[key].value
+            tmp_map = Map(data[:,:,key],meta_map2d)
+            tmp_map.plot_settings.update({'cmap':self.cmap})
+            return tmp_map
 
     def save(self,filename):
         """
@@ -65,7 +82,7 @@ class EISCube(MapCube):
                                     unit=self.wavelength.unit.to_string(),
                                     array=self.wavelength.value)])
         #create image file to hold 3D array
-        image_hdu = astropy.io.fits.PrimaryHDU(np.swapaxes(self.as_array().T,1,2),
+        image_hdu = astropy.io.fits.PrimaryHDU(np.swapaxes(self.data.T,1,2),
                                                 header=astropy.io.fits.Header(header))
         #write to file
         hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
@@ -88,11 +105,11 @@ class EISCube(MapCube):
         """
         Map of the intensity integrated over wavelength.
         """
-        tmp = np.dot(self.as_array(),np.gradient(self.wavelength.value))
-        tmp_meta = self.maps[0].meta.copy()
+        tmp = np.dot(self.data,np.gradient(self.wavelength.value))
+        tmp_meta = self[0].meta.copy()
         tmp_meta['wavelnth'] = self.meta['wavelnth']
         tmp_meta['bunit'] = (u.Unit(self.meta['bunit'])*self.wavelength.unit).to_string()
         tmp_map = Map(tmp,tmp_meta)
-        tmp_map.plot_settings.update({'cmap':self.maps[0].plot_settings['cmap']})
+        tmp_map.plot_settings.update({'cmap':self.cmap})
 
         return tmp_map
