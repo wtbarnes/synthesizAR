@@ -188,7 +188,8 @@ Magnetogram Info:
             geometry=('cartesian',('x','y','z')))
 
     @u.quantity_input(loop_length_range=u.cm)
-    def _filter_streamlines(self,streamline,close_threshold=0.05,loop_length_range=[2.e+9,5.e+10]*u.cm):
+    def _filter_streamlines(self,streamline,close_threshold=0.05,
+                            loop_length_range=[2.e+9,5.e+10]*u.cm):
         """
         Check extracted loop to make sure it fits given criteria. Return True if it passes.
 
@@ -366,8 +367,7 @@ Magnetogram Info:
         Find the fractional ionization for each loop in the model as defined by the loop
         model interface.
         """
-        ion_list = [(i['ion'].meta['Element'],i['ion'].meta['Ion']) \
-                    for i in emission_model.ions]
+        ion_list = [(i['ion'].meta['Element'],i['ion'].meta['Ion']) for i in emission_model.ions]
         for loop in self.loops:
             fractional_ionization = interface.get_fractional_ionization(ion_list,loop,**kwargs)
             if savefile is not None:

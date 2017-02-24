@@ -101,9 +101,7 @@ class EbtelInterface(object):
             if element not in self._rate_data:
                 self._rate_data[element] = {}
                 self.logger.info('Retrieving rate information for {}'.format(element))
-                irate,rrate,eq_pop,temperature = get_ion_data(element,
-                    #zrange=[np.min(grouped_ions[element]),np.max(grouped_ions[element])],
-                                                            **ion_data_options)
+                irate,rrate,eq_pop,temperature = get_ion_data(element,**ion_data_options)
                 self._rate_data[element]['ionization_rate'] = irate
                 self._rate_data[element]['recombination_rate'] = rrate
                 self._rate_data[element]['equilibrium_populations'] = eq_pop
