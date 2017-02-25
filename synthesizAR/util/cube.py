@@ -53,9 +53,9 @@ Wavelength dimension : {wvl_dim}
         """
         Overriding indexing. If key is just one index, returns a normal `Map` object. Otherwise, another `EISCube` object is returned.
         """
-        if type(self.wavelength[key].value)==np.ndarray:
+        if type(self.wavelength[key].value)==np.ndarray and len(self.wavelength[key].value)>1:
             new_meta = self.meta.copy()
-            new_meta['wavelnth'] = (self.wavelength[key][0].value+self.wavelength[key][1].value)/2.
+            new_meta['wavelnth'] = (self.wavelength[key][0].value+self.wavelength[key][-1].value)/2.
             return EISCube(data=self.data[:,:,key],header=new_meta,wavelength=self.wavelength[key])
         else:
             meta_map2d = self.meta.copy()
