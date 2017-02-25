@@ -80,24 +80,23 @@ class InstrumentSDOAIA(InstrumentBase):
         -----
         This should be replaced once the response functions are available in SunPy. Probably should configure wavelength response function interpolators also.
         """
-        for channel in self.channels:
-            channel['name'] = str(channel['wavelength'].value).strip('.0')
-            channel['instrument_label'] = '{}_{}'.format(self.fits_template['detector'],
-                                                        channel['telescope_number'])
-
         aia_fn = pkg_resources.resource_filename('synthesizAR','instruments/data/sdo_aia.json')
         with open(aia_fn,'r') as f:
             aia_info = json.load(f)
 
         for channel in self.channels:
+            channel['name'] = str(channel['wavelength'].value).strip('.0')
+            channel['instrument_label'] = '{}_{}'.format(self.fits_template['detector'],
+                                                        channel['telescope_number'])
             if self.use_temperature_response_functions:
                 x = aia_info[channel['name']]['temperature_response_x']
                 y = aia_info[channel['name']]['temperature_response_y']
-                channel['temperature_response_spline_nots'] = splrep(x,y)
+                channel['temperature_response_spline'] = splrep(x,y)
             else:
                 x = aia_info[channel['name']]['response_x']
                 y = aia_info[channel['name']]['response_y']
-                channel['wavelength_response_spline_nots'] = splrep(x,y)
+                channel['wavelength_response_spline'] = splrep(x,y)
+                channel['wavelength_response_units'] = u.Unit(aia_info[channel['name']]['response_y_units'])
                 channel['wavelength_range'] = [x[0],x[-1]]\
                                     *u.Unit(aia_info[channel['name']]['response_x_units'])
 
@@ -121,19 +120,13 @@ class InstrumentSDOAIA(InstrumentBase):
             dset = hf['{}'.format(channel['name'])]
             if self.use_temperature_response_functions:
                 response_function = splev(np.ravel(loop.temperature),
-                                            channel['temperature_response_spline_nots']
+                                            channel['temperature_response_spline']
                                          )*u.count*u.cm**5/u.s/u.pixel
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
             else:
-                counts = np.zeros(np.shape(loop.density))
-                for wavelength in channel['model_wavelengths']:
-                    emiss = loop.get_emission(wavelength)
-                    response = splev(wavelength.value,channel['wavelength_response_spline_nots'])
-                    response = response*u.count/u.photon*u.steradian/u.pixel*u.cm**2
-                    if not hasattr(counts,'unit'):
-                        counts = counts*emiss.unit*response.unit
-                    counts += emiss*response
+                key = '{}_{}'.format(self.name,channel['name'])
+                counts = loop.get_emission(key)
 
             self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
 
