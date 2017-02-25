@@ -31,7 +31,8 @@ class EmissionModel(object):
                  density=np.logspace(8,11,50)/(u.cm**3),energy_unit='erg',chianti_db_filename=None):
         self.density_mesh,self.temperature_mesh = np.meshgrid(density,temperature)
         self.wavelengths = np.array(sorted([w.value for ion in ions \
-                                        for w in ion['wavelengths']]))*ions[0]['wavelengths'].unit
+            for w,b in zip(ion['wavelengths'],
+                            ion['resolve_wavelength']) if b]))*ions[0]['wavelengths'].unit
         self.logger = logging.getLogger(name=type(self).__name__)
         # build CHIANTI database
         if chianti_db_filename is None:
@@ -45,7 +46,10 @@ class EmissionModel(object):
             tmp_ion = ChIon(ion['name'],np.ravel(self.temperature_mesh),np.ravel(self.density_mesh),
                             chianti_db_filename)
             tmp_ion.meta['rcparams']['flux'] = energy_unit
-            self.ions.append({'ion':tmp_ion,'transitions':ion['wavelengths']})
+            sorted_bools = [b for w,b in sorted(zip(ion['wavelengths'],ion['resolve_wavelength']),
+                                                key=lambda x:x[0])]
+            self.ions.append({'ion':tmp_ion,'transitions':u.Quantity(sorted(ion['wavelengths'])),
+                                'resolve_wavelength':sorted_bools})
 
     def save(self,savedir=None):
         """
@@ -177,9 +181,9 @@ class EmissionModel(object):
             wvl,emiss = ion['ion'].calculate_emissivity()
             transition_indices = [np.argwhere(np.isclose(wvl.value,
                                                         t.value,rtol=0.0,atol=1.e-5))[0][0] \
-                                for t in ion['transitions']]
-            ion['emissivity'] = [np.reshape(emiss[ti,:],self.temperature_mesh.shape) \
-                                for ti in transition_indices]
+                                    for t in ion['transitions']]
+            ion['emissivity'] = np.reshape(emiss[transition_indices,:],
+                                            self.temperature_mesh.shape+transition_indices.shape)
 
     def calculate_equilibrium_fractional_ionization(self):
         """
@@ -194,7 +198,7 @@ class EmissionModel(object):
             ioneq = ion['ion'].equilibrium_fractional_ionization
             ion['equilibrium_fractional_ionization'] = np.reshape(ioneq,self.temperature_mesh.shape)
 
-    def calculate_emission(self,loop):
+    def calculate_emission(self,loop,**kwargs):
         """
         Calculate power per unit volume for a given temperature and density for every transition,
         :math:`\lambda`, in every ion :math:`X^{+m}`, as given by the equation,
@@ -204,6 +208,8 @@ class EmissionModel(object):
 
         where :math:`\\mathrm{Ab}(X)` is the abundance of element :math:`X`, :math:`\\varepsilon_{\lambda}` is the emissivity for transition :math:`\lambda`, and :math:`N(X^{+m})/N(X)` is the ionization fraction of ion :math:`X^{+m}`. :math:`P_{\lambda}` is in units of erg cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `erg` and in units of photons cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `photon`.
         """
+        # check for imagers
+        imagers = kwargs.get('imagers',None)
         # interpolate indices
         nots_itemperature =splrep(self.temperature_mesh[:,0].value,
                                 np.arange(self.temperature_mesh.shape[0]))
@@ -211,29 +217,62 @@ class EmissionModel(object):
         itemperature = splev(np.ravel(loop.temperature.value),nots_itemperature)
         idensity = splev(np.ravel(loop.density.value),nots_idensity)
 
-        emiss = {}
+        emiss,meta = {},{}
         # calculate emissivity
         for ion in self.ions:
             self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            nei_fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
+            fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
                                                                         ion['ion'].meta['Ion'])
             if 'equilibrium_fractional_ionization' not in ion:
                 self.calculate_equilibrium_fractional_ionization()
             if 'emissivity' not in ion:
                 self.calculate_emissivity()
-            for t,em in zip(ion['transitions'],ion['emissivity']):
+            # calculate ion specific information
+            if fractional_ionization is None:
+                fractional_ionization = np.reshape(
+                                        map_coordinates(ion['equilibrium_fractional_ionization'],
+                                        np.vstack([itemperature,idensity])),loop.temperature.shape)
+                fractional_ionization = np.where(nei_fractional_ionization>0.0,
+                                                nei_fractional_ionization,0.0)
+            em_ion = fractional_ionization*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
+            # calculate imager emission (integrated over wavelength)
+            if imagers:
+                for imager in imagers:
+                    for channel in imager.channels:
+                        if (ion['transitions'] >= channel['wavelength_range'][0]).any() \
+                        and (ion['transitions'] >= channel['wavelength_range'][1]).any():
+                            channel_wavelengths = u.Quantity([w for w in ion['transitions'] \
+                                if channel['wavelength_range'][0] <= w <= channel['wavelength_range'][1]])
+                            key = '{}_{}'.format(imager.name,channel['name'])
+                            interpolated_response = splev(channel_wavelengths.value,
+                                                    channel['wavelength_response_spline'])
+                            if key not in emiss:
+                                emiss[key] = np.dot(ion['emissivity'].value,
+                                                    interpolated_response)*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
+                                meta[key] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
+                                             'comment':'''Emission from {channel} channel of {instr},
+                                                          integrated over the entire wavelength
+                                                          range.
+                                            '''.format(channel=channel['name'],instr=imager.name)}
+                            else:
+                                emiss[key] += np.dot(ion['emissivity'].value,
+                                                    interpolated_response)*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
+                                meta[key]['ion_name'] = ','.join(meta[key]['ion_name'].split(',')\
+                                                        +[ion['ion'].meta['spectroscopic_name']])
+
+            #wavelength resolved emission
+            resolved_indices = [i for i,b in enumerate(ion['resolve_wavelength']) if b]
+            for i in resolved_indices:
+                t = ion['transitions'][i]
                 transition_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
                                             t.value,t.unit.to_string())
                 self.logger.debug('Calculating emission for {}'.format(transition_key))
-                _tmp_emiss = em
-                if nei_fractional_ionization is None:
-                    _tmp_emiss *= ion['equilibrium_fractional_ionization']
-                _tmp = np.reshape(map_coordinates(_tmp_emiss.value,
-                                                np.vstack([itemperature,idensity])),
-                                loop.temperature.shape)
+                _tmp = np.reshape(map_coordinates(ion['emissivity'][:,:,i].value,
+                                                    np.vstack([itemperature,idensity])),
+                                    loop.temperature.shape)
                 _tmp = np.where(_tmp>0.0,_tmp,0.0)
-                emiss[transition_key] = _tmp*em.unit*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
-                if nei_fractional_ionization is not None:
-                    emiss[transition_key] *= nei_fractional_ionization
+                emiss['{}'.format(t.value)] = _tmp*ion['emissivity'].unit*em_ion
+                meta['{}'.format(t.value)] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
+                                              'wavelength_units':t.unit.to_string()}
 
-        return emiss
+        return emiss,meta

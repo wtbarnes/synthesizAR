@@ -346,7 +346,7 @@ Magnetogram Info:
         for loop in self.loops:
             self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
             loop.wavelengths = emission_model.wavelengths
-            emiss = emission_model.calculate_emission(loop)
+            emiss,meta = emission_model.calculate_emission(loop,**kwargs)
             if savefile is not None:
                 loop.emission_savefile = savefile
                 with h5py.File(savefile,'a') as hf:
@@ -354,11 +354,10 @@ Magnetogram Info:
                         hf.create_group(loop.name)
                     for key in emiss:
                         self.logger.debug('Saving emission for {}'.format(key))
-                        dset = hf[loop.name].create_dataset(key.split(' ')[-2],
-                                                            data=emiss[key].value)
+                        dset = hf[loop.name].create_dataset(key,data=emiss[key].value)
                         dset.attrs['units'] = emiss[key].unit.to_string()
-                        dset.attrs['wavelength_units'] = key.split(' ')[-1]
-                        dset.attrs['ion_name'] = ' '.join(key.split(' ')[:2])
+                        for m in meta[key]:
+                            dset.attrs[m] = meta[key][m]
             else:
                 loop._emission = emiss
 
