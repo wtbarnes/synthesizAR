@@ -244,11 +244,12 @@ class EmissionModel(object):
                         and (ion['transitions'] <= channel['wavelength_range'][1]).any():
                             channel_wavelengths = u.Quantity([w for w in ion['transitions'] \
                                 if channel['wavelength_range'][0] <= w <= channel['wavelength_range'][1]])
+                            channel_wavelength_indices = [i for i,w in enumerate(ion['transitions']) if channel['wavelength_range'][0] <= w <= channel['wavelength_range'][1]]
                             key = '{}_{}'.format(imager.name,channel['name'])
                             interpolated_response = splev(channel_wavelengths.value,
                                                     channel['wavelength_response_spline'])
                             if key not in emiss:
-                                emiss[key] = np.dot(ion['emissivity'].value,
+                                emiss[key] = np.dot(ion['emissivity'].value[:,:,channel_wavelength_indices],
                                                     interpolated_response)*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
                                 meta[key] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
                                              'comment':'''Emission from {channel} channel of {instr},
@@ -256,7 +257,7 @@ class EmissionModel(object):
                                                           range.
                                             '''.format(channel=channel['name'],instr=imager.name)}
                             else:
-                                emiss[key] += np.dot(ion['emissivity'].value,
+                                emiss[key] += np.dot(ion['emissivity'].value[:,:,channel_wavelength_indices],
                                                     interpolated_response)*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
                                 meta[key]['ion_name'] = ','.join(meta[key]['ion_name'].split(',')\
                                                         +[ion['ion'].meta['spectroscopic_name']])
