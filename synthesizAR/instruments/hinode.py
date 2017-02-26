@@ -89,7 +89,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         super().build_detector_file(num_loop_coordinates,file_format)
         with h5py.File(self.counts_file,'a') as hf:
-            for line in field.loops[0].wavelengths:
+            for line in field.loops[0].resolved_wavelengths:
                 if str(line.value) not in hf:
                     hf.create_dataset('{}'.format(str(line.value)),
                                     (len(self.observing_time),num_loop_coordinates))
@@ -99,7 +99,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         Flatten loop emission to HDF5 file for given number of wavelengths
         """
         for wavelength in loop.resolved_wavelengths:
-            emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
+            emiss,ion_name = loop.get_emission(wavelength.value,return_ion_name=True)
             dset = hf['{}'.format(str(wavelength.value))]
             dset.attrs['ion_name'] = ion_name
             self.interpolate_and_store(emiss,loop,interp_s,dset,start_index)
