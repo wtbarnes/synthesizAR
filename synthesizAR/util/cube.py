@@ -83,7 +83,7 @@ Wavelength dimension : {wvl_dim}
                                     unit=self.wavelength.unit.to_string(),
                                     array=self.wavelength.value)])
         #create image file to hold 3D array
-        image_hdu = astropy.io.fits.PrimaryHDU(np.swapaxes(self.data.T,1,2),
+        image_hdu = astropy.io.fits.PrimaryHDU(np.swapaxes(self.data.value.T,1,2),
                                                 header=astropy.io.fits.Header(header))
         #write to file
         hdulist = astropy.io.fits.HDUList([image_hdu,table_hdu])
