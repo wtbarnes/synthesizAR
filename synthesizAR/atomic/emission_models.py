@@ -184,7 +184,7 @@ class EmissionModel(object):
                                                         t.value,rtol=0.0,atol=1.e-5))[0][0] \
                                     for t in ion['transitions']]
             ion['emissivity'] = np.reshape(emiss[transition_indices,:],
-                                            self.temperature_mesh.shape+transition_indices.shape)
+                                            self.temperature_mesh.shape+(len(transition_indices),))
 
     def calculate_equilibrium_fractional_ionization(self):
         """
