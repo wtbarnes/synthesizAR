@@ -56,7 +56,8 @@ class Observer(object):
                     for wvl in self.field.loops[0].resolved_wavelengths:
                         if channel['wavelength_range'][0] <= wvl <= channel['wavelength_range'][-1]:
                             channel['model_wavelengths'].append(wvl)
-                    channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
+                    if channel['model_wavelengths']:
+                        channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
 
     def _interpolate_loops(self,ds):
         """
