@@ -345,7 +345,7 @@ Magnetogram Info:
         """
         for loop in self.loops:
             self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
-            loop.wavelengths = emission_model.wavelengths
+            loop.resolved_wavelengths = emission_model.resolved_wavelengths
             emiss,meta = emission_model.calculate_emission(loop,**kwargs)
             if savefile is not None:
                 loop.emission_savefile = savefile

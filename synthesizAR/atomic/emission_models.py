@@ -30,7 +30,7 @@ class EmissionModel(object):
     def __init__(self,ions,temperature=np.logspace(5,8,50)*u.K,
                  density=np.logspace(8,11,50)/(u.cm**3),energy_unit='erg',chianti_db_filename=None):
         self.density_mesh,self.temperature_mesh = np.meshgrid(density,temperature)
-        self.wavelengths = np.array(sorted([w.value for ion in ions \
+        self.resolved_wavelengths = np.array(sorted([w.value for ion in ions \
             for w,b in zip(ion['wavelengths'],
                             ion['resolve_wavelength']) if b]))*ions[0]['wavelengths'].unit
         self.logger = logging.getLogger(name=type(self).__name__)
