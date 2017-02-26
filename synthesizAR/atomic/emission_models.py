@@ -241,7 +241,7 @@ class EmissionModel(object):
                 for imager in imagers:
                     for channel in imager.channels:
                         if (ion['transitions'] >= channel['wavelength_range'][0]).any() \
-                        and (ion['transitions'] >= channel['wavelength_range'][1]).any():
+                        and (ion['transitions'] <= channel['wavelength_range'][1]).any():
                             channel_wavelengths = u.Quantity([w for w in ion['transitions'] \
                                 if channel['wavelength_range'][0] <= w <= channel['wavelength_range'][1]])
                             key = '{}_{}'.format(imager.name,channel['name'])
