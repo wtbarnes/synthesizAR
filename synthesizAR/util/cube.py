@@ -94,8 +94,8 @@ Wavelength dimension : {wvl_dim}
         Helper to load cube from FITS file
         """
         tmp = astropy.io.fits.open(filename)
-        data = tmp[0].data
         header = MapMeta(get_header(tmp)[0])
+        data = tmp[0].data*u.Unit(header['bunit'])
         wavelength = tmp[1].data.field(0)*u.Unit(tmp[1].header['TUNIT1'])
         tmp.close()
 
