@@ -28,6 +28,10 @@ class EISCube(object):
         else:
             raise ValueError('''EISCube can only be initialized with a valid FITS file or NumPy
                                 array with an associated wavelength and header.''')
+        #check dimensions
+        if data.shape[-1] != wavelength.shape[0]:
+            raise ValueError('''Third dimension of data cube must have the same length as
+                                wavelength.''')
         self.meta = header.copy()
         self.wavelength = wavelength
         self.data = data
