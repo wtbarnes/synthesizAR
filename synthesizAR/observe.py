@@ -53,7 +53,7 @@ class Observer(object):
             for channel in instr.channels:
                 if channel['wavelength_range'] is not None:
                     channel['model_wavelengths'] = []
-                    for wvl in self.field.loops[0].wavelengths:
+                    for wvl in self.field.loops[0].resolved_wavelengths:
                         if channel['wavelength_range'][0] <= wvl <= channel['wavelength_range'][-1]:
                             channel['model_wavelengths'].append(wvl)
                     channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
