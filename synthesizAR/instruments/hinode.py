@@ -108,7 +108,19 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
-        counts = np.zeros(temperature.shape+channel['response']['x'].shape)
+        #trim the instrument response to the appropriate wavelengths
+        window = 0.5*u.angstrom
+        trimmed_indices = []
+        for w in channel['model_wavelengths']:
+            indices = np.where(np.logical_and(channel['response']['x']>=w-window,
+                                              channel['response']['x']<=w+window))
+            trimmed_indices += indices[0].tolist()
+        trimmed_indices = list(sorted(set(trimmed_indices+[0,len(channel['response']['x'])-1])))
+        response_x = channel['response']['x'][trimmed_indices]
+        response_y = channel['response']['y'][trimmed_indices]
+
+        #compute the response
+        counts = np.zeros(temperature.shape+response_x.shape)
         for wavelength in channel['model_wavelengths']:
             #thermal width + instrument width
             ion_name = hf['{}'.format(str(wavelength.value))].attrs['ion_name']
@@ -129,8 +141,8 @@ class InstrumentHinodeEIS(InstrumentBase):
             emiss = np.dot(hist,np.diff(edges[2])).T
             emiss = np.expand_dims(emiss,axis=2)\
                     *u.Unit(dset.attrs['units'])*self.total_coordinates.unit
-            intensity = emiss*channel['response']['y']/np.sqrt(np.pi*line_width)
-            intensity *= np.exp(-(channel['response']['x'] - wavelength - doppler_shift)**2\
+            intensity = emiss*response_y/np.sqrt(np.pi*line_width)
+            intensity *= np.exp(-(response_x - wavelength - doppler_shift)**2\
                         /line_width)
             if not hasattr(counts,'unit'):
                 counts = counts*intensity.unit
@@ -138,4 +150,4 @@ class InstrumentHinodeEIS(InstrumentBase):
 
         header['bunit'] = counts.unit.to_string()
 
-        return EISCube(data=counts,header=header,wavelength=channel['response']['x'])
+        return EISCube(data=counts,header=header,wavelength=response_x)
