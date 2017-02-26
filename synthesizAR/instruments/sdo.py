@@ -105,12 +105,11 @@ class InstrumentSDOAIA(InstrumentBase):
         Allocate space for counts data.
         """
         super().build_detector_file(num_loop_coordinates,file_format)
-        if self.use_temperature_response_functions:
-            with h5py.File(self.counts_file,'a') as hf:
-                for channel in self.channels:
-                    if channel['name'] not in hf:
-                        hf.create_dataset('{}'.format(channel['name']),
-                                            (len(self.observing_time),num_loop_coordinates))
+        with h5py.File(self.counts_file,'a') as hf:
+            for channel in self.channels:
+                if channel['name'] not in hf:
+                    hf.create_dataset('{}'.format(channel['name']),
+                                        (len(self.observing_time),num_loop_coordinates))
 
     def flatten(self,loop,interp_s,hf,start_index):
         """
