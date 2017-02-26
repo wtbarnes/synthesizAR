@@ -48,8 +48,9 @@ class EmissionModel(object):
             tmp_ion.meta['rcparams']['flux'] = energy_unit
             sorted_bools = [b for w,b in sorted(zip(ion['wavelengths'],ion['resolve_wavelength']),
                                                 key=lambda x:x[0])]
-            self.ions.append({'ion':tmp_ion,'transitions':u.Quantity(sorted(ion['wavelengths'])),
-                                'resolve_wavelength':sorted_bools})
+            self.ions.append({'ion':tmp_ion,
+                              'transitions':u.Quantity(sorted(ion['wavelengths'])),
+                              'resolve_wavelength':sorted_bools})
 
     def save(self,savedir=None):
         """
@@ -67,7 +68,7 @@ class EmissionModel(object):
         # save some basic info
         ions_info = []
         for ion in self.ions:
-            ions_info.append({'name':ion['ion'].meta['name'],'wavelengths':ion['transitions']})
+            ions_info.append({'name':ion['ion'].meta['name'],'wavelengths':ion['transitions'],'resolve_wavelength':ion['resolve_wavelength']})
         db_filename = self.ions[0]['ion']._chianti_db_h5
         energy_unit = self.ions[0]['ion'].meta['rcparams']['flux']
         with open(os.path.join(savedir,'ion_info.pickle'),'wb') as f:
