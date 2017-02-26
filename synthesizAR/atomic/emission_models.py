@@ -248,17 +248,16 @@ class EmissionModel(object):
                             key = '{}_{}'.format(imager.name,channel['name'])
                             interpolated_response = splev(channel_wavelengths.value,
                                                     channel['wavelength_response_spline'])
+                            _tmp = np.reshape(map_coordinates(np.dot(ion['emissivity'].value[:,:,channel_wavelength_indices],interpolated_response),np.vstack([itemperature,idensity])),loop.temperature.shape)
                             if key not in emiss:
-                                emiss[key] = np.dot(ion['emissivity'].value[:,:,channel_wavelength_indices],
-                                                    interpolated_response)*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
+                                emiss[key] = _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
                                 meta[key] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
                                              'comment':'''Emission from {channel} channel of {instr},
                                                           integrated over the entire wavelength
                                                           range.
                                             '''.format(channel=channel['name'],instr=imager.name)}
                             else:
-                                emiss[key] += np.dot(ion['emissivity'].value[:,:,channel_wavelength_indices],
-                                                    interpolated_response)*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
+                                emiss[key] += _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
                                 meta[key]['ion_name'] = ','.join(meta[key]['ion_name'].split(',')\
                                                         +[ion['ion'].meta['spectroscopic_name']])
 
