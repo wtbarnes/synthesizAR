@@ -183,7 +183,7 @@ class EmissionModel(object):
             transition_indices = [np.argwhere(np.isclose(wvl.value,
                                                         t.value,rtol=0.0,atol=1.e-5))[0][0] \
                                     for t in ion['transitions']]
-            ion['emissivity'] = np.reshape(emiss[transition_indices,:],
+            ion['emissivity'] = np.reshape(np.transpose(emiss)[:,transition_indices],
                                             self.temperature_mesh.shape+(len(transition_indices),))
 
     def calculate_equilibrium_fractional_ionization(self):
@@ -240,26 +240,24 @@ class EmissionModel(object):
             if imagers:
                 for imager in imagers:
                     for channel in imager.channels:
-                        if (ion['transitions'] >= channel['wavelength_range'][0]).any() \
-                        and (ion['transitions'] <= channel['wavelength_range'][1]).any():
-                            channel_wavelengths = u.Quantity([w for w in ion['transitions'] \
-                                if channel['wavelength_range'][0] <= w <= channel['wavelength_range'][1]])
-                            channel_wavelength_indices = [i for i,w in enumerate(ion['transitions']) if channel['wavelength_range'][0] <= w <= channel['wavelength_range'][1]]
-                            key = '{}_{}'.format(imager.name,channel['name'])
-                            interpolated_response = splev(channel_wavelengths.value,
-                                                    channel['wavelength_response_spline'])
-                            _tmp = np.reshape(map_coordinates(np.dot(ion['emissivity'].value[:,:,channel_wavelength_indices],interpolated_response),np.vstack([itemperature,idensity])),loop.temperature.shape)
-                            if key not in emiss:
-                                emiss[key] = _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
-                                meta[key] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
-                                             'comment':'''Emission from {channel} channel of {instr},
-                                                          integrated over the entire wavelength
-                                                          range.
-                                            '''.format(channel=channel['name'],instr=imager.name)}
-                            else:
-                                emiss[key] += _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
-                                meta[key]['ion_name'] = ','.join(meta[key]['ion_name'].split(',')\
-                                                        +[ion['ion'].meta['spectroscopic_name']])
+                        key = '{}_{}'.format(imager.name,channel['name'])
+                        interpolated_response = splev(ion['transitions'].value,
+                                                channel['wavelength_response_spline'],ext=1)
+                        _tmp = np.reshape(
+                                    map_coordinates(
+                                        np.dot(ion['emissivity'].value,interpolated_response),
+                                        np.vstack([itemperature,idensity])),
+                                    loop.temperature.shape)
+                        _tmp = np.where(_tmp>0.0,_tmp,0.0)
+                        if key not in emiss:
+                            emiss[key] = _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
+                            meta[key] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
+                                         'comment':'''Emission from {channel} channel of {instr},integrated over the entire wavelength range.
+                                        '''.format(channel=channel['name'],instr=imager.name)}
+                        else:
+                            emiss[key] += _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
+                            meta[key]['ion_name'] = ','.join(meta[key]['ion_name'].split(',')\
+                                                    +[ion['ion'].meta['spectroscopic_name']])
 
             #wavelength resolved emission
             resolved_indices = [i for i,b in enumerate(ion['resolve_wavelength']) if b]
