@@ -199,6 +199,18 @@ class EmissionModel(object):
             ioneq = ion['ion'].equilibrium_fractional_ionization
             ion['equilibrium_fractional_ionization'] = np.reshape(ioneq,self.temperature_mesh.shape)
 
+    def interpolate_to_mesh_indices(self,loop):
+        """
+        Return interpolated loop indices to the temperature and density meshes defined for the atomic data. For use with `~scipy.ndimage.map_coordinates`.
+        """
+        nots_itemperature =splrep(self.temperature_mesh[:,0].value,
+                                np.arange(self.temperature_mesh.shape[0]))
+        nots_idensity = splrep(self.density_mesh[0,:].value,np.arange(self.density_mesh.shape[1]))
+        itemperature = splev(np.ravel(loop.temperature.value),nots_itemperature)
+        idensity = splev(np.ravel(loop.density.value),nots_idensity)
+
+        return itemperature,idensity
+
     def calculate_emission(self,loop,**kwargs):
         """
         Calculate power per unit volume for a given temperature and density for every transition,
@@ -209,14 +221,8 @@ class EmissionModel(object):
 
         where :math:`\\mathrm{Ab}(X)` is the abundance of element :math:`X`, :math:`\\varepsilon_{\lambda}` is the emissivity for transition :math:`\lambda`, and :math:`N(X^{+m})/N(X)` is the ionization fraction of ion :math:`X^{+m}`. :math:`P_{\lambda}` is in units of erg cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `erg` and in units of photons cm\ :sup:`-3` s\ :sup:`-1` sr\ :sup:`-1` if `energy_unit` is set to `photon`.
         """
-        # check for imagers
-        imagers = kwargs.get('imagers',None)
-        # interpolate indices
-        nots_itemperature =splrep(self.temperature_mesh[:,0].value,
-                                np.arange(self.temperature_mesh.shape[0]))
-        nots_idensity = splrep(self.density_mesh[0,:].value,np.arange(self.density_mesh.shape[1]))
-        itemperature = splev(np.ravel(loop.temperature.value),nots_itemperature)
-        idensity = splev(np.ravel(loop.density.value),nots_idensity)
+        #get interpolated mesh-to-loop indices
+        itemperature,idensity = self.interpolate_to_mesh_indices(loop)
 
         emiss,meta = {},{}
         # calculate emissivity
@@ -236,28 +242,6 @@ class EmissionModel(object):
                 fractional_ionization = np.where(nei_fractional_ionization>0.0,
                                                 nei_fractional_ionization,0.0)
             em_ion = fractional_ionization*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
-            # calculate imager emission (integrated over wavelength)
-            if imagers:
-                for imager in imagers:
-                    for channel in imager.channels:
-                        key = '{}_{}'.format(imager.name,channel['name'])
-                        interpolated_response = splev(ion['transitions'].value,
-                                                channel['wavelength_response_spline'],ext=1)
-                        _tmp = np.reshape(
-                                    map_coordinates(
-                                        np.dot(ion['emissivity'].value,interpolated_response),
-                                        np.vstack([itemperature,idensity])),
-                                    loop.temperature.shape)
-                        _tmp = np.where(_tmp>0.0,_tmp,0.0)
-                        if key not in emiss:
-                            emiss[key] = _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
-                            meta[key] = {'ion_name':ion['ion'].meta['spectroscopic_name'],
-                                         'comment':'''Emission from {channel} channel of {instr},integrated over the entire wavelength range.
-                                        '''.format(channel=channel['name'],instr=imager.name)}
-                        else:
-                            emiss[key] += _tmp*em_ion*ion['emissivity'].unit*channel['wavelength_response_units']
-                            meta[key]['ion_name'] = ','.join(meta[key]['ion_name'].split(',')\
-                                                    +[ion['ion'].meta['spectroscopic_name']])
 
             #wavelength resolved emission
             resolved_indices = [i for i,b in enumerate(ion['resolve_wavelength']) if b]

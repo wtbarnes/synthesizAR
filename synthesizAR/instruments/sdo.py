@@ -11,7 +11,7 @@ import pkg_resources
 
 import numpy as np
 from scipy.interpolate import splrep,splev,interp1d
-import scipy.ndimage
+from  scipy.ndimage import map_coordinates
 import astropy.units as u
 from sunpy.map import Map,MapMeta
 import h5py
@@ -66,10 +66,13 @@ class InstrumentSDOAIA(InstrumentBase):
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel,None)
 
     def __init__(self, observing_time, observing_area=None,
-    use_temperature_response_functions=True,apply_psf=True):
+    use_temperature_response_functions=True,apply_psf=True,emiss_model=None):
         super().__init__(observing_time,observing_area)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
+        self.emiss_model = emiss_model
+        if not self.use_temperature_response_functions and not self.emiss_model:
+            raise ValueError('Must supply an emission model if not using temperature response functions.')
         self._setup_channels()
 
     def _setup_channels(self):
@@ -96,7 +99,6 @@ class InstrumentSDOAIA(InstrumentBase):
                 x = aia_info[channel['name']]['response_x']
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline'] = splrep(x,y)
-                channel['wavelength_response_units'] = u.Unit(aia_info[channel['name']]['response_y_units'])
                 channel['wavelength_range'] = [x[0],x[-1]]\
                                     *u.Unit(aia_info[channel['name']]['response_x_units'])
 
@@ -115,6 +117,10 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         Flatten channel counts to HDF5 file
         """
+        if not self.use_temperature_response_functions:
+            # interpolate indices
+            itemperature,idensity = self.emiss_model.interpolate_to_mesh_indices(loop)
+
         for channel in self.channels:
             dset = hf['{}'.format(channel['name'])]
             if self.use_temperature_response_functions:
@@ -124,8 +130,32 @@ class InstrumentSDOAIA(InstrumentBase):
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
             else:
-                key = '{}_{}'.format(self.name,channel['name'])
-                counts = loop.get_emission(key)
+                counts = np.zeros(loop.temperature.shape)
+                for ion in self.emiss_model.ions:
+                    fractional_ionization = loop.get_fractional_ionization(
+                                                ion['ion'].meta['Element'],ion['ion'].meta['Ion'])
+                    if 'equilibrium_fractional_ionization' not in ion:
+                        ion['ion'].calculate_equilibrium_fractional_ionization()
+                    if 'emissivity' not in ion:
+                        ion['ion'].calculate_emissivity()
+                    if fractional_ionization is None:
+                        fractional_ionization = np.reshape(map_coordinates(
+                                                        ion['equilibrium_fractional_ionization'],
+                                                        np.vstack([itemperature,idensity])),
+                                                    loop.temperature.shape)
+                        fractional_ionization = np.where(fractional_ionization>0.0,
+                                                            fractional_ionization,0.0)
+                    interpolated_response = splev(ion['transitions'].value,
+                                                channel['wavelength_response_spline'],ext=1)
+                    em_summed = np.dot(ion['emissivity'].value,interpolated_response)
+                    tmp = np.reshape(map_coordinates(em_summed,np.vstack([itemperature,idensity])),
+                                     loop.temperature.shape)
+                    tmp = np.where(tmp>0.0,
+                        tmp,0.0)*ion['emissivity'].unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
+                    counts_tmp = fractional_ionization*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)*tmp
+                    if not hasattr(counts,'unit'):
+                        counts = counts*counts_tmp.unit
+                    counts += counts_tmp
 
             self.interpolate_and_store(counts,loop,interp_s,dset,start_index)
 
