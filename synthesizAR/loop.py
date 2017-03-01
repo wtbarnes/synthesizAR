@@ -148,6 +148,6 @@ Maximum field strength : {max_b:.2f}
         elif hasattr(self,'_fractional_ionization'):
             fractional_ionization = self._fractional_ionization
         else:
-            fractional_ionization = None
+            raise ValueError('Fractional ionization of {} {} not calculated for {}'.format(element,ion,self.name))
 
         return fractional_ionization
