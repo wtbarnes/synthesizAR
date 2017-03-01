@@ -230,17 +230,8 @@ class EmissionModel(object):
             self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
             fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
                                                                         ion['ion'].meta['Ion'])
-            if 'equilibrium_fractional_ionization' not in ion:
-                self.calculate_equilibrium_fractional_ionization()
             if 'emissivity' not in ion:
                 self.calculate_emissivity()
-            # calculate ion specific information
-            if fractional_ionization is None:
-                fractional_ionization = np.reshape(
-                                        map_coordinates(ion['equilibrium_fractional_ionization'],
-                                        np.vstack([itemperature,idensity])),loop.temperature.shape)
-                fractional_ionization = np.where(nei_fractional_ionization>0.0,
-                                                nei_fractional_ionization,0.0)
             em_ion = fractional_ionization*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
 
             #wavelength resolved emission

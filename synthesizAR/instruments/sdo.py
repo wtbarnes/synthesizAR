@@ -66,12 +66,12 @@ class InstrumentSDOAIA(InstrumentBase):
     resolution = Pair(0.600698*u.arcsec/u.pixel,0.600698*u.arcsec/u.pixel,None)
 
     def __init__(self, observing_time, observing_area=None,
-    use_temperature_response_functions=True,apply_psf=True,emiss_model=None):
+    use_temperature_response_functions=True,apply_psf=True,emission_model=None):
         super().__init__(observing_time,observing_area)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
-        self.emiss_model = emiss_model
-        if not self.use_temperature_response_functions and not self.emiss_model:
+        self.emission_model = emission_model
+        if not self.use_temperature_response_functions and not self.emission_model:
             raise ValueError('Must supply an emission model if not using temperature response functions.')
         self._setup_channels()
 
@@ -119,7 +119,7 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         if not self.use_temperature_response_functions:
             # interpolate indices
-            itemperature,idensity = self.emiss_model.interpolate_to_mesh_indices(loop)
+            itemperature,idensity = self.emission_model.interpolate_to_mesh_indices(loop)
 
         for channel in self.channels:
             dset = hf['{}'.format(channel['name'])]
@@ -131,20 +131,11 @@ class InstrumentSDOAIA(InstrumentBase):
                                     np.shape(loop.density))
             else:
                 counts = np.zeros(loop.temperature.shape)
-                for ion in self.emiss_model.ions:
+                for ion in self.emission_model.ions:
                     fractional_ionization = loop.get_fractional_ionization(
                                                 ion['ion'].meta['Element'],ion['ion'].meta['Ion'])
-                    if 'equilibrium_fractional_ionization' not in ion:
-                        ion['ion'].calculate_equilibrium_fractional_ionization()
                     if 'emissivity' not in ion:
-                        ion['ion'].calculate_emissivity()
-                    if fractional_ionization is None:
-                        fractional_ionization = np.reshape(map_coordinates(
-                                                        ion['equilibrium_fractional_ionization'],
-                                                        np.vstack([itemperature,idensity])),
-                                                    loop.temperature.shape)
-                        fractional_ionization = np.where(fractional_ionization>0.0,
-                                                            fractional_ionization,0.0)
+                        self.emission_model.calculate_emissivity()
                     interpolated_response = splev(ion['transitions'].value,
                                                 channel['wavelength_response_spline'],ext=1)
                     em_summed = np.dot(ion['emissivity'].value,interpolated_response)
