@@ -122,6 +122,9 @@ class InstrumentSDOAIA(InstrumentBase):
             itemperature,idensity = self.emiss_model.interpolate_to_mesh_indices(loop)
 
         for channel in self.channels:
+            if channel['name'] in hf:
+                self.logger.warning('{} emission already calculated'.format(channel['name']))
+                continue
             dset = hf['{}'.format(channel['name'])]
             if self.use_temperature_response_functions:
                 response_function = splev(np.ravel(loop.temperature),

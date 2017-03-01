@@ -99,6 +99,9 @@ class InstrumentHinodeEIS(InstrumentBase):
         Flatten loop emission to HDF5 file for given number of wavelengths
         """
         for wavelength in loop.resolved_wavelengths:
+            if str(wavelength.value) in hf:
+                self.logger.warning('{} emission already calculated.'.format(wavelength.value))
+                continue
             emiss,ion_name = loop.get_emission(wavelength,return_ion_name=True)
             dset = hf['{}'.format(str(wavelength.value))]
             dset.attrs['ion_name'] = ion_name
