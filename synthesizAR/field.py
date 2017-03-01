@@ -10,6 +10,7 @@ import glob
 import functools
 
 import numpy as np
+from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import seaborn.apionly as sns
 import sunpy.map
@@ -361,14 +362,27 @@ Magnetogram Info:
             else:
                 loop._emission = emiss
 
-    def calculate_fractional_ionization(self,emission_model,interface,savefile=None,**kwargs):
+    def calculate_fractional_ionization(self,emission_model,interface=None,savefile=None,**kwargs):
         """
         Find the fractional ionization for each loop in the model as defined by the loop
         model interface.
         """
         ion_list = [(i['ion'].meta['Element'],i['ion'].meta['Ion']) for i in emission_model.ions]
         for loop in self.loops:
-            fractional_ionization = interface.get_fractional_ionization(ion_list,loop,**kwargs)
+            if interface and hasattr(interface,'get_fractional_ionization'):
+                fractional_ionization = interface.get_fractional_ionization(ion_list,loop,**kwargs)
+            else:
+                self.logger.warning('''Model interface None or get_fractional_ionization method
+                                    not defined. Falling back to ionization equilibrium.''')
+                for ion in emission_model.ions:
+                    if 'equilibrium_fractional_ionization' not in ion:
+                        emission_model.calculate_equilibrium_fractional_ionization()
+                    f_ioneq = interp1d(emission_model.temperature_mesh[:,0],
+                                        ion['equilibrium_fractional_ionization'][:,0])
+                    key = '{}_{}'.format(ion['ion'].meta['Element'],ion['ion'].meta['Ion'])
+                    tmp = f_ioneq(loop.temperature)
+                    fractional_ionization[key] = np.where(tmp>0.0,tmp,0.0)
+
             if savefile is not None:
                 loop.fractional_ionization_savefile = savefile
                 with h5py.File(savefile,'a') as hf:
@@ -378,11 +392,11 @@ Magnetogram Info:
                         self.logger.debug('Saving fractional ionization for {}'.format(key))
                         dset = hf[loop.name].create_dataset(key,data=fractional_ionization[key])
                         dset.attrs['description'] = '''Ion populations as a function of
-                                                        temperature and density as calculated
-                                                        with the ionization balance equations,
-                                                        accounting for non-equilibrium
-                                                        ionization.'''
-                        dset.attrs['units'] = (u.m/u.m).to_string() #unitless
+                                                        temperature and density, either
+                                                        interpolated from ionization equilibrium
+                                                        data or calculated from the level
+                                                        population equations.'''
+                        dset.attrs['units'] = u.dimensionless_unscaled.to_string() #unitless
                         dset.attrs['element'] = key.split('_')[0]
                         dset.attrs['ion'] = key.split('_')[1]
             else:
