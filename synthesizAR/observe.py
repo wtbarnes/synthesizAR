@@ -100,18 +100,12 @@ class Observer(object):
                 for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
                     self.logger.debug('Flattening counts for {}'.format(loop.name))
                     # LOS velocity
-                    if 'los_velocity' not in hf:
-                        los_velocity = np.dot(loop.velocity_xyz,self.line_of_sight)
-                        dset = hf['los_velocity']
-                        instr.interpolate_and_store(los_velocity,loop,interp_s,dset,start_index)
-                    else:
-                        self.logger.warning('LOS velocity already exists for {}'.format(instr.name))
+                    los_velocity = np.dot(loop.velocity_xyz,self.line_of_sight)
+                    dset = hf['los_velocity']
+                    instr.interpolate_and_store(los_velocity,loop,interp_s,dset,start_index)
                     # Average temperature
-                    if 'average_temperature' not in hf:
-                        dset = hf['average_temperature']
-                        instr.interpolate_and_store(loop.temperature,loop,interp_s,dset,start_index)
-                    else:
-                        self.logger.warning('Temperature already exists for {}'.format(instr.name))
+                    dset = hf['average_temperature']
+                    instr.interpolate_and_store(loop.temperature,loop,interp_s,dset,start_index)
                     # Counts/emission
                     instr.flatten(loop,interp_s,hf,start_index)
                     start_index += len(interp_s)
