@@ -12,6 +12,7 @@ import pkg_resources
 import numpy as np
 from scipy.interpolate import splrep,splev,interp1d
 from  scipy.ndimage import map_coordinates
+from scipy.ndimage.filters import gaussian_filter
 import astropy.units as u
 from sunpy.map import Map,MapMeta
 import h5py
@@ -175,6 +176,5 @@ class InstrumentSDOAIA(InstrumentBase):
         counts = np.dot(hist,np.diff(edges[2])).T
 
         if self.apply_psf:
-            counts = scipy.ndimage.filters.gaussian_filter(counts,
-                                                    channel['gaussian_width'].value)
+            counts = gaussian_filter(counts,channel['gaussian_width'].value)
         return Map(counts,header)
