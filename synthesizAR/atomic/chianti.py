@@ -22,11 +22,14 @@ from ChiantiPy.tools import data as ch_tools_data
 
 from synthesizAR.util import collect_points
 
+
 class ChIon(object):
     """
-    Stripped down version of `~ChiantiPy.core.ion`. It speeds up and streamlines the emissivity calculation.
+    Stripped down version of `~ChiantiPy.core.ion`. It speeds up and
+    streamlines the emissivity calculation.
 
-    .. warning:: This object will eventually be deprecated once improvements are made to `~ChiantiPy.core.ion`
+    .. warning:: This object will eventually be deprecated once improvements
+                 are made to `~ChiantiPy.core.ion`
 
     Parameters
     ----------
@@ -35,9 +38,9 @@ class ChIon(object):
     setup : `bool`
     """
 
-
-    @u.quantity_input(temperature=u.K,electron_density=u.cm**(-3))
-    def __init__(self,ion_name,temperature,electron_density,chianti_db_h5,setup=True,**kwargs):
+    @u.quantity_input(temperature=u.K, electron_density=u.cm**(-3))
+    def __init__(self, ion_name, temperature, electron_density, 
+                 chianti_db_h5, setup=True, **kwargs):
         self.logger = logging.getLogger(name=type(self).__name__)
         if ion_name not in ch_tools_data.MasterList:
             raise ValueError('{} not in CHIANTI database'.format(ion_name))
