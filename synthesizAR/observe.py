@@ -59,12 +59,13 @@ class Observer(object):
                     if channel['model_wavelengths']:
                         channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
 
-    def _interpolate_loops(self,ds):
+    def _interpolate_loops(self, ds):
         """
         Interpolate all loops to a resolution (`ds`) below the minimum bin width of all of the
         instruments. This ensures that the image isn't 'patchy' when it is binned.
         """
-        # FIXME: memory requirements for this list will grow with number of loops, consider saving it to the instrument files, both the interpolated s and total_coordinates
+        # FIXME: memory requirements for this list will grow with number of loops, consider saving 
+        # it to the instrument files, both the interpolated s and total_coordinates
         self.total_coordinates = []
         self._interpolated_loop_coordinates = []
         for loop in self.field.loops:

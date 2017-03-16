@@ -12,7 +12,7 @@ import pickle
 
 import numpy as np
 import h5py
-from scipy.interpolate import interp1d,splrep,splev
+from scipy.interpolate import interp1d, splrep, splev
 import matplotlib.pyplot as plt
 import astropy.units as u
 import astropy.constants as const
@@ -275,9 +275,11 @@ class ChIon(object):
         .. math::
             \\varepsilon_{\lambda}(n,T) = A_{ij}\\frac{N_j(X^{+m})}{N(X^{+m})}
 
-        in units of photons s\ :sup:`-1`. If `flux` is set to "erg" in the `chiantirc` file, then a factor of :math:`\\Delta E_{ij} = hc/\\lambda_{ij}` is included in the above expression and the units are erg s\ :sup:`-1`.
+        in units of photons s\ :sup:`-1`. If `flux` is set to "erg" in the `chiantirc` file, then a 
+        factor of :math:`\\Delta E_{ij} = hc/\\lambda_{ij}` is included in the above expression and 
+        fthe units are erg s\ :sup:`-1`.
         """
-        #find where wavelength is nonzero
+        # find where wavelength is nonzero
         wavelength = np.fabs(self._read_chianti_db_h5('wgfa','wvl'))*u.angstrom
         lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
         avalues = self._read_chianti_db_h5('wgfa','avalue')/u.s
