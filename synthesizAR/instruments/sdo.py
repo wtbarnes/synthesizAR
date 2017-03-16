@@ -114,38 +114,39 @@ class InstrumentSDOAIA(InstrumentBase):
                     hf.create_dataset('{}'.format(channel['name']),
                                         (len(self.observing_time),num_loop_coordinates))
 
-    def flatten(self,loop,interp_s,hf,start_index):
+    def flatten(self, loop, interp_s, hf, start_index):
         """
         Flatten channel counts to HDF5 file
         """
         if not self.use_temperature_response_functions:
             # interpolate indices
-            itemperature,idensity = self.emission_model.interpolate_to_mesh_indices(loop)
+            itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
 
         for channel in self.channels:
             dset = hf['{}'.format(channel['name'])]
             if self.use_temperature_response_functions:
                 response_function = splev(np.ravel(loop.temperature),
-                                            channel['temperature_response_spline']
-                                         )*u.count*u.cm**5/u.s/u.pixel
+                                          channel['temperature_response_spline']
+                                          )*u.count*u.cm**5/u.s/u.pixel
                 counts = np.reshape(np.ravel(loop.density**2)*response_function,
                                     np.shape(loop.density))
             else:
                 counts = np.zeros(loop.temperature.shape)
                 for ion in self.emission_model.ions:
                     fractional_ionization = loop.get_fractional_ionization(
-                                                ion['ion'].meta['Element'],ion['ion'].meta['Ion'])
+                                                ion['ion'].meta['Element'], ion['ion'].meta['Ion'])
                     if 'emissivity' not in ion:
                         self.emission_model.calculate_emissivity()
-                    interpolated_response = splev(ion['transitions'].value,
-                                                channel['wavelength_response_spline'],ext=1)
-                    em_summed = np.dot(ion['emissivity'].value,interpolated_response)
-                    tmp = np.reshape(map_coordinates(em_summed,np.vstack([itemperature,idensity])),
+                    interpolated_response = splev(ion['wavelength'].value,
+                                                  channel['wavelength_response_spline'], ext=1)
+                    em_summed = np.dot(ion['emissivity'].value, interpolated_response)
+                    tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
                                      loop.temperature.shape)
-                    tmp = np.where(tmp>0.0,
-                        tmp,0.0)*ion['emissivity'].unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
-                    counts_tmp = fractional_ionization*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)*tmp
-                    if not hasattr(counts,'unit'):
+                    tmp = (np.where(tmp > 0.0, tmp, 0.0)*ion['emissivity'].unit*u.count/u.photon
+                           * u.steradian/u.pixel*u.cm**2)
+                    counts_tmp = (fractional_ionization*loop.density*ion['ion'].abundance*0.83
+                                  / (4*np.pi*u.steradian)*tmp)
+                    if not hasattr(counts, 'unit'):
                         counts = counts*counts_tmp.unit
                     counts += counts_tmp
 
