@@ -119,20 +119,20 @@ class EmissionModel(object):
             for ion in ions:
                 el = ion['name'].split('_')[0]
                 ion_label = ion['name'].split('_')[-1]
-                if os.path.join('/', el, ion_label) in hf:
+                if '/'.join([el, ion_label]) in hf:
                     continue
                 self.logger.info('Building entry for {}'.format(ion['name']))
                 # elvlc
                 self.logger.info('Building elvlc entry for {}'.format(ion['name']))
                 _tmp = elvlcRead(ion['name'])
                 if _tmp['status'] > 0:
-                    grp = hf.create_group(os.path.join('/', el, ion_label, 'elvlc'))
+                    grp = hf.create_group('/'.join([el, ion_label, 'elvlc']))
                     self._check_keys(_tmp, grp)
                 # wgfa
                 self.logger.info('Building wgfa entry for {}'.format(ion['name']))
                 try:
                     _tmp = wgfaRead(ion['name'])
-                    grp = hf.create_group(os.path.join('/', el, ion_label, 'wgfa'))
+                    grp = hf.create_group('/'.join([el, ion_label, 'wgfa']))
                     self._check_keys(_tmp, grp)
                 except IOError:
                     pass
@@ -140,13 +140,13 @@ class EmissionModel(object):
                 self.logger.info('Building scups entry for {}'.format(ion['name']))
                 _tmp = scupsRead(ion['name'])
                 if 'status' not in _tmp:
-                    grp = hf.create_group(os.path.join('/', el, ion_label, 'scups'))
+                    grp = hf.create_group('/'.join([el, ion_label, 'scups']))
                     self._check_keys(_tmp, grp)
                 # psplups
                 self.logger.info('Building psplups entry for {}'.format(ion['name']))
                 _tmp = splupsRead(ion['name'], filetype='psplups')
                 if 'file not found' not in _tmp:
-                    grp = hf.create_group(os.path.join('/', el, ion_label, 'psplups'))
+                    grp = hf.create_group('/'.join([el, ion_label, 'psplups']))
                     self._check_keys(_tmp, grp)
 
     def _check_keys(self, chianti_dict, h5_group):
