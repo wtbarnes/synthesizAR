@@ -30,7 +30,8 @@ class EmissionModel(object):
                  density=np.logspace(8, 11, 50)/(u.cm**3), energy_unit='erg',
                  chianti_db_filename=None):
         self.density_mesh, self.temperature_mesh = np.meshgrid(density, temperature)
-        self.resolved_wavelengths = np.sort(np.hstack([ion['resolved_wavelengths'] for ion in ions])
+        self.resolved_wavelengths = np.sort(np.hstack([ion['resolved_wavelengths'].value
+                                                       for ion in ions])
                                             * ions[0]['resolved_wavelengths'].unit)
         self.logger = logging.getLogger(name=type(self).__name__)
         # build CHIANTI database
