@@ -91,7 +91,7 @@ class ChIon(object):
         except ValueError:
             self._has_psplups = False
             self.logger.warning('{} psplups file not found'.format(self.meta['spectroscopic_name']))
-        self.n_levels = np.min([np.max(elvlc_lvl), np.max(wgfa_lvl2), n_levels_scups])
+        self.n_levels = np.min([np.max(elvlc_lvl), max(np.max(wgfa_lvl2), n_levels_scups)])
 
     def _read_chianti_db_h5(self, filetype, data):
         """
