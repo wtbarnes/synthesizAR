@@ -149,14 +149,14 @@ class ChIon(object):
 
         return upsilon
 
-    def _calculate_collision_strengths(self,protons=False):
+    def _calculate_collision_strengths(self, protons=False):
         """
         Calculate collision strengths and excitation and de-excitation rates.
         """
         if protons:
             filetype = 'psplups'
             scups_key = 'splups'
-            btemp = [np.linspace(0,1,n_spline) for n_spline in self._read_chianti_db_h5(filetype,'nspl')]
+            btemp = [np.linspace(0, 1, n_spline) for n_spline in self._read_chianti_db_h5(filetype, 'nspl')]
         else:
             filetype = 'scups'
             scups_key = 'bscups'
@@ -170,30 +170,28 @@ class ChIon(object):
                                     self._read_chianti_db_h5(filetype,'ttype'))))
         upsilon = np.where(upsilon>0.,upsilon,0.0)
 
-        #alias some chianti data
+        # alias some chianti data
         scups_lvl1 = self._read_chianti_db_h5(filetype,'lvl1')
         scups_lvl2 = self._read_chianti_db_h5(filetype,'lvl2')
         elvlc_lvl = list(self._read_chianti_db_h5('elvlc','lvl'))
         elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
 
-        #calculate weights
-        lower_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] for lvl in scups_lvl1])
-        upper_weights = np.array([elvlc_mult[elvlc_lvl.index(lvl)] for lvl in scups_lvl2])
+        # calculate weights
+        lower_weights = elvlc_mult[scups_lvl1 - 1]
+        upper_weights = elvlc_mult[scups_lvl2 - 1]
         # modified transition energies
-        _tmp_level_energies = list(np.where(self._read_chianti_db_h5('elvlc','eryd')>=0,
-                                            self._read_chianti_db_h5('elvlc','eryd'),
-                                            self._read_chianti_db_h5('elvlc','erydth')))
-        _tmp_transition_energies = np.array(
-            [_tmp_level_energies[elvlc_lvl.index(l2)] - _tmp_level_energies[elvlc_lvl.index(l1)] \
-            for l1,l2 in zip(scups_lvl1,scups_lvl2)])*u.Ry.to(u.erg)
-        energy_ratios = np.outer(_tmp_transition_energies,1.0/(self.temperature*const.k_B.cgs))
-        #calculate excitation and deexcitation rates
-        _rate_factor = 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)\
-                        /(self.temperature*const.k_B.cgs))*upsilon
-        excitation_rate = ((np.exp(-energy_ratios)*_rate_factor).T*1.0/lower_weights).T
-        deexcitation_rate = (_rate_factor.T*1.0/upper_weights).T
+        _tmp_level_energies = np.where(self._read_chianti_db_h5('elvlc', 'eryd') >= 0,
+                                       self._read_chianti_db_h5('elvlc', 'eryd'),
+                                       self._read_chianti_db_h5('elvlc', 'erydth'))
+        _tmp_transition_energies = (_tmp_level_energies[scups_lvl2-1]
+                                    - _tmp_level_energies[scups_lvl1-1])*u.Ry.to(u.erg)
+        energy_ratios = np.outer(_tmp_transition_energies, 1.0/(self.temperature*const.k_B.cgs))
+        # calculate excitation and deexcitation rates
+        _rate_factor = (2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))*upsilon)
+        excitation_rate = np.exp(-energy_ratios)*_rate_factor/lower_weights.reshape(lower_weights.shape[0], 1)
+        deexcitation_rate = _rate_factor/upper_weights.reshape(upper_weights.shape[0], 1)
 
-        return upsilon,excitation_rate,deexcitation_rate
+        return upsilon, excitation_rate, deexcitation_rate
 
     def _calculate_level_populations(self):
         """
@@ -228,7 +226,7 @@ class ChIon(object):
             l2_indices_proton,_proton_dex_broadcast = collect_points(psplups_lvl2,
                                                                     deexcitation_rate_proton)
 
-        process_matrix = np.zeros([self.n_levels,self.n_levels])
+        process_matrix = np.zeros([self.n_levels, self.n_levels])
         # add spontaneous emission, TODO: correction for recombination and ionization
         self.logger.debug('Adding contributions from A-values to population matrix.')
         process_matrix[wgfa_lvl1-1,wgfa_lvl2-1] += wgfa_avalue
