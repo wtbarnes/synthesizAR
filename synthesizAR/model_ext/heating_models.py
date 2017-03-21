@@ -16,7 +16,6 @@ class HeatingBase(object):
     ----------
     heating_options : `dict`
         Properties of the heating. Must include the following keys:
-        - total_time
         - duration
         - average_waiting_time
         - duration_rise
@@ -39,8 +38,8 @@ class HeatingBase(object):
         """
         Number of heating events
         """
-        return int(np.ceil(self.base_config['total_time']/(self.heating_options['duration']
-                                                           + self.heating_options['average_waiting_time'])))
+        return int(np.round(self.base_config['total_time']/(self.heating_options['duration']
+                                                            + self.heating_options['average_waiting_time'])))
 
     def _calculate_event_times(self):
         """
@@ -76,7 +75,8 @@ class UniformHeating(HeatingBase):
         rates = np.array(self.number_events*[uniform_heating_rate])
         tsr, ter, tsd, ted = self._calculate_event_times()
 
-        return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd, 'decay_end': ted}
+        return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd, 
+                'decay_end': ted}
 
 
 class PowerLawBase(HeatingBase):
