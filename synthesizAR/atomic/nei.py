@@ -1,4 +1,3 @@
-
 """
 Low-level functions for computing non-equilibrium population fractions
 """
