@@ -242,7 +242,7 @@ class EmissionModel(object):
                 transition_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
                                                    t.value, t.unit.to_string())
                 self.logger.debug('Calculating emission for {}'.format(transition_key))
-                i = np.argwhere(np.isclose(ion['wavelength'], t, rtol=0.0, atol=1.e-5))[0][0]
+                i = np.argwhere(np.isclose(ion['wavelength'].value, t.value, rtol=0.0, atol=1.e-5))[0][0]
                 _tmp = np.reshape(map_coordinates(ion['emissivity'][:, :, i].value,
                                                   np.vstack([itemperature, idensity])),
                                   loop.temperature.shape)
