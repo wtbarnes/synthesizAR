@@ -136,10 +136,9 @@ Maximum field strength : {max_b:.2f}
 
     def get_fractional_ionization(self, element, ion):
         """
-        Get ionization state from the ionization balance equations. If these solutions have not
-        been computed, return None.
+        Get ionization state from the ionization balance equations.
         """
-        ion_key = '{}_{}'.format(element.lower(), ion)
+        ion_key = '{}_{}'.format(element, ion)
         if hasattr(self, 'fractional_ionization_savefile'):
             with h5py.File(self.fractional_ionization_savefile, 'r') as hf:
                 dset = hf['/'.join([self.name, ion_key])]
@@ -147,7 +146,6 @@ Maximum field strength : {max_b:.2f}
         elif hasattr(self, '_fractional_ionization'):
             fractional_ionization = self._fractional_ionization
         else:
-            raise ValueError('Fractional ionization of {} {} not calculated for {}'.format(element, ion,
-                                                                                           self.name))
+            raise ValueError('Fractional ionization of {} {} not calculated for {}'.format(element, ion, self.name))
 
         return fractional_ionization
