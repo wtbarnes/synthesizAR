@@ -47,7 +47,7 @@ class EmissionModel(object):
                             np.ravel(self.density_mesh), chianti_db_filename)
             tmp_ion.meta['rcparams']['flux'] = energy_unit
             self.ions.append({'ion': tmp_ion,
-                              'resolved_wavelengths': u.Quantity(sorted(ion['resolved_wavelengths']))})
+                              'resolved_wavelengths': np.sort(ion['resolved_wavelengths'])})
 
     def save(self, savedir=None):
         """
