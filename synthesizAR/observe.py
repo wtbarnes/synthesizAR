@@ -140,8 +140,7 @@ class Observer(object):
                     hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
                     los_velocity = hist.T*u.Unit(hf['los_velocity'].attrs['units'])
                     for channel in instr.channels:
-                        dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,
-                                                                       channel=channel['name'],
+                        dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,channel=channel['name'],
                                                                        time=0))
                         if not os.path.exists(dummy_dir):
                             os.makedirs(dummy_dir)
