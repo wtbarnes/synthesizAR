@@ -38,9 +38,11 @@ class InstrumentHinodeEIS(InstrumentBase):
     fits_template['detector'] = 'EIS'
     fits_template['waveunit'] = 'angstrom'
 
-    def __init__(self, observing_time, observing_area=None):
+    @u.quantity_input(window=u.angstrom)
+    def __init__(self, observing_time, observing_area=None, window=0.5*u.angstrom):
         super().__init__(observing_time, observing_area)
         self._setup_channels()
+        self.window = window
 
     def _setup_channels(self):
         """
@@ -110,11 +112,10 @@ class InstrumentHinodeEIS(InstrumentBase):
         Calculate response of Hinode/EIS detector for given loop object.
         """
         # trim the instrument response to the appropriate wavelengths
-        window = 0.5*u.angstrom
         trimmed_indices = []
         for w in channel['model_wavelengths']:
-            indices = np.where(np.logical_and(channel['response']['x'] >= w-window,
-                                              channel['response']['x'] <= w+window))
+            indices = np.where(np.logical_and(channel['response']['x'] >= w-self.window,
+                                              channel['response']['x'] <= w+self.window))
             trimmed_indices += indices[0].tolist()
         trimmed_indices = list(sorted(set(trimmed_indices+[0, len(channel['response']['x'])-1])))
         response_x = channel['response']['x'][trimmed_indices]
