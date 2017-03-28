@@ -111,7 +111,8 @@ class InstrumentSDOAIA(InstrumentBase):
             for channel in self.channels:
                 if channel['name'] not in hf:
                     hf.create_dataset('{}'.format(channel['name']),
-                                      (len(self.observing_time), num_loop_coordinates))
+                                      (len(self.observing_time), num_loop_coordinates),
+                                      chunks=True)
 
     def flatten(self, loop, interp_s, hf, start_index):
         """

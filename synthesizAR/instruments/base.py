@@ -11,7 +11,7 @@ from scipy.interpolate import interp1d
 import astropy.units as u
 import h5py
 
-Pair = namedtuple('Pair','x y z')
+Pair = namedtuple('Pair', 'x y z')
 
 
 class InstrumentBase(object):
@@ -20,56 +20,55 @@ class InstrumentBase(object):
     `Observer` class to get the detector counts.
     """
 
-
     @u.quantity_input(observing_time=u.s)
-    def __init__(self,observing_time,observing_area=None):
+    def __init__(self, observing_time, observing_area=None):
         self.logger = logging.getLogger(name=type(self).__name__)
-        self.observing_time = np.arange(
-                            observing_time[0].to(u.s).value,
-                            observing_time[1].to(u.s).value,
-                            self.cadence.value)*u.s
+        self.observing_time = np.arange(observing_time[0].to(u.s).value,
+                                        observing_time[1].to(u.s).value,
+                                        self.cadence.value)*u.s
         self.observing_area = observing_area
 
-    def detect(self,*args,**kwargs):
+    def detect(self, *args, **kwargs):
         """
         Converts emissivity for a particular transition to counts per detector channel. When writing
         a new instrument class, this method should be overridden.
         """
         raise NotImplementedError('No detect method implemented.')
 
-    def build_detector_file(self,num_loop_coordinates,file_template):
+    def build_detector_file(self, num_loop_coordinates, file_template):
         """
         Allocate space for counts data.
         """
         self.counts_file = file_template.format(self.name)
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
         # Allocate space for LOS velocity and temperature
-        with h5py.File(self.counts_file,'a') as hf:
+        with h5py.File(self.counts_file, 'a') as hf:
             if 'average_temperature' not in hf:
                 hf.create_dataset('average_temperature',
-                                (len(self.observing_time),num_loop_coordinates))
+                                  (len(self.observing_time), num_loop_coordinates), chunks=True)
             if 'los_velocity' not in hf:
-                hf.create_dataset('los_velocity',(len(self.observing_time),num_loop_coordinates))
+                hf.create_dataset('los_velocity', (len(self.observing_time), num_loop_coordinates),
+                                  chunks=True)
 
-    def interpolate_and_store(self,y,loop,interp_s,dset,start_index):
+    def interpolate_and_store(self, y, loop, interp_s, dset, start_index):
         """
         Interpolate in time and space and write to HDF5 file.
         """
-        f_s = interp1d(loop.field_aligned_coordinate.value,y.value,
-                        axis=1,kind='linear')
-        interpolated_y = interp1d(loop.time.value,f_s(interp_s),
-                                        axis=0,kind='linear')(self.observing_time)
-        dset[:,start_index:(start_index+len(interp_s))] = interpolated_y
+        f_s = interp1d(loop.field_aligned_coordinate.value, y.value,
+                       axis=1, kind='linear')
+        interpolated_y = interp1d(loop.time.value, f_s(interp_s),
+                                  axis=0, kind='linear')(self.observing_time)
+        dset[:, start_index:(start_index+len(interp_s))] = interpolated_y
         if 'units' not in dset.attrs:
             dset.attrs['units'] = y.unit.to_string()
 
-    def make_fits_header(self,field,channel):
+    def make_fits_header(self, field, channel):
         """
         Build up FITS header with relevant instrument information.
         """
-        update_entries = ['crval1','crval2','cunit1',
-                          'cunit2','crlt_obs','ctype1','ctype2','date-obs',
-                          'dsun_obs','rsun_obs']
+        update_entries = ['crval1', 'crval2', 'cunit1',
+                          'cunit2', 'crlt_obs', 'ctype1', 'ctype2', 'date-obs',
+                          'dsun_obs', 'rsun_obs']
         fits_header = self.fits_template.copy()
         for entry in update_entries:
             fits_header[entry] = field.clipped_hmi_map.meta[entry]
@@ -83,7 +82,7 @@ class InstrumentBase(object):
 
         return fits_header
 
-    def make_detector_array(self,field):
+    def make_detector_array(self, field):
         """
         Construct bins based on desired observing area.
         """
@@ -96,10 +95,10 @@ class InstrumentBase(object):
         max_z = max(field.extrapolated_3d_field.domain_right_edge[2].value,
                     self.total_coordinates[:,2].max().value)
         delta_z = field._convert_angle_to_length(
-                max(self.resolution.x,self.resolution.y)).value
+                max(self.resolution.x, self.resolution.y)).value
         self.bins = Pair(int(np.ceil(delta_x/self.resolution.x).value),
                          int(np.ceil(delta_y/self.resolution.y).value),
                          int(np.ceil(np.fabs(max_z-min_z)/delta_z)))
         self.bin_range = Pair(field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
                               field._convert_angle_to_length(field.clipped_hmi_map.yrange).value,
-                              np.array([min_z,max_z]))
+                              np.array([min_z, max_z]))

@@ -92,7 +92,8 @@ class InstrumentHinodeEIS(InstrumentBase):
             for line in field.loops[0].resolved_wavelengths:
                 if str(line.value) not in hf:
                     hf.create_dataset('{}'.format(str(line.value)),
-                                      (len(self.observing_time), num_loop_coordinates))
+                                      (len(self.observing_time), num_loop_coordinates),
+                                      chunks=True)
 
     def flatten(self, loop, interp_s, hf, start_index):
         """
