@@ -96,6 +96,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 x = aia_info[channel['name']]['temperature_response_x']
                 y = aia_info[channel['name']]['temperature_response_y']
                 channel['temperature_response_spline'] = splrep(x, y)
+                channel['wavelength_range'] = None
             else:
                 x = aia_info[channel['name']]['response_x']
                 y = aia_info[channel['name']]['response_y']
@@ -128,13 +129,12 @@ class InstrumentSDOAIA(InstrumentBase):
                 response_function = splev(np.ravel(loop.temperature),
                                           channel['temperature_response_spline']
                                           )*u.count*u.cm**5/u.s/u.pixel
-                counts = np.reshape(np.ravel(loop.density**2)*response_function,
-                                    np.shape(loop.density))
+                counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
             else:
                 counts = np.zeros(loop.temperature.shape)
                 for ion in self.emission_model.ions:
-                    fractional_ionization = loop.get_fractional_ionization(
-                                                ion['ion'].meta['Element'], ion['ion'].meta['Ion'])
+                    fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
+                                                                           ion['ion'].meta['Ion'])
                     if 'emissivity' not in ion:
                         self.emission_model.calculate_emissivity()
                     interpolated_response = splev(ion['wavelength'].value,
