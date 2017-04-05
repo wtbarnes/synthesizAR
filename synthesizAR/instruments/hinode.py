@@ -12,7 +12,12 @@ import pkg_resources
 
 import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
-from sunpy.map import MapMeta
+try:
+    from sunpy.map import MapMeta
+except ImportError:
+    # This has been renamed in the newest SunPy release, can eventually be removed
+    # But necessary for the time being with current dev release
+    from sunpy.util.metadata import MetaDict as MapMeta
 import astropy.units as u
 import astropy.constants as const
 import h5py

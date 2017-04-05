@@ -14,7 +14,13 @@ from scipy.interpolate import splrep, splev, interp1d
 from scipy.ndimage import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 import astropy.units as u
-from sunpy.map import Map, MapMeta
+from sunpy.map import Map
+try:
+    from sunpy.map import MapMeta
+except ImportError:
+    # This has been renamed in the newest SunPy release, can eventually be removed
+    # But necessary for the time being with current dev release
+    from sunpy.util.metadata import MetaDict as MapMeta
 import h5py
 
 from synthesizAR.instruments import InstrumentBase, Pair
