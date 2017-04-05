@@ -57,7 +57,7 @@ class InstrumentBase(object):
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value,
                        axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s),
-                                  axis=0, kind='linear')(self.observing_time)
+                                  axis=0, kind='linear', fill_value='extrapolate')(self.observing_time)
         dset[:, start_index:(start_index+len(interp_s))] = interpolated_y
         if 'units' not in dset.attrs:
             dset.attrs['units'] = y.unit.to_string()
