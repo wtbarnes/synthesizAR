@@ -8,7 +8,13 @@ import numpy as np
 import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
-from sunpy.map import Map, MapMeta
+from sunpy.map import Map
+try:
+    from sunpy.map import MapMeta
+except ImportError:
+    # This has been renamed in the newest SunPy release, can eventually be removed
+    # But necessary for the time being with current dev release
+    from sunpy.util.metadata import MetaDict as MapMeta
 from sunpy.io.fits import get_header
 
 
