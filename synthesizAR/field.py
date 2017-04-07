@@ -391,7 +391,7 @@ Magnetogram Info:
         Find the fractional ionization for each loop in the model as defined by the loop
         model interface.
         """
-        ion_list = [(i['ion'].meta['Element'], i['ion'].meta['Ion']) for i in emission_model.ions]
+        ion_list = [(i.chianti_ion.meta['Element'], i.chianti_ion.meta['Ion']) for i in emission_model.ions]
         for loop in self.loops:
             if interface and hasattr(interface, 'get_fractional_ionization'):
                 fractional_ionization = interface.get_fractional_ionization(ion_list, loop, **kwargs)
@@ -399,11 +399,9 @@ Magnetogram Info:
                 self.logger.warning('''Model interface None or get_fractional_ionization method
                                     not defined. Falling back to ionization equilibrium.''')
                 for ion in emission_model.ions:
-                    if 'equilibrium_fractional_ionization' not in ion:
-                        emission_model.calculate_equilibrium_fractional_ionization()
                     f_ioneq = interp1d(emission_model.temperature_mesh[:, 0],
-                                       ion['equilibrium_fractional_ionization'][:, 0])
-                    key = '{}_{}'.format(ion['ion'].meta['Element'], ion['ion'].meta['Ion'])
+                                       ion.fractional_ionization[:, 0])
+                    key = '{}_{}'.format(ion.chianti_ion.meta['Element'], ion.chianti_ion.meta['Ion'])
                     tmp = f_ioneq(loop.temperature)
                     fractional_ionization[key] = np.where(tmp > 0.0, tmp, 0.0)
 

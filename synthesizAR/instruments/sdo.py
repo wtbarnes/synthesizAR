@@ -139,18 +139,19 @@ class InstrumentSDOAIA(InstrumentBase):
             else:
                 counts = np.zeros(loop.temperature.shape)
                 for ion in self.emission_model.ions:
-                    fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
-                                                                           ion['ion'].meta['Ion'])
-                    if 'emissivity' not in ion:
+                    fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
+                                                                           ion.chianti_ion.meta['Ion'])
+                    if ion.emissivity is None:
                         self.emission_model.calculate_emissivity()
-                    interpolated_response = splev(ion['wavelength'].value,
+                    emiss = ion.emissivity
+                    interpolated_response = splev(ion.wavelength.value,
                                                   channel['wavelength_response_spline'], ext=1)
-                    em_summed = np.dot(ion['emissivity'].value, interpolated_response)
+                    em_summed = np.dot(emiss.value, interpolated_response)
                     tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
                                      loop.temperature.shape)
-                    tmp = (np.where(tmp > 0.0, tmp, 0.0)*ion['emissivity'].unit*u.count/u.photon
+                    tmp = (np.where(tmp > 0.0, tmp, 0.0)*emiss.unit*u.count/u.photon
                            * u.steradian/u.pixel*u.cm**2)
-                    counts_tmp = (fractional_ionization*loop.density*ion['ion'].abundance*0.83
+                    counts_tmp = (fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83
                                   / (4*np.pi*u.steradian)*tmp)
                     if not hasattr(counts, 'unit'):
                         counts = counts*counts_tmp.unit
