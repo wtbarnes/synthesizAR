@@ -47,7 +47,7 @@ class ChIon(object):
         self.meta = ch_tools_util.convertName(ion_name)
         self.meta['name'] = ion_name
         self.meta['spectroscopic_name'] = ch_tools_util.zion2spectroscopic(self.meta['Z'],
-                                                                            self.meta['Ion'])
+                                                                           self.meta['Ion'])
         self.meta['rcparams'] = ch_tools_data.Defaults.copy()
         # set location of CHIANTI database
         self._chianti_db_h5 = chianti_db_h5
@@ -57,9 +57,9 @@ class ChIon(object):
         # check and set temperature and density
         if temperature.size != electron_density.size:
             if temperature.size == 1:
-                temperature = np.tile(temperature,len(electron_density))
+                temperature = np.tile(temperature, len(electron_density))
             elif electron_density.size == 1:
-                electron_density = np.tile(electron_density,len(temperature))
+                electron_density = np.tile(electron_density, len(temperature))
             else:
                 raise ValueError('''Temperature and density must be equal-sized arrays
                                     if neither is a scalar.''')
@@ -117,33 +117,33 @@ class ChIon(object):
         denominator = np.zeros(len(_tmp_ioneq['ioneqTemperature']))
         for i in range(len(abundance)):
             for z in range(1,i+2):
-                denominator += z*_tmp_ioneq['ioneqAll'][i,z,:]*abundance[i]
+                denominator += z*_tmp_ioneq['ioneqAll'][i, z, :]*abundance[i]
 
-        p2eratio = abundance[0]*_tmp_ioneq['ioneqAll'][0,1,:]/denominator
-        nots = splrep(np.log10(_tmp_ioneq['ioneqTemperature']),p2eratio,s=0)
+        p2eratio = abundance[0]*_tmp_ioneq['ioneqAll'][0, 1, :]/denominator
+        nots = splrep(np.log10(_tmp_ioneq['ioneqTemperature']), p2eratio, s=0)
 
-        return splev(np.log10(self.temperature.value),nots,der=0)
+        return splev(np.log10(self.temperature.value), nots, der=0)
 
-    def _descale_collision_strengths(self,x,y,energy_ratio,c,bt_type):
+    def _descale_collision_strengths(self, x, y, energy_ratio, c, bt_type):
         """
         Apply descaling procedure of BT92 to scaled thermally averaged collision strengths.
         """
-        nots = splrep(x,y,s=0)
-        if bt_type==1:
+        nots = splrep(x, y, s=0)
+        if bt_type == 1:
             x_new = 1.0 - np.log(c)/np.log(energy_ratio + c)
-            upsilon = splev(x_new,nots,der=0)*np.log(energy_ratio + np.e)
-        elif bt_type==2:
+            upsilon = splev(x_new, nots, der=0)*np.log(energy_ratio + np.e)
+        elif bt_type == 2:
             x_new = energy_ratio/(energy_ratio + c)
-            upsilon = splev(x_new,nots,der=0)
-        elif bt_type==3:
+            upsilon = splev(x_new, nots, der=0)
+        elif bt_type == 3:
             x_new = energy_ratio/(energy_ratio + c)
-            upsilon = splev(x_new,nots,der=0)/(energy_ratio + 1.0)
-        elif bt_type==4:
+            upsilon = splev(x_new, nots, der=0)/(energy_ratio + 1.0)
+        elif bt_type == 4:
             x_new = 1.0 - np.log(c)/np.log(energy_ratio + c)
-            upsilon = splev(x_new,nots,der=0)*np.log(energy_ratio + c)
-        elif bt_type==6:
+            upsilon = splev(x_new, nots, der=0)*np.log(energy_ratio + c)
+        elif bt_type == 6:
             x_new = energy_ratio/(energy_ratio + c)
-            upsilon = 10**splev(x_new,nots,der=0)
+            upsilon = 10**splev(x_new, nots, der=0)
         else:
             raise ValueError('Unrecognized BT92 scaling option.')
 
@@ -162,13 +162,13 @@ class ChIon(object):
             scups_key = 'bscups'
             btemp = self._read_chianti_db_h5(filetype,'btemp')
         energy_ratios = np.outer((self._read_chianti_db_h5(filetype,'de')*u.Ry).to(u.erg),
-                                1.0/(self.temperature*const.k_B.cgs))
+                                 1.0/(self.temperature*const.k_B.cgs))
         upsilon = np.array(list(map(self._descale_collision_strengths,btemp,
                                     self._read_chianti_db_h5(filetype,scups_key),
                                     1.0/energy_ratios,
                                     self._read_chianti_db_h5(filetype,'cups'),
                                     self._read_chianti_db_h5(filetype,'ttype'))))
-        upsilon = np.where(upsilon>0.,upsilon,0.0)
+        upsilon = np.where(upsilon > 0., upsilon, 0.0)
 
         # alias some chianti data
         scups_lvl1 = self._read_chianti_db_h5(filetype,'lvl1')
@@ -198,7 +198,7 @@ class ChIon(object):
         Calculate level populations for excited states as a function of temperature
         for relevant transitions.
         """
-        #alias some of the chianti data
+        # alias some of the chianti data
         wgfa_lvl1 = self._read_chianti_db_h5('wgfa','lvl1')
         wgfa_lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
         wgfa_avalue = self._read_chianti_db_h5('wgfa','avalue')
@@ -206,14 +206,14 @@ class ChIon(object):
         scups_lvl2 = self._read_chianti_db_h5('scups','lvl2')
         self.logger.debug('''Calculating descaled collision strengths and excitation and
                             deexcitation rates for electrons.''')
-        upsilon,excitation_rate,deexcitation_rate = self._calculate_collision_strengths()
+        upsilon, excitation_rate, deexcitation_rate = self._calculate_collision_strengths()
         # create excitation/deexcitation rate sums for broadcasting
-        l1_indices_electron,_electron_ex_broadcast = collect_points(scups_lvl1,excitation_rate)
-        l2_indices_electron,_electron_dex_broadcast = collect_points(scups_lvl2,deexcitation_rate)
+        l1_indices_electron, _electron_ex_broadcast = collect_points(scups_lvl1,excitation_rate)
+        l2_indices_electron, _electron_dex_broadcast = collect_points(scups_lvl2,deexcitation_rate)
 
         # account for protons if the file exists
         if self._has_psplups:
-            #alias some of the chianti data
+            # alias some of the chianti data
             psplups_lvl1 = self._read_chianti_db_h5('psplups','lvl1')
             psplups_lvl2 = self._read_chianti_db_h5('psplups','lvl2')
             self.logger.debug('''Calculating descaled collision strengths and excitation and
@@ -233,15 +233,15 @@ class ChIon(object):
         # sum all of the level 2 Avalues to broadcast
         wgfa_indices,_wgfa_broadcasts = collect_points(wgfa_lvl2,wgfa_avalue)
         process_matrix[wgfa_indices-1,wgfa_indices-1] -= _wgfa_broadcasts
-        #TODO: add photoexcitation and stimulated emission
+        # TODO: add photoexcitation and stimulated emission
 
-        #b vector used for inversion later on
+        # b vector used for inversion later on
         b = np.zeros(process_matrix.shape[0])
         b[-1] = 1.0
-        #preallocate memory for level populations
+        # preallocate memory for level populations
         populations = np.zeros([self.n_levels,len(self.temperature)])
         for i,(nel,npr,T) in enumerate(zip(self.electron_density,self.proton_density,
-                                            self.temperature)):
+                                           self.temperature)):
             _tmp = np.copy(process_matrix)
             # excitation and de-excitation by electrons
             _tmp[scups_lvl1-1,scups_lvl2-1] += nel*deexcitation_rate[:,i]
