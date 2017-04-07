@@ -98,16 +98,16 @@ class InstrumentSDOAIA(InstrumentBase):
             channel['name'] = str(channel['wavelength'].value).strip('.0')
             channel['instrument_label'] = '{}_{}'.format(self.fits_template['detector'],
                                                          channel['telescope_number'])
+            channel['wavelength_range'] = None
+
             if self.use_temperature_response_functions:
                 x = aia_info[channel['name']]['temperature_response_x']
                 y = aia_info[channel['name']]['temperature_response_y']
                 channel['temperature_response_spline'] = splrep(x, y)
-                channel['wavelength_range'] = None
             else:
                 x = aia_info[channel['name']]['response_x']
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline'] = splrep(x, y)
-                channel['wavelength_range'] = [x[0], x[-1]]*u.Unit(aia_info[channel['name']]['response_x_units'])
 
     def build_detector_file(self, field, num_loop_coordinates, file_format):
         """
