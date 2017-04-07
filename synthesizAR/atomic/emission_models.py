@@ -16,6 +16,48 @@ from ChiantiPy.tools.io import elvlcRead, wgfaRead, scupsRead, splupsRead
 from synthesizAR.atomic import ChIon
 
 
+class ModelIon(object):
+    """
+    Top-level ion object to be used by emission model.
+    """
+
+    def __init__(self, chianti_ion, resolved_wavelengths, temperature_mesh, density_mesh):
+        self.chianti_ion = chianti_ion
+        self.resolved_wavelengths = np.sort(resolved_wavelengths)
+        self.temperature_mesh = temperature_mesh
+        self.density_mesh = density_mesh
+
+    @property
+    def fractional_ionization(self):
+        return np.reshape(self.chianti_ion.equilibrium_fractional_ionization, self.temperature_mesh)
+
+    @property
+    def wavelength(self):
+        if hasattr(self, 'emissivity_savefile'):
+            with h5py.File(self.emissivity_savefile, 'r') as hf:
+                dset = hf['/'.join('{}_{}'.format(self.chianti_ion.meta['Element'],
+                                                  self.chianti_ion.meta['Ion']), 'wavelength')]
+                return np.array(dset)*dset.attrs['units']
+        else:
+            if hasattr(self, '_wavelength'):
+                return self._wavelength
+            else:
+                return None
+
+    @property
+    def emissivity(self):
+        if hasattr(self, 'emissivity_savefile'):
+            with h5py.File(self.emissivity_savefile, 'r') as hf:
+                dset = hf['/'.join('{}_{}'.format(self.chianti_ion.meta['Element'],
+                                                  self.chianti_ion.meta['Ion']), 'emissivity')]
+                return np.array(dset)*dset.attrs['units']
+        else:
+            if hasattr(self, '_emissivity'):
+                return self._emissivity
+            else:
+                return None
+
+
 class EmissionModel(object):
     """
     Calculate emission for given set of transitions, assuming ionization equilibrium.
@@ -43,11 +85,11 @@ class EmissionModel(object):
         self.ions = []
         for ion in ions:
             self.logger.info('Creating ion {}'.format(ion['name']))
-            tmp_ion = ChIon(ion['name'], np.ravel(self.temperature_mesh),
-                            np.ravel(self.density_mesh), chianti_db_filename)
-            tmp_ion.meta['rcparams']['flux'] = energy_unit
-            self.ions.append({'ion': tmp_ion,
-                              'resolved_wavelengths': np.sort(ion['resolved_wavelengths'])})
+            tmp_ch_ion = ChIon(ion['name'], np.ravel(self.temperature_mesh),
+                               np.ravel(self.density_mesh), chianti_db_filename)
+            tmp_ch_ion.meta['rcparams']['flux'] = energy_unit
+            tmp_ion = ModelIon(tmp_ch_ion, ion['resolved_wavelengths'], temperature_mesh, density_mesh)
+            self.ions.append(tmp_ion)
 
     def save(self, savedir=None):
         """
@@ -65,26 +107,23 @@ class EmissionModel(object):
         # save some basic info
         ions_info = []
         for ion in self.ions:
-            ions_info.append({'name': ion['ion'].meta['name'],
-                              'resolved_wavelengths': ion['resolved_wavelengths']})
-        db_filename = self.ions[0]['ion']._chianti_db_h5
-        energy_unit = self.ions[0]['ion'].meta['rcparams']['flux']
+            ions_info.append({'name': ion.chianti_ion.meta['name'],
+                              'resolved_wavelengths': ion.resolved_wavelengths})
+        db_filename = self.ions[0].chianti_ion._chianti_db_h5
+        energy_unit = self.ions[0].chianti_ion.meta['rcparams']['flux']
+        emissivity_savefile = None
+        if hasattr(self.ions[0],'emissivity_savefile'):
+            emissivity_savefile = self.ions[0].emissivity_savefile
         with open(os.path.join(savedir, 'ion_info.pickle'), 'wb') as f:
-            pickle.dump([ions_info, db_filename, energy_unit], f)
-        # save emissivity and fractional ionization
-        if not os.path.exists(os.path.join(savedir, 'emissivity')):
-            os.makedirs(os.path.join(savedir, 'emissivity'))
-        if not os.path.exists(os.path.join(savedir, 'fractional_ionization')):
-            os.makedirs(os.path.join(savedir, 'fractional_ionization'))
+            pickle.dump([ions_info, db_filename, emissivity_savefile, energy_unit], f)
+        # save emissivity if it is in memory
         for ion in self.ions:
-            if 'emissivity' in ion:
+            if hasattr(ion,'_emissivity'):
+                if not os.path.exists(os.path.join(savedir, 'emissivity')):
+                    os.makedirs(os.path.join(savedir, 'emissivity'))
                 with open(os.path.join(savedir, 'emissivity',
-                                       '{}.pickle'.format(ion['ion'].meta['name'])), 'wb') as f:
-                    pickle.dump((ion['wavelength'], (ion['emissivity'])), f)
-            if 'fractional_ionization' in ion:
-                with open(os.path.join(savedir, 'fractional_ionization',
-                                       '{}.pickle'.format(ion['ion'].meta['name'])), 'wb') as f:
-                    pickle.dump(ion['fractional_ionization'], f)
+                                       '{}.pickle'.format(ion.chianti_ion.meta['name'])), 'wb') as f:
+                    pickle.dump((ion._wavelength, ion._emissivity), f)
 
     @classmethod
     def restore(cls, savedir):
@@ -94,7 +133,7 @@ class EmissionModel(object):
         with open(os.path.join(savedir, 'temperature_density.pickle'), 'rb') as f:
             temperature, density = pickle.load(f)
         with open(os.path.join(savedir, 'ion_info.pickle'), 'rb') as f:
-            ion_info, db_filename, energy_unit = pickle.load(f)
+            ion_info, db_filename, emissivity_savefile, energy_unit = pickle.load(f)
         emiss_model = cls(ion_info, temperature=temperature, density=density,
                           energy_unit=energy_unit, chianti_db_filename=db_filename)
         emiss_model.logger.info('Restoring emission model from {}'.format(savedir))
@@ -102,10 +141,9 @@ class EmissionModel(object):
             tmp_ion_file = os.path.join(savedir, '{}', '{}.pickle'.format(ion['ion'].meta['name']))
             if os.path.isfile(tmp_ion_file.format('emissivity')):
                 with open(tmp_ion_file.format('emissivity'), 'rb') as f:
-                    ion['wavelength'], ion['emissivity'] = pickle.load(f)
-            if os.path.isfile(tmp_ion_file.format('fractional_ionization')):
-                with open(tmp_ion_file.format('fractional_ionization'), 'rb') as f:
-                    ion['fractional_ionization'] = pickle.load(f)
+                    ion._wavelength, ion._emissivity = pickle.load(f)
+            if emissivity_savefile:
+                ion.emissivity_savefile = emissivity_savefile
 
         return emiss_model
 
@@ -171,30 +209,31 @@ class EmissionModel(object):
             else:
                 h5_group.attrs[key] = chianti_dict[key]
 
-    def calculate_emissivity(self):
+    def calculate_emissivity(self, savefile=None):
         """
         Calculate emissivity (energy or photons per unit time) for all ions for the desired and 
         transitions and reshape the data.
         """
+        if savefile:
+            hf = h5py.File(savefile, 'w')
         for ion in self.ions:
-            self.logger.info('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            wvl, emiss = ion['ion'].calculate_emissivity()
-            ion['emissivity'] = np.reshape(np.transpose(emiss)[:, np.argsort(wvl)],
-                                           self.temperature_mesh.shape+(len(wvl),))
-            ion['wavelength'] = np.sort(wvl)
-
-    def calculate_equilibrium_fractional_ionization(self):
-        """
-        Calculate fractional ionization as a function of temperature for each ion, assuming
-        ionization equilibrium and reshape the data.
-
-        Notes
-        -----
-        For a full non-equilibrium treatment, this method needs to be overridden.
-        """
-        for ion in self.ions:
-            ioneq = ion['ion'].equilibrium_fractional_ionization
-            ion['equilibrium_fractional_ionization'] = np.reshape(ioneq, self.temperature_mesh.shape)
+            self.logger.info('Calculating emissivity for ion {}'.format(ion.chianti_ion.meta['name']))
+            wvl, emiss = ion.chianti_ion.calculate_emissivity()
+            wvl = np.sort(wvl)
+            emiss = np.reshape(np.transpose(emiss)[:, np.argsort(wvl)],
+                               self.temperature_mesh.shape+(len(wvl),))
+            if savefile:
+                ion.emissivity_savefile = savefile
+                grp = hf.create_group('{}_{}'.format(ion.chianti_ion.meta['Element'], ion.chianti_ion.meta['Ion']))
+                dset_wvl = grp.create_dataset('wavelength', data=wvl.value)
+                dset_wvl.attrs['units'] = wvl.unit.to_string()
+                dset_emiss = grp.create_dataset('emissivity', data=emiss.value)
+                dset_emiss.attrs['units'] = emiss.unit.to_string()
+            else:
+                ion._wavelength = wvl
+                ion._emissivity = emiss
+        if savefile:
+            hf.close()
 
     def interpolate_to_mesh_indices(self, loop):
         """
@@ -230,25 +269,25 @@ class EmissionModel(object):
         emiss, meta = {}, {}
         # calculate emissivity
         for ion in self.ions:
-            self.logger.debug('Calculating emissivity for ion {}'.format(ion['ion'].meta['name']))
-            fractional_ionization = loop.get_fractional_ionization(ion['ion'].meta['Element'],
-                                                                   ion['ion'].meta['Ion'])
-            if 'emissivity' not in ion:
+            self.logger.debug('Calculating emissivity for ion {}'.format(ion.chianti_ion.meta['name']))
+            fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
+                                                                   ion.chianti_ion.meta['Ion'])
+            if ion.emissivity is None:
                 self.calculate_emissivity()
-            em_ion = fractional_ionization*loop.density*ion['ion'].abundance*0.83/(4*np.pi*u.steradian)
+            em_ion = fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83/(4*np.pi*u.steradian)
 
             # wavelength resolved emission
-            for t in ion['resolved_wavelengths']:
-                transition_key = '{} {} {}'.format(ion['ion'].meta['spectroscopic_name'],
+            for t in ion.resolved_wavelengths:
+                transition_key = '{} {} {}'.format(ion.chianti_ion.meta['spectroscopic_name'],
                                                    t.value, t.unit.to_string())
                 self.logger.debug('Calculating emission for {}'.format(transition_key))
-                i = np.argwhere(np.isclose(ion['wavelength'].value, t.value, rtol=0.0, atol=1.e-5))[0][0]
-                _tmp = np.reshape(map_coordinates(ion['emissivity'][:, :, i].value,
+                i = np.argwhere(np.isclose(ion.wavelength.value, t.value, rtol=0.0, atol=1.e-5))[0][0]
+                _tmp = np.reshape(map_coordinates(ion.emissivity[:, :, i].value,
                                                   np.vstack([itemperature, idensity])),
                                   loop.temperature.shape)
                 _tmp = np.where(_tmp > 0.0, _tmp, 0.0)
-                emiss['{}'.format(t.value)] = _tmp*ion['emissivity'].unit*em_ion
-                meta['{}'.format(t.value)] = {'ion_name': ion['ion'].meta['spectroscopic_name'],
+                emiss['{}'.format(t.value)] = _tmp*ion.emissivity.unit*em_ion
+                meta['{}'.format(t.value)] = {'ion_name': ion.chianti_ion.meta['spectroscopic_name'],
                                               'wavelength_units': t.unit.to_string()}
 
         return emiss, meta
