@@ -248,7 +248,7 @@ class ChIon(object):
             psplups_lvl2 = self._read_chianti_db_h5('psplups','lvl2')
             self.logger.debug('''Calculating descaled collision strengths and excitation and
                                 deexcitation rates for protons.''')
-            upsilon_proton = = self._calculate_collision_strengths(protons=True)
+            upsilon_proton = self._calculate_collision_strengths(protons=True)
             excitation_rate_proton = self._calculate_excitation_rate(protons=True)
             deexcitation_rate_proton = self._calculate_deexcitation_rate(protons=True)
 
