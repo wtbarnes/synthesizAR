@@ -188,8 +188,10 @@ class ChIon(object):
         energy_ratios = np.outer(_tmp_transition_energies, 1.0/(self.temperature*const.k_B.cgs))
         # calculate excitation and deexcitation rates
         _rate_factor = (2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))*upsilon)
-        excitation_rate = np.exp(-energy_ratios)*_rate_factor/lower_weights[:,np.newaxis]
+        excitation_rate = _rate_factor/lower_weights[:,np.newaxis]
         deexcitation_rate = _rate_factor/upper_weights[:,np.newaxis]
+
+        # np.exp(-energy_ratios)*
 
         return upsilon, excitation_rate, deexcitation_rate
 
