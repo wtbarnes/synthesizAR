@@ -170,30 +170,56 @@ class ChIon(object):
                                     self._read_chianti_db_h5(filetype,'ttype'))))
         upsilon = np.where(upsilon > 0., upsilon, 0.0)
 
-        # alias some chianti data
+        return upsilon
+
+    def _calculate_excitation_rate(self,protons=False):
+        """
+        """
+        # read in the needed data
+        if protons:
+            filetype = 'psplups'
+        else:
+            filetype = 'scups'
         scups_lvl1 = self._read_chianti_db_h5(filetype,'lvl1')
         scups_lvl2 = self._read_chianti_db_h5(filetype,'lvl2')
-        elvlc_lvl = list(self._read_chianti_db_h5('elvlc','lvl'))
         elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
 
-        # calculate weights
-        lower_weights = elvlc_mult[scups_lvl1 - 1]
-        upper_weights = elvlc_mult[scups_lvl2 - 1]
-        # modified transition energies
-        _tmp_level_energies = np.where(self._read_chianti_db_h5('elvlc', 'eryd') >= 0,
-                                       self._read_chianti_db_h5('elvlc', 'eryd'),
-                                       self._read_chianti_db_h5('elvlc', 'erydth'))
-        _tmp_transition_energies = (_tmp_level_energies[scups_lvl2-1]
-                                    - _tmp_level_energies[scups_lvl1-1])*u.Ry.to(u.erg)
-        energy_ratios = np.outer(_tmp_transition_energies, 1.0/(self.temperature*const.k_B.cgs))
-        # calculate excitation and deexcitation rates
-        _rate_factor = (2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))*upsilon)
-        excitation_rate = _rate_factor.value/lower_weights[:,np.newaxis]
-        deexcitation_rate = _rate_factor.value/upper_weights[:,np.newaxis]
+        # calculate modified transition energies
+        level_energies = np.where(self._read_chianti_db_h5('elvlc', 'eryd') >= 0,
+                                  self._read_chianti_db_h5('elvlc', 'eryd'),
+                                  self._read_chianti_db_h5('elvlc', 'erydth'))
+        transition_energies = (level_energies[scups_lvl2-1]
+                               - level_energies[scups_lvl1-1])*u.Ry.to(u.erg)
 
-        # np.exp(-energy_ratios)*
+        # get upsilon collision strengths
+        rate = self._calculate_collision_strengths(protons=protons)
+        # multiply by rate factor
+        rate *= 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))
+        # multiply by energy ratios
+        rate *= np.exp(-np.outer(transition_energies, 1.0/(self.temperature*const.k_B.cgs)))
+        # divide by lower level multiplicities
+        rate /= elvlc_mult[scups_lvl1 - 1][:,np.newaxis]
 
-        return upsilon, excitation_rate, deexcitation_rate
+        return rate
+
+    def _calculate_deexcitation_rate(self, protons=False):
+        """
+        """
+        # read in some data
+        if protons:
+            filetype = 'psplups'
+        else:
+            filetype = 'scups'
+        scups_lvl2 = self._read_chianti_db_h5(filetype,'lvl2')
+        elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
+        # calculate collision strengths
+        rate = self._calculate_collision_strengths(protons=protons)
+        # multiply by rate factor
+        rate *= 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))
+        # divide by upper level multiplicities
+        rate /= elvlc_mult[scups_lvl2 - 1][:,np.newaxis]
+
+        return rate
 
     def _calculate_level_populations(self):
         """
@@ -208,7 +234,9 @@ class ChIon(object):
         scups_lvl2 = self._read_chianti_db_h5('scups','lvl2')
         self.logger.debug('''Calculating descaled collision strengths and excitation and
                             deexcitation rates for electrons.''')
-        upsilon, excitation_rate, deexcitation_rate = self._calculate_collision_strengths()
+        upsilon = self._calculate_collision_strengths()
+        excitation_rate = self._calculate_excitation_rate()
+        deexcitation_rate = self._calculate_deexcitation_rate()
         # create excitation/deexcitation rate sums for broadcasting
         l1_indices_electron, _electron_ex_broadcast = collect_points(scups_lvl1,excitation_rate)
         l2_indices_electron, _electron_dex_broadcast = collect_points(scups_lvl2,deexcitation_rate)
@@ -220,8 +248,10 @@ class ChIon(object):
             psplups_lvl2 = self._read_chianti_db_h5('psplups','lvl2')
             self.logger.debug('''Calculating descaled collision strengths and excitation and
                                 deexcitation rates for protons.''')
-            upsilon_proton,excitation_rate_proton,deexcitation_rate_proton \
-                                                = self._calculate_collision_strengths(protons=True)
+            upsilon_proton = = self._calculate_collision_strengths(protons=True)
+            excitation_rate_proton = self._calculate_excitation_rate(protons=True)
+            deexcitation_rate_proton = self._calculate_deexcitation_rate(protons=True)
+
             # create excitation/deexcitation rate sums for broadcasting
             l1_indices_proton,_proton_ex_broadcast = collect_points(psplups_lvl1,
                                                                     excitation_rate_proton)
