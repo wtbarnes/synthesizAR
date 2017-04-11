@@ -37,12 +37,14 @@ class ModelIon(object):
             with h5py.File(self.emissivity_savefile, 'r') as hf:
                 dset = hf['/'.join(['{}_{}'.format(self.chianti_ion.meta['Element'],
                                                    self.chianti_ion.meta['Ion']), 'wavelength'])]
-                return np.array(dset)*dset.attrs['units']
+                wavelength = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
             if hasattr(self, '_wavelength'):
-                return self._wavelength
+                wavelength = self._wavelength
             else:
-                return None
+                wavelength = None
+
+        return wavelength
 
     @property
     def emissivity(self):
@@ -50,12 +52,14 @@ class ModelIon(object):
             with h5py.File(self.emissivity_savefile, 'r') as hf:
                 dset = hf['/'.join(['{}_{}'.format(self.chianti_ion.meta['Element'],
                                                    self.chianti_ion.meta['Ion']), 'emissivity'])]
-                return np.array(dset)*dset.attrs['units']
+                emissivity = np.array(dset)*u.Unit(dset.attrs['units'])
         else:
             if hasattr(self, '_emissivity'):
-                return self._emissivity
+                emissivity = self._emissivity
             else:
-                return None
+                emissivity = None
+
+        return emissivity
 
 
 class EmissionModel(object):
