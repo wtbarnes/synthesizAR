@@ -138,7 +138,7 @@ class EmissionModel(object):
                           energy_unit=energy_unit, chianti_db_filename=db_filename)
         emiss_model.logger.info('Restoring emission model from {}'.format(savedir))
         for ion in emiss_model.ions:
-            tmp_ion_file = os.path.join(savedir, '{}', '{}.pickle'.format(ion['ion'].meta['name']))
+            tmp_ion_file = os.path.join(savedir, '{}', '{}.pickle'.format(ion.chianti_ion.meta['name']))
             if os.path.isfile(tmp_ion_file.format('emissivity')):
                 with open(tmp_ion_file.format('emissivity'), 'rb') as f:
                     ion._wavelength, ion._emissivity = pickle.load(f)
