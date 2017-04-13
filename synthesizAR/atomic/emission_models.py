@@ -29,7 +29,7 @@ class ModelIon(object):
 
     @property
     def fractional_ionization(self):
-        return np.reshape(self.chianti_ion.equilibrium_fractional_ionization, self.temperature_mesh)
+        return np.reshape(self.chianti_ion.equilibrium_fractional_ionization, self.temperature_mesh.shape)
 
     @property
     def wavelength(self):
