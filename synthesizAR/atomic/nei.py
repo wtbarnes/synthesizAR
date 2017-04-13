@@ -53,7 +53,8 @@ def solve_nei_populations(time,temperature,density,ionization_rate,
                             safety_decrease=10.):
     """
     Solve the ionization balance equations for a set of temperature and density timeseries using
-    ionization and recombination rates from CHIANTI. The populations are initialized with the equilibrium solutions at the initial temperature.
+    ionization and recombination rates from CHIANTI. The populations are initialized with the 
+    equilibrium solutions at the initial temperature.
     """
 
     #initialize
