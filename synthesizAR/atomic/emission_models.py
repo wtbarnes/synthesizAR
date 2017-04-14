@@ -2,6 +2,7 @@
 Specific intensity for a variety of atomic transitions, assuming ionization equilibrium.
 """
 import os
+import copy
 import sys
 import logging
 import pickle
@@ -92,8 +93,8 @@ class EmissionModel(object):
             tmp_ch_ion = ChIon(ion['name'], np.ravel(self.temperature_mesh),
                                np.ravel(self.density_mesh), chianti_db_filename)
             tmp_ch_ion.meta['rcparams']['flux'] = energy_unit
-            tmp_ion = ModelIon(tmp_ch_ion, ion['resolved_wavelengths'], self.temperature_mesh, self.density_mesh)
-            self.ions.append(tmp_ion)
+            tmp_ion = ModelIon(copy.deepcopy(tmp_ch_ion), ion['resolved_wavelengths'], self.temperature_mesh, self.density_mesh)
+            self.ions.append(copy.deepcopy(tmp_ion))
 
     def save(self, savedir=None):
         """
