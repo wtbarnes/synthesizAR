@@ -93,8 +93,8 @@ class EmissionModel(object):
             tmp_ch_ion = ChIon(ion['name'], np.ravel(self.temperature_mesh),
                                np.ravel(self.density_mesh), chianti_db_filename)
             tmp_ch_ion.meta['rcparams']['flux'] = energy_unit
-            tmp_ion = ModelIon(tmp_ch_ion, ion['resolved_wavelengths'], self.temperature_mesh, self.density_mesh)
-            self.ions.append(copy.deepcopy(tmp_ion))
+            self.ions.append(ModelIon(tmp_ch_ion, ion['resolved_wavelengths'], 
+                             self.temperature_mesh, self.density_mesh))
 
     def save(self, savedir=None):
         """
