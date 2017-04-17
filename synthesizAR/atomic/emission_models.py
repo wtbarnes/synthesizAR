@@ -93,8 +93,10 @@ class EmissionModel(object):
             tmp_ch_ion = ChIon(ion['name'], np.ravel(self.temperature_mesh),
                                np.ravel(self.density_mesh), chianti_db_filename)
             tmp_ch_ion.meta['rcparams']['flux'] = energy_unit
-            self.ions.append(ModelIon(tmp_ch_ion, ion['resolved_wavelengths'], 
-                             self.temperature_mesh, self.density_mesh))
+            self.ions.append({'chianti_ion':tmp_ch_ion,
+                              'resolved_wavelengths':ion['resolved_wavelengths']})
+            #self.ions.append(ModelIon(tmp_ch_ion, ion['resolved_wavelengths'], 
+            #                 self.temperature_mesh, self.density_mesh))
 
     def save(self, savedir=None):
         """
@@ -223,7 +225,7 @@ class EmissionModel(object):
             hf = h5py.File(savefile, 'w')
         for ion in self.ions:
             self.logger.info('Calculating emissivity for ion {}'.format(ion.chianti_ion.meta['name']))
-            wvl, emiss = ion.chianti_ion.calculate_emissivity()
+            wvl, emiss = ion['chianti_ion'].calculate_emissivity()
             wvl = np.sort(wvl)
             emiss = np.reshape(np.transpose(emiss)[:, np.argsort(wvl)],
                                self.temperature_mesh.shape+(len(wvl),))
@@ -235,8 +237,8 @@ class EmissionModel(object):
                 dset_emiss = grp.create_dataset('emissivity', data=emiss.value)
                 dset_emiss.attrs['units'] = emiss.unit.to_string()
             else:
-                ion._wavelength = wvl
-                ion._emissivity = emiss
+                ion['wavelength'] = wvl
+                ion['emissivity'] = emiss
         if savefile:
             hf.close()
 
