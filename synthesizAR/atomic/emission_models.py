@@ -224,7 +224,7 @@ class EmissionModel(object):
         if savefile:
             hf = h5py.File(savefile, 'w')
         for ion in self.ions:
-            self.logger.info('Calculating emissivity for ion {}'.format(ion.chianti_ion.meta['name']))
+            self.logger.info('Calculating emissivity for ion {}'.format(ion['chianti_ion'].meta['name']))
             wvl, emiss = ion['chianti_ion'].calculate_emissivity()
             wvl = np.sort(wvl)
             emiss = np.reshape(np.transpose(emiss)[:, np.argsort(wvl)],
