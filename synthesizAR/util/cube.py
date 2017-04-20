@@ -94,7 +94,7 @@ Wavelength dimension : {wvl_dim}
         files.
         """
         if use_fits:
-            self._save_to_fits(**kwargs)
+            self._save_to_fits(filename, **kwargs)
         else:
             # change extension for clarity
             filename = '.'.join([os.path.splitext(filename)[-1],'h5'])
@@ -105,7 +105,7 @@ Wavelength dimension : {wvl_dim}
         Save to HDF5 file.
         """
         dset_save_kwargs = kwargs.get('hdf5_save_params',{'compression':'gzip', 'dtype':np.float32})
-        with h5py.File(filename,'x') as hf:
+        with h5py.File(filename,'w-') as hf:
             meta_group = hf.create_group('meta')
             for key in self.meta:
                 meta_group.attrs[key] = self.meta[key]
