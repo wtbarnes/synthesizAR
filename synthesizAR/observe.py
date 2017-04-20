@@ -97,6 +97,8 @@ class Observer(object):
             self.logger.info('Flattening counts for {}'.format(instr.name))
             with h5py.File(instr.counts_file, 'a', driver='core') as hf:
                 start_index = 0
+                dset_time = hf.create_dataset('time',data=instr.observing_time.value)
+                dset_time.attrs['units'] = instr.observing_time.unit.to_string()
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                     self.logger.debug('Flattening counts for {}'.format(loop.name))
                     # LOS velocity
@@ -114,7 +116,7 @@ class Observer(object):
         """
         Assemble instrument data products and print to FITS file.
         """
-        fn_template = os.path.join(savedir, '{instr}', '{channel}', 'map_t{time:06d}.fits')
+        fn_template = os.path.join(savedir, '{instr}', '{channel}', 'map_t{i_time:06d}.fits')
         for instr in self.instruments:
             self.logger.info('Building data products for {}'.format(instr.name))
             # make coordinates histogram for normalization, only need them in 2D
@@ -122,9 +124,14 @@ class Observer(object):
                                                  bins=[instr.bins.x, instr.bins.y],
                                                  range=[instr.bin_range.x, instr.bin_range.y])
             with h5py.File(instr.counts_file, 'r') as hf:
+                reference_time = np.array(hf['time'])*u.Unit(hf['time'].attrs['units'])
                 # produce map for each timestep
-                for i, time in enumerate(instr.observing_time.value):
-                    self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time, u=instr.observing_time.unit))
+                for time in instr.observing_time:
+                    try:
+                        i = np.where(reference_time == time)[0][0]
+                    except IndexError:
+                        self.logger.exception('{} {} is not a valid observing time for {}'.format(time.value, time.unit.to_string(), instr.name))
+                    self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time.value, u=time.unit))
                     # temperature map
                     hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
                                              bins=[instr.bins.x, instr.bins.y],
@@ -141,20 +148,20 @@ class Observer(object):
                     los_velocity = hist.T*u.Unit(hf['los_velocity'].attrs['units'])
                     for channel in instr.channels:
                         dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,channel=channel['name'],
-                                                                       time=0))
+                                                                       i_time=0))
                         if not os.path.exists(dummy_dir):
                             os.makedirs(dummy_dir)
                         # setup fits header
                         header = instr.make_fits_header(self.field, channel)
-                        header['tunit'] = instr.observing_time.unit.to_string()
-                        header['t_obs'] = time
+                        header['tunit'] = time.unit.to_string()
+                        header['t_obs'] = time.value
                         # combine lines for given channel and return SunPy Map
                         tmp_map = instr.detect(hf, channel, i, header, average_temperature, los_velocity)
                         # crop to desired region and save
                         if instr.observing_area is not None:
                             tmp_map = tmp_map.crop(instr.observing_area)
                         tmp_map.save(fn_template.format(instr=instr.name, channel=channel['name'],
-                                                        time=i))
+                                                        i_time=i))
 
     @u.quantity_input(time=u.s)
     def make_los_velocity_map(self, time, instr, **kwargs):
