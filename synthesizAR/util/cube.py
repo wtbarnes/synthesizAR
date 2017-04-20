@@ -5,6 +5,7 @@ Object to deal with x,y,lambda data cubes
 import os
 
 import numpy as np
+import h5py
 import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
@@ -25,7 +26,7 @@ class EISCube(object):
 
     def __init__(self, *args, **kwargs):
         if len(args) == 1 and os.path.exists(args[0]):
-            data, header, wavelength = self._restore_from_fits(args[0])
+            data, header, wavelength = self._restore_from_file(args[0], **kwargs)
         elif all([k in kwargs for k in ['data', 'header', 'wavelength']]):
             data = kwargs.get('data')
             header = kwargs.get('header')
@@ -41,6 +42,7 @@ class EISCube(object):
         self.wavelength = wavelength
         self.data = data
         self.cmap = kwargs.get('cmap', sunpy.cm.get_cmap('hinodexrt'))
+        self._fix_header()
 
     def __repr__(self):
         return '''synthesizAR {obj_name}
@@ -77,7 +79,42 @@ Wavelength dimension : {wvl_dim}
             tmp_map.plot_settings.update({'cmap': self.cmap})
             return tmp_map
 
-    def save(self, filename):
+    def _fix_header(self):
+        """
+        Set any missing keys, reset any broken ones
+        """
+        # assuming y is rows, x is columns
+        self.meta['naxis1'] = self.data.shape[1]
+        self.meta['naxis2'] = self.data.shape[0]
+        self.meta['naxis3'] = self.wavelength.shape[0]
+
+    def save(self, filename, use_fits=False, **kwargs):
+        """
+        Save to FITS or HDF5 file. Default is HDF5 because this is faster and produces smaller
+        files.
+        """
+        if use_fits:
+            self._save_to_fits(**kwargs)
+        else:
+            # change extension for clarity
+            filename = '.'.join([os.path.splitext(filename),'h5'])
+            self._save_to_hdf5(filename, **kwargs)
+
+    def _save_to_hdf5(self, filename, **kwargs):
+        """
+        Save to HDF5 file.
+        """
+        dset_save_kwargs = kwargs.get('hdf5_save_params',{'compression':'gzip', 'dtype':np.float32})
+        with h5py.File(filename,'x') as hf:
+            meta_group = hf.create_group('meta')
+            for key in self.meta:
+                meta_group.attrs[key] = self.meta[key]
+            dset_wvl = hf.create_dataset('wavelength', data=self.wavelength.value)
+            dset_wvl.attrs['units'] = self.wavelength.unit.to_string()
+            dset_intensity = hf.create_dataset('intensity',data=self.data, **dset_save_kwargs)
+            dset_intensity.attrs['units'] = self.data.unit.to_string()
+
+    def _save_to_fits(self, filename, **kwargs):
         """
         Save to FITS file
         """
@@ -98,6 +135,34 @@ Wavelength dimension : {wvl_dim}
         # write to file
         hdulist = astropy.io.fits.HDUList([image_hdu, table_hdu])
         hdulist.writeto(filename, output_verify='silentfix')
+
+    def _restore_from_file(self, filename, **kwargs):
+        """
+        Load from HDF5 or FITS file
+        """
+        use_fits = kwargs.get('use_fits',os.path.splitext(filename)[-1] == '.fits')
+        use_hdf5 = kwargs.get('use_hdf5',os.path.splitext(filename)[-1] == '.h5')
+        if use_fits:
+            data, header, wavelength = self._restore_from_fits(filename)
+        elif use_hdf5:
+            data, header, wavelength = self._restore_from_hdf5(filename)
+        else:
+            raise ValueError('Cube can only be initialized with a FITS or HDF5 file.')
+
+        return data, header, wavelength
+
+    def _restore_from_hdf5(self, filename):
+        """
+        Helper to load cube from HDF5 file
+        """
+        header = MapMeta()
+        with h5py.File(filename,'r') as hf:
+            for key in hf['meta'].attrs:
+                header[key] = hf['meta'].attrs[key]
+            wavelength = np.array(hf['wavelength'])*u.Unit(hf['wavelength'].attrs['units'])
+            data = np.array(hf['intensity'])*u.Unit(hf['intensity'].attrs['units'])
+
+        return data, header, wavelength
 
     def _restore_from_fits(self, filename):
         """
