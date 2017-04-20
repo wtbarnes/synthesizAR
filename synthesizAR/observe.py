@@ -175,16 +175,14 @@ class Observer(object):
         if 'plot_settings' in kwargs:
             plot_settings.update(kwargs.get('plot_settings'))
 
-        i_time = np.where(instr.observing_time == time)[0]
-        if len(i_time) == 0:
-            raise ValueError('{} is not a valid time in observing time for {}'.format(time, instr.name))
-        else:
-            i_time = i_time[0]
-
         hist_coordinates, _ = np.histogramdd(self.total_coordinates.value[:,:2],
                                              bins=[instr.bins.x, instr.bins.y],
                                              range=[instr.bin_range.x, instr.bin_range.y])
         with h5py.File(instr.counts_file, 'r') as hf:
+            try:
+                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['unit']) == time)[0][0]
+            except IndexError:
+                self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
             tmp = np.array(hf['los_velocity'][i_time,:])
             units = u.Unit(hf['los_velocity'].attrs['units'])
         hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
@@ -212,16 +210,14 @@ class Observer(object):
         if 'plot_settings' in kwargs:
             plot_settings.update(kwargs.get('plot_settings'))
 
-        i_time = np.where(instr.observing_time == time)[0]
-        if len(i_time) == 0:
-            raise ValueError('{} is not a valid time in observing time for {}'.format(time, instr.name))
-        else:
-            i_time = i_time[0]
-
         hist_coordinates, _ = np.histogramdd(self.total_coordinates.value[:,:2],
                                              bins=[instr.bins.x, instr.bins.y],
                                              range=[instr.bin_range.x, instr.bin_range.y])
         with h5py.File(instr.counts_file, 'r') as hf:
+            try:
+                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['unit']) == time)[0][0]
+            except IndexError:
+                self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
             tmp = np.array(hf['average_temperature'][i_time,:])
             units = u.Unit(hf['average_temperature'].attrs['units'])
         hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
