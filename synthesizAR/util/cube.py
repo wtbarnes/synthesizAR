@@ -97,7 +97,7 @@ Wavelength dimension : {wvl_dim}
             self._save_to_fits(**kwargs)
         else:
             # change extension for clarity
-            filename = '.'.join([os.path.splitext(filename),'h5'])
+            filename = '.'.join([os.path.splitext(filename)[-1],'h5'])
             self._save_to_hdf5(filename, **kwargs)
 
     def _save_to_hdf5(self, filename, **kwargs):
