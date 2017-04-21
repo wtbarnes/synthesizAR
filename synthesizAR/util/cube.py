@@ -79,7 +79,7 @@ Wavelength dimension : {wvl_dim}
             tmp_map.plot_settings.update({'cmap': self.cmap})
             return tmp_map
 
-    def __mult__(self,x):
+    def __mul__(self,x):
         """
         Allow for multiplication of data in the cube.
         """
@@ -89,11 +89,11 @@ Wavelength dimension : {wvl_dim}
         header['bunit'] = (data.unit).to_string()
         return EISCube(data=data,header=header,wavelength=self.wavelength)
 
-    def __rmult__(self,x):
+    def __rmul__(self,x):
         """
         Define reverse multiplication in the same way as multiplication.
         """
-        return __mult__(x)
+        return self.__mul__(x)
 
     def _fix_header(self):
         """
