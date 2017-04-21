@@ -274,6 +274,9 @@ class EmissionModel(object):
         emiss, meta = {}, {}
         # calculate emissivity
         for ion in self.ions:
+            if ion.resolved_wavelengths.size == 0:
+                # only calculate emission for wavelength-resolved ions
+                continue
             self.logger.debug('Calculating emissivity for ion {}'.format(ion.chianti_ion.meta['name']))
             fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
                                                                    ion.chianti_ion.meta['Ion'])
