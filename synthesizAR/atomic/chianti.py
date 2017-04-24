@@ -337,17 +337,16 @@ class ChIon(object):
         """Calculate ionization equilibrium."""
         _tmp_ioneq = ch_tools_io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
         match_indices = np.where(
-            (self.temperature.value>=_tmp_ioneq['ioneqTemperature'].min()) & \
-            (self.temperature.value<=_tmp_ioneq['ioneqTemperature'].max()))[0]
+            (self.temperature.value >= _tmp_ioneq['ioneqTemperature'].min()) & 
+            (self.temperature.value <= _tmp_ioneq['ioneqTemperature'].max()))[0]
         if len(match_indices) != len(self.temperature):
             warnings.warn('''Temperature out of ionization equilibrium range.
                             Those temperatures will have zero fractional ionization.''')
         fractional_ionization = np.zeros(len(self.temperature))
         f_interp = splrep(np.log10(_tmp_ioneq['ioneqTemperature']),
-                          _tmp_ioneq['ioneqAll'][self.meta['Z']-1,self.meta['Ion']-1+self.meta['Dielectronic'],:],
-                          k=1)
-        fractional_ionization[match_indices] = splev(np.log10(self.temperature[match_indices].value),ext=1)
-        fractional_ionization[fractional_ionization<0] = 0.0
+                          _tmp_ioneq['ioneqAll'][self.meta['Z']-1,self.meta['Ion']-1+self.meta['Dielectronic'],:], k=1)
+        fractional_ionization[match_indices] = splev(np.log10(self.temperature[match_indices].value), f_interp, ext=1)
+        fractional_ionization[fractional_ionization < 0] = 0.0
 
         # make it a unitless quantity
         return fractional_ionization*u.dimensionless_unscaled
