@@ -343,13 +343,11 @@ class ChIon(object):
             warnings.warn('''Temperature out of ionization equilibrium range.
                             Those temperatures will have zero fractional ionization.''')
         fractional_ionization = np.zeros(len(self.temperature))
-        f_interp = interp1d(np.log10(_tmp_ioneq['ioneqTemperature']),
-                                     _tmp_ioneq['ioneqAll'][self.meta['Z']-1,
-                                     self.meta['Ion']-1+self.meta['Dielectronic'],:],
-                                     kind='cubic')
-        fractional_ionization[match_indices] = f_interp(np.log10(
-                                                            self.temperature[match_indices].value))
+        f_interp = splrep(np.log10(_tmp_ioneq['ioneqTemperature']),
+                          _tmp_ioneq['ioneqAll'][self.meta['Z']-1,self.meta['Ion']-1+self.meta['Dielectronic'],:],
+                          k=1)
+        fractional_ionization[match_indices] = splev(np.log10(self.temperature[match_indices].value),ext=1)
         fractional_ionization[fractional_ionization<0] = 0.0
 
         # make it a unitless quantity
-        return fractional_ionization*u.s/u.s
+        return fractional_ionization*u.dimensionless_unscaled
