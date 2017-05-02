@@ -79,7 +79,7 @@ Wavelength dimension : {wvl_dim}
             tmp_map.plot_settings.update({'cmap': self.cmap})
             return tmp_map
 
-    def __mul__(self,x):
+    def __mul__(self, x):
         """
         Allow for multiplication of data in the cube.
         """
@@ -87,9 +87,9 @@ Wavelength dimension : {wvl_dim}
         data = self.data*x
         header = self.meta.copy()
         header['bunit'] = (data.unit).to_string()
-        return EISCube(data=data,header=header,wavelength=self.wavelength)
+        return EISCube(data=data, header=header, wavelength=self.wavelength)
 
-    def __rmul__(self,x):
+    def __rmul__(self, x):
         """
         Define reverse multiplication in the same way as multiplication.
         """
@@ -120,14 +120,14 @@ Wavelength dimension : {wvl_dim}
         """
         Save to HDF5 file.
         """
-        dset_save_kwargs = kwargs.get('hdf5_save_params',{'compression':'gzip', 'dtype':np.float32})
-        with h5py.File(filename,'x') as hf:
+        dset_save_kwargs = kwargs.get('hdf5_save_params', {'compression': 'gzip', 'dtype': np.float32})
+        with h5py.File(filename, 'x') as hf:
             meta_group = hf.create_group('meta')
             for key in self.meta:
                 meta_group.attrs[key] = self.meta[key]
             dset_wvl = hf.create_dataset('wavelength', data=self.wavelength.value)
             dset_wvl.attrs['units'] = self.wavelength.unit.to_string()
-            dset_intensity = hf.create_dataset('intensity',data=self.data, **dset_save_kwargs)
+            dset_intensity = hf.create_dataset('intensity', data=self.data, **dset_save_kwargs)
             dset_intensity.attrs['units'] = self.data.unit.to_string()
 
     def _save_to_fits(self, filename, **kwargs):
@@ -156,8 +156,8 @@ Wavelength dimension : {wvl_dim}
         """
         Load from HDF5 or FITS file
         """
-        use_fits = kwargs.get('use_fits',os.path.splitext(filename)[-1] == '.fits')
-        use_hdf5 = kwargs.get('use_hdf5',os.path.splitext(filename)[-1] == '.h5')
+        use_fits = kwargs.get('use_fits', os.path.splitext(filename)[-1] == '.fits')
+        use_hdf5 = kwargs.get('use_hdf5', os.path.splitext(filename)[-1] == '.h5')
         if use_fits:
             data, header, wavelength = self._restore_from_fits(filename)
         elif use_hdf5:
@@ -172,7 +172,7 @@ Wavelength dimension : {wvl_dim}
         Helper to load cube from HDF5 file
         """
         header = MapMeta()
-        with h5py.File(filename,'r') as hf:
+        with h5py.File(filename, 'r') as hf:
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
             wavelength = np.array(hf['wavelength'])*u.Unit(hf['wavelength'].attrs['units'])
