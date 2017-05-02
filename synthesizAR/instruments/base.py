@@ -43,12 +43,12 @@ class InstrumentBase(object):
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
         # Allocate space for LOS velocity and temperature
         with h5py.File(self.counts_file, 'a') as hf:
+            if 'average_density' not in hf:
+                hf.create_dataset('average_density', (len(self.observing_time), num_loop_coordinates), chunks=True)
             if 'average_temperature' not in hf:
-                hf.create_dataset('average_temperature',
-                                  (len(self.observing_time), num_loop_coordinates), chunks=True)
+                hf.create_dataset('average_temperature', (len(self.observing_time), num_loop_coordinates), chunks=True)
             if 'los_velocity' not in hf:
-                hf.create_dataset('los_velocity', (len(self.observing_time), num_loop_coordinates),
-                                  chunks=True)
+                hf.create_dataset('los_velocity', (len(self.observing_time), num_loop_coordinates), chunks=True)
 
     def interpolate_and_store(self, y, loop, interp_s, dset, start_index):
         """

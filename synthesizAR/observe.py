@@ -108,6 +108,9 @@ class Observer(object):
                     # Average temperature
                     dset = hf['average_temperature']
                     instr.interpolate_and_store(loop.temperature, loop, interp_s, dset, start_index)
+                    # Average density
+                    dset = hf['average_density']
+                    instr.interpolate_and_store(loop.density, loop, interp_s, dset, start_index)
                     # Counts/emission
                     instr.flatten(loop, interp_s, hf, start_index)
                     start_index += len(interp_s)
