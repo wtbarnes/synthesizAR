@@ -183,7 +183,7 @@ class Observer(object):
                                              range=[instr.bin_range.x, instr.bin_range.y])
         with h5py.File(instr.counts_file, 'r') as hf:
             try:
-                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['unit']) == time)[0][0]
+                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
             except IndexError:
                 self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
             tmp = np.array(hf['los_velocity'][i_time,:])
@@ -218,7 +218,7 @@ class Observer(object):
                                              range=[instr.bin_range.x, instr.bin_range.y])
         with h5py.File(instr.counts_file, 'r') as hf:
             try:
-                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['unit']) == time)[0][0]
+                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
             except IndexError:
                 self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
             tmp = np.array(hf['average_temperature'][i_time,:])
