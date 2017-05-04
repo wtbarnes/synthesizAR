@@ -89,7 +89,7 @@ class Observer(object):
             instr.make_detector_array(self.field)
             instr.build_detector_file(self.field, len(self.total_coordinates), file_template)
 
-    def flatten_detector_counts(self):
+    def flatten_detector_counts(self, write_reset_count=20):
         """
         Interpolate and flatten emission data from loop objects.
         """
@@ -102,7 +102,7 @@ class Observer(object):
             for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
                 self.logger.debug('Flattening counts for {}'.format(loop.name))
                 # Balance memory usage and number of writes
-                if counter > 0 and counter % 50 == 0:
+                if counter > 0 and counter % write_reset_count == 0:
                     hf.close()
                     hf = h5py.File(instr.counts_file, 'a', driver='core')
                 # LOS velocity
