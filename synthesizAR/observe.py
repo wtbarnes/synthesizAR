@@ -89,36 +89,31 @@ class Observer(object):
             instr.make_detector_array(self.field)
             instr.build_detector_file(self.field, len(self.total_coordinates), file_template)
 
-    def flatten_detector_counts(self, write_reset_count=20):
+    def flatten_detector_counts(self, hdf5_driver=None):
         """
         Interpolate and flatten emission data from loop objects.
         """
         for instr in self.instruments:
             self.logger.info('Flattening counts for {}'.format(instr.name))
-            hf = h5py.File(instr.counts_file, 'a', driver='core')
-            start_index = 0
-            dset_time = hf.create_dataset('time',data=instr.observing_time.value)
-            dset_time.attrs['units'] = instr.observing_time.unit.to_string()
-            for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
-                self.logger.debug('Flattening counts for {}'.format(loop.name))
-                # Balance memory usage and number of writes
-                if counter > 0 and counter % write_reset_count == 0:
-                    hf.close()
-                    hf = h5py.File(instr.counts_file, 'a', driver='core')
-                # LOS velocity
-                los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
-                dset = hf['los_velocity']
-                instr.interpolate_and_store(los_velocity, loop, interp_s, dset, start_index)
-                # Average temperature
-                dset = hf['average_temperature']
-                instr.interpolate_and_store(loop.temperature, loop, interp_s, dset, start_index)
-                # Average density
-                dset = hf['average_density']
-                instr.interpolate_and_store(loop.density, loop, interp_s, dset, start_index)
-                # Counts/emission
-                instr.flatten(loop, interp_s, hf, start_index)
-                start_index += len(interp_s)
-            hf.close()
+            with h5py.File(instr.counts_file, 'a', driver=hdf5_driver) as hf:
+                start_index = 0
+                dset_time = hf.create_dataset('time', data=instr.observing_time.value)
+                dset_time.attrs['units'] = instr.observing_time.unit.to_string()
+                for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
+                    self.logger.debug('Flattening counts for {}'.format(loop.name))
+                    # LOS velocity
+                    los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
+                    dset = hf['los_velocity']
+                    instr.interpolate_and_store(los_velocity, loop, interp_s, dset, start_index)
+                    # Average temperature
+                    dset = hf['average_temperature']
+                    instr.interpolate_and_store(loop.temperature, loop, interp_s, dset, start_index)
+                    # Average density
+                    dset = hf['average_density']
+                    instr.interpolate_and_store(loop.density, loop, interp_s, dset, start_index)
+                    # Counts/emission
+                    instr.flatten(loop, interp_s, hf, start_index)
+                    start_index += len(interp_s)
 
     def bin_detector_counts(self, savedir):
         """
