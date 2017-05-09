@@ -79,6 +79,25 @@ Wavelength dimension : {wvl_dim}
             tmp_map.plot_settings.update({'cmap': self.cmap})
             return tmp_map
 
+    def submap(self, range_x, range_y):
+        """
+        Crop to spatial area designated by x and y ranges. Uses `~sunpy.map.Map.submap`
+
+        .. warning:: It is better to crop in wavelength space first and then crop in
+                     coordinate space.
+        """
+        # call submap on each slice in wavelength
+        new_data = []
+        for i in range(self.wavelength.shape[0]):
+            new_data.append(self[i].submap(range_x,range_y).data)
+        new_data = np.stack(new_data,axis=2)*self.data.unit
+        # fix metadata
+        new_meta = self[0].submap(range_x, range_y).meta.copy()
+        for key in ['wavelnth','naxis3', 'ctype3', 'cunit3', 'cdelt3']:
+            new_meta[key] = self.meta[key]
+
+        return EISCube(data=new_data, header=new_meta, wavelength=self.wavelength)
+
     def __mul__(self, x):
         """
         Allow for multiplication of data in the cube.
