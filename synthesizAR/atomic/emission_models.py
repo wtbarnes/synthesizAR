@@ -131,7 +131,7 @@ class EmissionModel(object):
                     pickle.dump((ion._wavelength, ion._emissivity), f)
 
     @classmethod
-    def restore(cls, savedir):
+    def restore(cls, savedir, load_emissivity=True):
         """
         Restore emission model from savefile
         """
@@ -146,7 +146,9 @@ class EmissionModel(object):
             tmp_ion_file = os.path.join(savedir, '{}', '{}.pickle'.format(ion.chianti_ion.meta['name']))
             if os.path.isfile(tmp_ion_file.format('emissivity')):
                 with open(tmp_ion_file.format('emissivity'), 'rb') as f:
-                    ion._wavelength, ion._emissivity = pickle.load(f)
+                    ion._wavelength, _emissivity = pickle.load(f)
+                    if load_emissivity:
+                        ion._emissivity = _emissivity
             if emissivity_savefile:
                 ion.emissivity_savefile = emissivity_savefile
 
