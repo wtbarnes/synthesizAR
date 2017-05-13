@@ -238,3 +238,60 @@ class Observer(object):
         tmp_map.plot_settings.update(plot_settings)
 
         return tmp_map
+
+    @u.quantity_input(time=u.s)
+    def make_emission_measure_map(self, time, instr, temperature_bin_edges=None, **kwargs):
+        """
+        Return a cube of maps showing the emission meausure in each pixel
+        as a function of temperature.
+        """
+        plot_settings = {'cmap': matplotlib.cm.get_cmap('magma'),
+                         'norm': matplotlib.colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}
+        if 'plot_settings' in kwargs:
+            plot_settings.update(kwargs.get('plot_settings'))
+
+        # read unbinned temperature and density
+        with h5py.File(instr.counts_file, 'r') as hf:
+            try:
+                i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
+            except IndexError:
+                self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
+            unbinned_temperature = np.array(hf['average_temperature'][i_time,:])
+            temperature_unit = u.Unit(hf['average_temperature'].attrs['units'])
+            unbinned_density = np.array(hf['average_density'][i_time,:])
+            density_unit = u.Unit(hf['average_density'].attrs['units'])
+
+        # setup bin edges and weights
+        if temperature_bin_edges is None:
+            temperature_bin_edges = 10.**(np.arange(5.5, 7.5, 0.1))*u.K
+        _, (x_bin_edges, y_bin_edges, z_bin_edges) = np.histogramdd(self.total_coordinates.value,
+                                                                    bins=[instr.bins.x, instr.bins.y, instr.bins.z],
+                                                                    range=[instr.bin_range.x, instr.bin_range.y, instr.bin_range.z])
+        z_bin_indices = np.digitize(self.total_coordinates.value[:,2], z_bin_edges, right=True)
+        dh = np.diff(z_bin_edges)[z_bin_indices - 1]
+        emission_measure_weights = (unbinned_density**2)*dh
+        # bin in x,y,T space with emission measure weights
+        xyT_coordinates = np.append(self.total_coordinates.value[:,:2], 
+                                    unbinned_temperature[:,np.newaxis], axis=1)
+        hist, _ = np.histogramdd(xyT_coordinates, bins=[x_bin_edges, y_bin_edges, temperature_bin_edges.value], 
+                                 weights=emission_measure_weights)
+        # build map list
+        map_list = []
+        for i in range(temperature_bin_edges.shape[0] - 1):
+            meta = instr.make_fits_header(self.field, instr.channels[0])
+            del meta['wavelnth']
+            del meta['waveunit']
+            meta['temp_a'] = temperature_bin_edges[i].value
+            meta['temp_b'] = temperature_bin_edges[i+1].value
+            meta['temp_unit'] = temperature_bin_edges.unit.to_string()
+            meta['bunit'] = (density_unit*density_unit*self.total_coordinates.unit).to_string()
+            meta['detector'] = r'$\mathrm{EM}(T)$'
+            meta['comment'] = 'LOS Emission Measure distribution'
+            tmp = sunpy.map.GenericMap(hist[:,:,i].T, meta)
+            tmp.plot_settings.update(plot_settings)
+            map_list.append(tmp)
+
+        cube = sunpy.map.Map(map_list, cube=True)
+        cube.temperature_bin_edges = temperature_bin_edges
+
+        return cube
