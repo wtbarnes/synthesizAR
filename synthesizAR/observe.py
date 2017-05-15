@@ -15,6 +15,7 @@ import astropy.units as u
 import sunpy.map
 import h5py
 
+from synthesizAR.util import EMCube
 
 class Observer(object):
     """
@@ -242,7 +243,7 @@ class Observer(object):
     @u.quantity_input(time=u.s)
     def make_emission_measure_map(self, time, instr, temperature_bin_edges=None, **kwargs):
         """
-        Return a cube of maps showing the emission meausure in each pixel
+        Return a cube of maps showing the true emission meausure in each pixel
         as a function of temperature.
         """
         plot_settings = {'cmap': matplotlib.cm.get_cmap('magma'),
@@ -275,23 +276,12 @@ class Observer(object):
                                     unbinned_temperature[:,np.newaxis], axis=1)
         hist, _ = np.histogramdd(xyT_coordinates, bins=[x_bin_edges, y_bin_edges, temperature_bin_edges.value], 
                                  weights=emission_measure_weights)
-        # build map list
-        map_list = []
-        for i in range(temperature_bin_edges.shape[0] - 1):
-            meta = instr.make_fits_header(self.field, instr.channels[0])
-            del meta['wavelnth']
-            del meta['waveunit']
-            meta['temp_a'] = temperature_bin_edges[i].value
-            meta['temp_b'] = temperature_bin_edges[i+1].value
-            meta['temp_unit'] = temperature_bin_edges.unit.to_string()
-            meta['bunit'] = (density_unit*density_unit*self.total_coordinates.unit).to_string()
-            meta['detector'] = r'$\mathrm{EM}(T)$'
-            meta['comment'] = 'LOS Emission Measure distribution'
-            tmp = sunpy.map.GenericMap(hist[:,:,i].T, meta)
-            tmp.plot_settings.update(plot_settings)
-            map_list.append(tmp)
 
-        cube = sunpy.map.Map(map_list, cube=True)
-        cube.temperature_bin_edges = temperature_bin_edges
+        meta_base = instr.make_fits_header(self.field, instr.channels[0])
+        del meta_base['wavelnth']
+        del meta_base['waveunit']
+        meta_base['detector'] = r'$\mathrm{EM}(T)$'
+        meta_base['comment'] = 'LOS Emission Measure distribution'
+        data = np.transpose(hist, (1,0,2))*density_unit*density_unit*self.total_coordinates.unit
 
-        return cube
+        return EMCube(data, meta_base, temperature_bin_edges, plot_settings=plot_settings)

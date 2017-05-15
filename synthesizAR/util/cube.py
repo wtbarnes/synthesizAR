@@ -9,7 +9,7 @@ import h5py
 import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
-from sunpy.map import Map
+from sunpy.map import Map, MapCube
 try:
     from sunpy.map import MapMeta
 except ImportError:
@@ -17,6 +17,74 @@ except ImportError:
     # But necessary for the time being with current dev release
     from sunpy.util.metadata import MetaDict as MapMeta
 from sunpy.io.fits import get_header
+
+
+class EMCube(MapCube):
+    """
+    Container for the emission measure at each pixel of a map for a range of temperatures.
+
+    Parameters
+    ----------
+    Examples
+    --------
+    """
+
+    @u.quantity_input(temperature_bin_edges=u.K)
+    def __init__(self, data, header, temperature_bin_edges, **kwargs):
+        self.temperature_bin_edges = temperature_bin_edges
+        # sanitize header
+        meta_base = header.copy()
+        meta_base['temp_unit'] = self.temperature_bin_edges.unit.to_string()
+        meta_base['bunit'] = data.unit.to_string()
+        # build map list
+        map_list = []
+        for i in range(self.temperature_bin_edges.shape[0] - 1):
+            tmp = GenericMap(data[:,:,i], meta_base)
+            tmp.meta['temp_a'] = self.temperature_bin_edges[i].value
+            tmp.meta['temp_b'] = self.temperature_bin_edges[i+1].value
+            tmp.plot_settings.update(kwargs.get('plot_settings',{}))
+            map_list.append(tmp)
+
+        # call super method
+        super().__init__(map_list)
+
+    @property
+    def total_emission(self):
+        """
+        Sum the emission measure over all temperatures.
+        """
+        tmp_meta = self[0].meta.copy()
+        tmp_meta['temp_a'] = self.temperature_bin_edges[0]
+        tmp_meta['temp_b'] = self.temperature_bin_edges[-1]
+        tmp = GenericMap(self.as_array().sum(axis=2), tmp_meta)
+        tmp.plot_settings.update(self[0].plot_settings)
+        return tmp
+
+    def get_1d_distribution(self, range_a, range_b):
+        """
+        Return a 1D emission measure distribution for a spatial selection. The mean is
+        taken over the desired spatial selection.
+        """
+        em_list = []
+        for i in range(self.temperature_bin_edges.shape[0] - 1):
+            em_list.append(self[i].submap(range_a, range_b).data.mean())
+
+        return self.temperature_bin_edges, u.Quantity(em_list, u.Unit(self[0].meta['bunit']))
+
+    def __getitem__(self, key):
+        """
+        Override the MapCube indexing so that an `EMCube` object is returned.
+        """
+        if type(self.temperature_bin_edges[key].value) == np.ndarray and len(self.temperature_bin_edges[key].value) > 1:
+            tmp_data = u.Quantity(self.as_array()[:,:,key], u.Unit(self.maps[0].meta['bunit']))
+            tmp_meta = self.maps[0].meta.copy()
+            tmp = EMCube(tmp_data, tmp_meta, self.temperature_bin_edges[key], plot_settings=self.maps[0].plot_settings)
+        else:
+            tmp = self.maps[key]
+            tmp.meta['temp_a'] = self.temperature_bin_edges[key].value
+            tmp.meta['temp_b'] = self.temperature_bin_edges[key+1].value
+
+        return tmp
 
 
 class EISCube(object):
