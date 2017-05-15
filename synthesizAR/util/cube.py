@@ -9,7 +9,7 @@ import h5py
 import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
-from sunpy.map import Map, MapCube
+from sunpy.map import Map, MapCube, GenericMap
 try:
     from sunpy.map import MapMeta
 except ImportError:
