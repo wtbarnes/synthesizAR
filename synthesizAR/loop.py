@@ -60,18 +60,32 @@ Maximum field strength : {max_b:.2f}
                                      axis=1))*self.coordinates.unit
 
     @property
-    def temperature(self):
+    def electron_temperature(self):
         """
-        Loop temperature as function of coordinate and time. Can be stored in memory or pulled from
-        an HDF5 file.
+        Loop electron temperature as function of coordinate and time. Can be stored in memory or
+        pulled from an HDF5 file.
         """
         if hasattr(self, 'parameters_savefile'):
             with h5py.File(self.parameters_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, 'temperature'])]
+                dset = hf['/'.join([self.name, 'electron_temperature'])]
                 temperature = np.array(dset)*u.Unit(dset.attrs['units'])
             return temperature
         else:
-            return self._temperature
+            return self._electron_temperature
+
+    @property
+    def ion_temperature(self):
+        """
+        Loop ion temperature as function of coordinate and time. Can be stored in memory or
+        pulled from an HDF5 file.
+        """
+        if hasattr(self, 'parameters_savefile'):
+            with h5py.File(self.parameters_savefile, 'r') as hf:
+                dset = hf['/'.join([self.name, 'ion_temperature'])]
+                temperature = np.array(dset)*u.Unit(dset.attrs['units'])
+            return temperature
+        else:
+            return self._ion_temperature
 
     @property
     def density(self):

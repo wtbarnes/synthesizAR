@@ -244,13 +244,13 @@ class EmissionModel(object):
 
     def interpolate_to_mesh_indices(self, loop):
         """
-        Return interpolated loop indices to the temperature and density meshes defined for 
+        Return interpolated loop indices to the temperature and density meshes defined for
         the atomic data. For use with `~scipy.ndimage.map_coordinates`.
         """
         nots_itemperature = splrep(self.temperature_mesh[:, 0].value,
                                    np.arange(self.temperature_mesh.shape[0]))
         nots_idensity = splrep(self.density_mesh[0, :].value, np.arange(self.density_mesh.shape[1]))
-        itemperature = splev(np.ravel(loop.temperature.value), nots_itemperature)
+        itemperature = splev(np.ravel(loop.electron_temperature.value), nots_itemperature)
         idensity = splev(np.ravel(loop.density.value), nots_idensity)
 
         return itemperature, idensity
@@ -294,7 +294,7 @@ class EmissionModel(object):
                 i = np.argwhere(np.isclose(ion.wavelength.value, t.value, rtol=0.0, atol=1.e-5))[0][0]
                 _tmp = np.reshape(map_coordinates(ion.emissivity[:, :, i].value,
                                                   np.vstack([itemperature, idensity])),
-                                  loop.temperature.shape)
+                                  loop.electron_temperature.shape)
                 _tmp = np.where(_tmp > 0.0, _tmp, 0.0)
                 emiss['{}'.format(t.value)] = _tmp*ion.emissivity.unit*em_ion
                 meta['{}'.format(t.value)] = {'ion_name': ion.chianti_ion.meta['spectroscopic_name'],

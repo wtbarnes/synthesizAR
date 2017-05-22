@@ -73,14 +73,15 @@ class EbtelInterface(object):
 
         # reshape into a 1D loop structure with units
         time = _tmp[:, 0]*u.s
-        temperature = np.outer(_tmp[:, 1], np.ones(N_s))*u.K
+        electron_temperature = np.outer(_tmp[:, 1], np.ones(N_s))*u.K
+        ion_temperature = np.outer(_tmp[:, 2], np.ones(N_s))*u.K
         density = np.outer(_tmp[:, 3], np.ones(N_s))*(u.cm**(-3))
         velocity = np.outer(_tmp[:, -2], np.ones(N_s))*u.cm/u.s
         # flip sign of velocity at apex
         i_mirror = np.where(np.diff(loop.coordinates.value[:, 2]) > 0)[0][-1] + 2
         velocity[:, i_mirror:] = -velocity[:, i_mirror:]
 
-        return time, temperature, density, velocity
+        return time, electron_temperature, ion_temperature, density, velocity
 
     def get_fractional_ionization(self, ion_list, loop, **kwargs):
         """
@@ -110,7 +111,7 @@ class EbtelInterface(object):
             # calculate the NEI populations
             self.logger.debug('Calculating NEI populations for {}'.format(element))
             nei_populations = solve_nei_populations(loop.time.value,
-                                                    loop.temperature.value[:, 0],
+                                                    loop.electron_temperature.value[:, 0],
                                                     loop.density.value[:, 0],
                                                     self._rate_data[element]['ionization_rate'],
                                                     self._rate_data[element]['recombination_rate'],
@@ -119,6 +120,6 @@ class EbtelInterface(object):
                                                     **nei_solver_options)
             for ion in grouped_ions[element]:
                 fractional_ionization['{}_{}'.format(element, ion)] = np.repeat(nei_populations[:, ion, np.newaxis],
-                                                                                loop.temperature.shape[1],axis=1)
+                                                                                loop.electron_temperature.shape[1],axis=1)
 
         return fractional_ionization

@@ -106,11 +106,14 @@ class Observer(object):
                     los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
                     dset = hf['los_velocity']
                     instr.interpolate_and_store(los_velocity, loop, interp_s, dset, start_index)
-                    # Average temperature
-                    dset = hf['average_temperature']
-                    instr.interpolate_and_store(loop.temperature, loop, interp_s, dset, start_index)
+                    # Electron temperature
+                    dset = hf['electron_temperature']
+                    instr.interpolate_and_store(loop.electron_temperature, loop, interp_s, dset, start_index)
+                    # Ion temperature
+                    dset = hf['ion_temperature']
+                    instr.interpolate_and_store(loop.ion_temperature, loop, interp_s, dset, start_index)
                     # Average density
-                    dset = hf['average_density']
+                    dset = hf['density']
                     instr.interpolate_and_store(loop.density, loop, interp_s, dset, start_index)
                     # Counts/emission
                     instr.flatten(loop, interp_s, hf, start_index)
@@ -136,13 +139,13 @@ class Observer(object):
                     except IndexError:
                         self.logger.exception('{} {} is not a valid observing time for {}'.format(time.value, time.unit.to_string(), instr.name))
                     self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time.value, u=time.unit))
-                    # temperature map
+                    # ion temperature map
                     hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
                                              bins=[instr.bins.x, instr.bins.y],
                                              range=[instr.bin_range.x, instr.bin_range.y],
-                                             weights=np.array(hf['average_temperature'][i,:]))
+                                             weights=np.array(hf['ion_temperature'][i,:]))
                     hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
-                    average_temperature = hist.T*u.Unit(hf['average_temperature'].attrs['units'])
+                    ion_temperature = hist.T*u.Unit(hf['ion_temperature'].attrs['units'])
                     # LOS velocity map
                     hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
                                              bins=[instr.bins.x, instr.bins.y],
@@ -160,7 +163,7 @@ class Observer(object):
                         header['tunit'] = time.unit.to_string()
                         header['t_obs'] = time.value
                         # combine lines for given channel and return SunPy Map
-                        tmp_map = instr.detect(hf, channel, i, header, average_temperature, los_velocity)
+                        tmp_map = instr.detect(hf, channel, i, header, ion_temperature, los_velocity)
                         # crop to desired region and save
                         if instr.observing_area is not None:
                             tmp_map = tmp_map.crop(instr.observing_area)
@@ -208,7 +211,7 @@ class Observer(object):
     @u.quantity_input(time=u.s)
     def make_temperature_map(self, time, instr, **kwargs):
         """
-        Return map of average temperature at a given time for a given instrument resolution.
+        Return map of column-averaged electron temperature at a given time for a given instrument resolution.
         """
         plot_settings = {'cmap': sns.cubehelix_palette(reverse=True, rot=.4, as_cmap=True)}
         if 'plot_settings' in kwargs:
@@ -222,8 +225,8 @@ class Observer(object):
                 i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
             except IndexError:
                 self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
-            tmp = np.array(hf['average_temperature'][i_time,:])
-            units = u.Unit(hf['average_temperature'].attrs['units'])
+            tmp = np.array(hf['electron_temperature'][i_time,:])
+            units = u.Unit(hf['electron_temperature'].attrs['units'])
         hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
                                  bins=[instr.bins.x, instr.bins.y],
                                  range=[instr.bin_range.x, instr.bin_range.y],
@@ -233,8 +236,8 @@ class Observer(object):
         del meta['wavelnth']
         del meta['waveunit']
         meta['bunit'] = units.to_string()
-        meta['detector'] = 'Temperature'
-        meta['comment'] = 'Average temperature calculated by synthesizAR'
+        meta['detector'] = 'Electron Temperature'
+        meta['comment'] = 'Column-averaged electron temperature calculated by synthesizAR'
         tmp_map = sunpy.map.GenericMap(hist.T, meta)
         tmp_map.plot_settings.update(plot_settings)
 
@@ -244,7 +247,7 @@ class Observer(object):
     def make_emission_measure_map(self, time, instr, temperature_bin_edges=None, **kwargs):
         """
         Return a cube of maps showing the true emission meausure in each pixel
-        as a function of temperature.
+        as a function of electron temperature.
         """
         plot_settings = {'cmap': matplotlib.cm.get_cmap('magma'),
                          'norm': matplotlib.colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}
@@ -257,10 +260,10 @@ class Observer(object):
                 i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
             except IndexError:
                 self.logger.exception('{} is not a valid time in observing time for {}'.format(time, instr.name))
-            unbinned_temperature = np.array(hf['average_temperature'][i_time,:])
-            temperature_unit = u.Unit(hf['average_temperature'].attrs['units'])
-            unbinned_density = np.array(hf['average_density'][i_time,:])
-            density_unit = u.Unit(hf['average_density'].attrs['units'])
+            unbinned_temperature = np.array(hf['electron_temperature'][i_time,:])
+            temperature_unit = u.Unit(hf['electron_temperature'].attrs['units'])
+            unbinned_density = np.array(hf['density'][i_time,:])
+            density_unit = u.Unit(hf['density'].attrs['units'])
 
         # setup bin edges and weights
         if temperature_bin_edges is None:

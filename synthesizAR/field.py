@@ -325,7 +325,7 @@ Magnetogram Info:
         """
         for loop in self.loops:
             self.logger.debug('Loading parameters for {}'.format(loop.name))
-            time, temperature, density, velocity = interface.load_results(loop, **kwargs)
+            time, electron_temperature, ion_temperature, density, velocity = interface.load_results(loop, **kwargs)
             loop.time = time
             # convert velocity to cartesian coordinates
             grad_xyz = np.gradient(loop.coordinates.value, axis=0)
@@ -339,9 +339,13 @@ Magnetogram Info:
                     if loop.name not in hf:
                         hf.create_group(loop.name)
                     # electron temperature
-                    dset_temperature = hf[loop.name].create_dataset('temperature',
-                                                                    data=temperature.value)
-                    dset_temperature.attrs['units'] = temperature.unit.to_string()
+                    dset_electron_temperature = hf[loop.name].create_dataset('electron_temperature',
+                                                                             data=electron_temperature.value)
+                    dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
+                    # ion temperature
+                    dset_ion_temperature = hf[loop.name].create_dataset('ion_temperature',
+                                                                        data=ion_temperature.value)
+                    dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
                     # number density
                     dset_density = hf[loop.name].create_dataset('density', data=density.value)
                     dset_density.attrs['units'] = density.unit.to_string()
@@ -358,7 +362,8 @@ Magnetogram Info:
                                                         field. Index 0->x, index 1->y, index
                                                         2->z.'''
             else:
-                loop._temperature = temperature
+                loop._electron_temperature = temperature
+                loop._ion_temperature = temperature
                 loop._density = density
                 loop._velocity = velocity
                 loop._velocity_xyz = velocity_xyz
@@ -402,7 +407,7 @@ Magnetogram Info:
                     f_ioneq = interp1d(emission_model.temperature_mesh[:, 0],
                                        ion.fractional_ionization[:, 0])
                     key = '{}_{}'.format(ion.chianti_ion.meta['Element'], ion.chianti_ion.meta['Ion'])
-                    tmp = f_ioneq(loop.temperature)
+                    tmp = f_ioneq(loop.electron_temperature)
                     fractional_ionization[key] = np.where(tmp > 0.0, tmp, 0.0)
 
             if savefile is not None:

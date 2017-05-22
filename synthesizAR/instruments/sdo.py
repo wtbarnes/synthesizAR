@@ -132,12 +132,12 @@ class InstrumentSDOAIA(InstrumentBase):
         for channel in self.channels:
             dset = hf['{}'.format(channel['name'])]
             if self.use_temperature_response_functions:
-                response_function = splev(np.ravel(loop.temperature),
+                response_function = splev(np.ravel(loop.electron_temperature),
                                           channel['temperature_response_spline']
                                           )*u.count*u.cm**5/u.s/u.pixel
                 counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
             else:
-                counts = np.zeros(loop.temperature.shape)
+                counts = np.zeros(loop.electron_temperature.shape)
                 for ion in self.emission_model.ions:
                     fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
                                                                            ion.chianti_ion.meta['Ion'])
@@ -148,7 +148,7 @@ class InstrumentSDOAIA(InstrumentBase):
                                                   channel['wavelength_response_spline'], ext=1)
                     em_summed = np.dot(emiss.value, interpolated_response)
                     tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
-                                     loop.temperature.shape)
+                                     loop.electron_temperature.shape)
                     tmp = (np.where(tmp > 0.0, tmp, 0.0)*emiss.unit*u.count/u.photon
                            * u.steradian/u.pixel*u.cm**2)
                     counts_tmp = (fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83
