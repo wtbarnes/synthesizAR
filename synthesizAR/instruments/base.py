@@ -41,8 +41,10 @@ class InstrumentBase(object):
         """
         self.counts_file = file_template.format(self.name)
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
-        # Allocate space for LOS velocity and temperature
         with h5py.File(self.counts_file, 'a') as hf:
+            if 'time' not in hf:
+                dset = hf.create_dataset('time', data=self.observing_time.value)
+                dset.attrs['units'] = self.observing_time.unit.to_string()
             if 'density' not in hf:
                 hf.create_dataset('density', (len(self.observing_time), num_loop_coordinates), chunks=True)
             if 'electron_temperature' not in hf:

@@ -90,16 +90,14 @@ class Observer(object):
             instr.make_detector_array(self.field)
             instr.build_detector_file(self.field, len(self.total_coordinates), file_template)
 
-    def flatten_detector_counts(self, hdf5_driver=None):
+    def flatten_detector_counts(self, **kwargs):
         """
         Interpolate and flatten emission data from loop objects.
         """
         for instr in self.instruments:
             self.logger.info('Flattening counts for {}'.format(instr.name))
-            with h5py.File(instr.counts_file, 'a', driver=hdf5_driver) as hf:
+            with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver',None)) as hf:
                 start_index = 0
-                dset_time = hf.create_dataset('time', data=instr.observing_time.value)
-                dset_time.attrs['units'] = instr.observing_time.unit.to_string()
                 for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
                     self.logger.debug('Flattening counts for {}'.format(loop.name))
                     # LOS velocity
