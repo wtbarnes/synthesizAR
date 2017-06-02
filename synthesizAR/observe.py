@@ -242,7 +242,7 @@ class Observer(object):
         return tmp_map
 
     @u.quantity_input(time=u.s)
-    def make_emission_measure_map(self, time, instr, temperature_bin_edges=None, **kwargs):
+    def make_emission_measure_map(self, time, instr, temperature_bin_edges=None, skip_cube=False, **kwargs):
         """
         Return a cube of maps showing the true emission meausure in each pixel
         as a function of electron temperature.
@@ -284,5 +284,8 @@ class Observer(object):
         meta_base['detector'] = r'$\mathrm{EM}(T)$'
         meta_base['comment'] = 'LOS Emission Measure distribution'
         data = np.transpose(hist, (1,0,2))*density_unit*density_unit*self.total_coordinates.unit
+
+        if skip_cube:
+            return data, meta_base, temperature_bin_edges
 
         return EMCube(data, meta_base, temperature_bin_edges, plot_settings=plot_settings)
