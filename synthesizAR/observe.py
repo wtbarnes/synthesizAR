@@ -266,9 +266,9 @@ class Observer(object):
         # setup bin edges and weights
         if temperature_bin_edges is None:
             temperature_bin_edges = 10.**(np.arange(5.5, 7.5, 0.1))*u.K
-        _, (x_bin_edges, y_bin_edges, z_bin_edges) = np.histogramdd(self.total_coordinates.value,
-                                                                    bins=[instr.bins.x, instr.bins.y, instr.bins.z],
-                                                                    range=[instr.bin_range.x, instr.bin_range.y, instr.bin_range.z])
+        x_bin_edges = np.diff(instr.bin_range.x)/instr.bins.x*np.arange(instr.bins.x+1) + instr.bin_range.x[0]
+        y_bin_edges = np.diff(instr.bin_range.y)/instr.bins.y*np.arange(instr.bins.y+1) + instr.bin_range.y[0]
+        z_bin_edges = np.diff(instr.bin_range.z)/instr.bins.z*np.arange(instr.bins.z+1) + instr.bin_range.z[0]
         z_bin_indices = np.digitize(self.total_coordinates.value[:,2], z_bin_edges, right=True)
         dh = np.diff(z_bin_edges)[z_bin_indices - 1]
         emission_measure_weights = (unbinned_density**2)*dh
