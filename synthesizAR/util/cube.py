@@ -151,7 +151,7 @@ Wavelength dimension : {wvl_dim}
         """
         Crop to spatial area designated by x and y ranges. Uses `~sunpy.map.Map.submap`
 
-        .. warning:: It is better to crop in wavelength space first and then crop in
+        .. warning:: It is faster to crop in wavelength space first and then crop in
                      coordinate space.
         """
         # call submap on each slice in wavelength
