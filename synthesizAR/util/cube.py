@@ -96,7 +96,7 @@ class EMCube(MapCube):
         # rebuild into a map
         slopes_2d = np.zeros(flat_data.shape[0])
         slopes_2d[index_data_threshold[0]] = slopes
-        slopes_2d = slopes_2d.reshape(slopes_2d,data.shape[:2])
+        slopes_2d = slopes_2d.reshape(data.shape[:2])
         base_meta = self[0].meta.copy()
         base_meta['temp_a'] = temperature_fit[0]
         base_meta['temp_b'] = temperature_fit[-1]
