@@ -88,15 +88,15 @@ class EMCube(MapCube):
         temperature_fit = temperature_bin_centers[index_temperature_bounds].value
         # unwrap to 2D and threshold
         data = self.as_array()*u.Unit(self[0].meta['bunit'])
-        flat_data = data.reshape(np.prod(data.shape[:2]),temperature_bin_centers.shape[0])
+        flat_data = data.reshape(np.prod(data.shape[:2]), temperature_bin_centers.shape[0])
         index_data_threshold = np.where(np.min(flat_data[:,index_temperature_bounds], axis=1) >= em_threshold)
         flat_data_threshold = flat_data.value[index_data_threshold[0],:][:,index_temperature_bounds[0]]
         # very basic but vectorized fitting
         slopes, _ = np.polyfit(np.log10(temperature_fit), np.log10(flat_data_threshold.T), 1)
         # rebuild into a map
-        slopes_2d = np.zeros(flat_data.shape[0])
-        slopes_2d[index_data_threshold[0]] = slopes
-        slopes_2d = slopes_2d.reshape(data.shape[:2])
+        slopes_flat = np.zeros(flat_data.shape[0])
+        slopes_flat[index_data_threshold[0]] = slopes
+        slopes_2d = np.reshape(slopes_flat, data.shape[:2])
         base_meta = self[0].meta.copy()
         base_meta['temp_a'] = temperature_fit[0]
         base_meta['temp_b'] = temperature_fit[-1]
