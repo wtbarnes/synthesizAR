@@ -71,6 +71,43 @@ class EMCube(MapCube):
 
         return self.temperature_bin_edges, u.Quantity(em_list, u.Unit(self[0].meta['bunit']))
 
+    @u.quantity_input(temperature_bounds=u.K)
+    def make_slope_map(self, temperature_bounds=u.Quantity((1e6,4e6),u.K), em_threshold=1e25*(u.cm**(-5))):
+        """
+        Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a 
+        given temperature range. Only those pixels for which the minimum :math:`\mathrm{EM}`
+        across all temperature bins is above some threshold value.
+
+        .. warning:: This method provides no measure of the goodness of the fit. Some slope values
+                     may not provide an accurate fit to the data.
+        """
+        # cut on temperature
+        temperature_bin_centers = (self.temperature_bin_edges[:-1] + self.temperature_bin_edges[1:])/2.
+        index_temperature_bounds = np.where(np.logical_and(temperature_bin_centers >= temperature_bounds[0],
+                                                           temperature_bin_centers <= temperature_bounds[1]))
+        temperature_fit = temperature_bin_centers[index_temperature_bounds].value
+        # unwrap to 2D and threshold
+        data = self.as_array()*u.Unit(self[0].meta['bunit'])
+        flat_data = data.reshape(np.prod(data.shape[:2]),temperature_bin_centers.shape[0])
+        index_data_threshold = np.where(np.min(flat_data[:,index_temperature_bounds], axis=1) >= em_threshold)
+        flat_data_threshold = flat_data.value[index_data_threshold[0],:][:,index_temperature_bounds[0]]
+        # very basic but vectorized fitting
+        slopes, _ = np.polyfit(np.log10(temperature_fit), np.log10(flat_data_threshold.T), 1)
+        # rebuild into a map
+        slopes_2d = np.zeros(flat_data.shape[0])
+        slopes_2d[index_data_threshold[0]] = slopes
+        slopes_2d = slopes_2d.reshape(slopes_2d,data.shape[:2])
+        base_meta = self[0].meta.copy()
+        base_meta['temp_a'] = temperature_fit[0]
+        base_meta['temp_b'] = temperature_fit[-1]
+        base_meta['bunit'] = ''
+        base_meta['detector'] = r'$\mathrm{EM}(T)$ slope'
+        base_meta['comment'] = 'Linear fit to log-transformed LOS EM'
+        tmp_map = GenericMap(slopes_2d, base_meta)
+        tmp_map.plot_settings.update(self[0].plot_settings)
+
+        return tmp_map
+
     def __getitem__(self, key):
         """
         Override the MapCube indexing so that an `EMCube` object is returned.
