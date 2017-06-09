@@ -104,7 +104,9 @@ class EMCube(MapCube):
         base_meta['detector'] = r'$\mathrm{EM}(T)$ slope'
         base_meta['comment'] = 'Linear fit to log-transformed LOS EM'
         tmp_map = GenericMap(slopes_2d, base_meta)
-        tmp_map.plot_settings.update(self[0].plot_settings)
+        plot_settings = self[0].plot_settings.copy()
+        plot_settings['norm'] = None
+        tmp_map.plot_settings.update(plot_settings)
 
         return tmp_map
 
