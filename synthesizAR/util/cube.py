@@ -210,7 +210,7 @@ Wavelength dimension : {wvl_dim}
         Allow EISCubes to be added together
         """
         if isinstance(x,EISCube):
-            assert self.wavelength == x.wavelength, 'Wavelength ranges must be equal in order to add EISCubes'
+            assert np.all(self.wavelength == x.wavelength), 'Wavelength ranges must be equal in order to add EISCubes'
             key_checks = ['cdelt1', 'cdelt2', 'crpix1', 'crpix2', 'ctype1', 'ctype2', 'crval1', 'crval2']
             for k in key_checks:
                 assert self.meta[k] == x.meta[k], '{} keys in metadata do not match'.format(k)
