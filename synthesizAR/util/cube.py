@@ -205,6 +205,29 @@ Wavelength dimension : {wvl_dim}
 
         return EISCube(data=new_data, header=new_meta, wavelength=self.wavelength)
 
+    def __add__(self,x):
+        """
+        Allow EISCubes to be added together
+        """
+        if isinstance(x,EISCube):
+            assert self.wavelength == x.wavelength, 'Wavelength ranges must be equal in order to add EISCubes'
+            key_checks = ['cdelt1', 'cdelt2', 'crpix1', 'crpix2', 'ctype1', 'ctype2', 'crval1', 'crval2']
+            for k in key_checks:
+                assert self.meta[k] == x.meta[k], '{} keys in metadata do not match'.format(k)
+            data = self.data + x.data
+        else:
+            # if x is not an instance of EISCube, let numpy/astropy decide whether it can
+            # be added to the data attribute, e.g. a scalar or some 3D array with 
+            # appropriate units
+            data = self.data + x
+        return EISCube(data=data, header=self.meta.copy(), wavelength=self.wavelength)
+
+    def __radd__(self,x):
+        """
+        Define reverse addition in the same way as addition.
+        """
+        return self.__add__(x)
+
     def __mul__(self, x):
         """
         Allow for multiplication of data in the cube.
