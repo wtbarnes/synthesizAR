@@ -12,6 +12,7 @@ import pkg_resources
 
 import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
+from scipy.ndimage.filters import gaussian_filter
 try:
     from sunpy.map import MapMeta
 except ImportError:
@@ -44,9 +45,10 @@ class InstrumentHinodeEIS(InstrumentBase):
     fits_template['waveunit'] = 'angstrom'
 
     @u.quantity_input(window=u.angstrom)
-    def __init__(self, observing_time, observing_area=None, window=0.5*u.angstrom):
+    def __init__(self, observing_time, observing_area=None, window=0.5*u.angstrom, apply_psf=True):
         super().__init__(observing_time, observing_area)
         self._setup_channels()
+        self.apply_psf = apply_psf
         self.window = window
 
     def _setup_channels(self):
@@ -72,6 +74,8 @@ class InstrumentHinodeEIS(InstrumentBase):
                         'x': eis_info[key]['response_x']*u.Unit(eis_info[key]['response_x_units']),
                         'y': eis_info[key]['response_y']*u.Unit(eis_info[key]['response_y_units'])},
                     'spectral_resolution': eis_info[key]['spectral_resolution']*u.Unit(eis_info[key]['spectral_resolution_units']),
+                    'gaussian_width': {'x': (3.*u.arcsec)/self.resolution.x,
+                                       'y': (3.*u.arcsec)/self.resolution.y}
                     'instrument_width': eis_info[key]['instrument_width']*u.Unit(eis_info[key]['instrument_width_units']),
                     'wavelength_range': [eis_info[key]['response_x'][0],
                                          eis_info[key]['response_x'][-1]]*u.Unit(eis_info[key]['response_x_units'])})
@@ -154,5 +158,9 @@ class InstrumentHinodeEIS(InstrumentBase):
             counts += intensity
 
         header['bunit'] = counts.unit.to_string()
+        if self.apply_psf:
+            counts = (gaussian_filter(counts.value, (channel['gaussian_width']['y'].value,
+                                                     channel['gaussian_width']['x'].value, 0))
+                      * counts.unit)
 
         return EISCube(data=counts, header=header, wavelength=response_x)

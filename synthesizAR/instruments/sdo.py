@@ -56,17 +56,17 @@ class InstrumentSDOAIA(InstrumentBase):
     name = 'SDO_AIA'
     channels = [
         {'wavelength': 94*u.angstrom, 'telescope_number': 4,
-            'gaussian_width': 0.951*u.pixel},
+            'gaussian_width': {'x': 0.951*u.pixel, 'y': 0.951*u.pixel}},
         {'wavelength': 131*u.angstrom, 'telescope_number': 1,
-            'gaussian_width': 1.033*u.pixel},
+            'gaussian_width': {'x': 1.033*u.pixel, 'y': 1.033*u.pixel}},
         {'wavelength': 171*u.angstrom, 'telescope_number': 3,
-            'gaussian_width': 0.962*u.pixel},
+            'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}},
         {'wavelength': 193*u.angstrom, 'telescope_number': 2,
-            'gaussian_width': 1.512*u.pixel},
+            'gaussian_width': {'x': 1.512*u.pixel, 'y': 1.512*u.pixel}},
         {'wavelength': 211*u.angstrom, 'telescope_number': 2,
-            'gaussian_width': 1.199*u.pixel},
+            'gaussian_width': {'x': 1.199*u.pixel, 'y': 1.199*u.pixel}},
         {'wavelength': 335*u.angstrom, 'telescope_number': 1,
-            'gaussian_width': 0.962*u.pixel}]
+            'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
 
     cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel, 0.600698*u.arcsec/u.pixel, None)
@@ -184,5 +184,6 @@ class InstrumentSDOAIA(InstrumentBase):
         counts = np.dot(hist, np.diff(edges[2])).T
 
         if self.apply_psf:
-            counts = gaussian_filter(counts, channel['gaussian_width'].value)
+            counts = gaussian_filter(counts, (channel['gaussian_width']['y'].value,
+                                              channel['gaussian_width']['x'].value))
         return Map(counts, header)
