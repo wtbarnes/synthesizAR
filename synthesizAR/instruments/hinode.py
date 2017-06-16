@@ -75,10 +75,11 @@ class InstrumentHinodeEIS(InstrumentBase):
                         'y': eis_info[key]['response_y']*u.Unit(eis_info[key]['response_y_units'])},
                     'spectral_resolution': eis_info[key]['spectral_resolution']*u.Unit(eis_info[key]['spectral_resolution_units']),
                     'gaussian_width': {'x': (3.*u.arcsec)/self.resolution.x,
-                                       'y': (3.*u.arcsec)/self.resolution.y}
+                                       'y': (3.*u.arcsec)/self.resolution.y},
                     'instrument_width': eis_info[key]['instrument_width']*u.Unit(eis_info[key]['instrument_width_units']),
                     'wavelength_range': [eis_info[key]['response_x'][0],
-                                         eis_info[key]['response_x'][-1]]*u.Unit(eis_info[key]['response_x_units'])})
+                                         eis_info[key]['response_x'][-1]]*u.Unit(eis_info[key]['response_x_units'])
+                })
 
         self.channels = sorted(self.channels, key=lambda x: x['wavelength'])
 
