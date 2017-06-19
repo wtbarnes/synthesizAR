@@ -125,6 +125,33 @@ class EMCube(MapCube):
 
         return tmp
 
+    def save(self, filename):
+        """
+        Save emission measure cube to an HDF5 file.
+        """
+        with h5py.File(filename, 'x') as hf:
+            dset_data = hf.create_dataset('emission_measure', data=self.as_array())
+            dset_data.attrs['units'] = self[0].meta['bunit']
+            dset_temperature_bin_edges = hf.create_dataset('temperature_bin_edges', data=self.temperature_bin_edges.value)
+            dset_temperature_bin_edges.attrs['units'] = self.temperature_bin_edges.unit.to_string()
+            meta_group = hf.create_group('meta')
+            for key in self[0].meta:
+                meta_group.attrs[key] = self[0].meta[key]
+
+    @classmethod
+    def restore(cls, filename, **kwargs):
+        """
+        Restore `EMCube` from an HDF5 file.
+        """
+        header = MapMeta()
+        with h5py.File(filename,'r') as hf:
+            data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs['units'])
+            temperature_bin_edges = u.Quantity(hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs['units'])
+            for key in hf['meta']:
+                header[key] = hf['meta'].attrs[key]
+
+        return cls(data, header, temperature_bin_edges, **kwargs)
+
 
 class EISCube(object):
     """
@@ -205,11 +232,11 @@ Wavelength dimension : {wvl_dim}
 
         return EISCube(data=new_data, header=new_meta, wavelength=self.wavelength)
 
-    def __add__(self,x):
+    def __add__(self, x):
         """
         Allow EISCubes to be added together
         """
-        if isinstance(x,EISCube):
+        if isinstance(x, EISCube):
             assert np.all(self.wavelength == x.wavelength), 'Wavelength ranges must be equal in order to add EISCubes'
             key_checks = ['cdelt1', 'cdelt2', 'crpix1', 'crpix2', 'ctype1', 'ctype2', 'crval1', 'crval2']
             for k in key_checks:
@@ -222,7 +249,7 @@ Wavelength dimension : {wvl_dim}
             data = self.data + x
         return EISCube(data=data, header=self.meta.copy(), wavelength=self.wavelength)
 
-    def __radd__(self,x):
+    def __radd__(self, x):
         """
         Define reverse addition in the same way as addition.
         """
@@ -262,7 +289,7 @@ Wavelength dimension : {wvl_dim}
             self._save_to_fits(filename, **kwargs)
         else:
             # change extension for clarity
-            filename = '.'.join([os.path.splitext(filename)[0],'h5'])
+            filename = '.'.join([os.path.splitext(filename)[0], 'h5'])
             self._save_to_hdf5(filename, **kwargs)
 
     def _save_to_hdf5(self, filename, **kwargs):
