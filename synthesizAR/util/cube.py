@@ -147,7 +147,7 @@ class EMCube(MapCube):
         with h5py.File(filename,'r') as hf:
             data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs['units'])
             temperature_bin_edges = u.Quantity(hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs['units'])
-            for key in hf['meta']:
+            for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
 
         return cls(data, header, temperature_bin_edges, **kwargs)
