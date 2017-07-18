@@ -13,7 +13,6 @@ import functools
 import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
-import seaborn.apionly as sns
 import sunpy.map
 import astropy.units as u
 import h5py
@@ -282,7 +281,7 @@ Magnetogram Info:
         if i_tries == max_tries:
             self.logger.warning('Maxed out number of tries. Only found {} acceptable streamlines'.format(len(self.streamlines)))
 
-    def peek(self, figsize=(10, 10), color=sns.color_palette('deep')[0], alpha=0.75,
+    def peek(self, figsize=(10, 10), color='b', alpha=0.75,
              print_to_file=None, **kwargs):
         """
         Show extracted fieldlines overlaid on HMI image.

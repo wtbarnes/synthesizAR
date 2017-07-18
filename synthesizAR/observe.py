@@ -10,7 +10,6 @@ import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
 import scipy.ndimage
 import matplotlib.colors
-import seaborn.apionly as sns
 import astropy.units as u
 import sunpy.map
 import h5py
@@ -174,7 +173,7 @@ class Observer(object):
         Return map of LOS velocity at a given time for a given instrument resolution.
         """
         plot_settings = {
-            'cmap': matplotlib.colors.ListedColormap(sns.color_palette('coolwarm', n_colors=1000)),
+            'cmap': plt.get_cmap('bwr'),
             'norm': matplotlib.colors.SymLogNorm(10, vmin=-1e8, vmax=1e8)
         }
         if 'plot_settings' in kwargs:
@@ -211,7 +210,7 @@ class Observer(object):
         """
         Return map of column-averaged electron temperature at a given time for a given instrument resolution.
         """
-        plot_settings = {'cmap': sns.cubehelix_palette(reverse=True, rot=.4, as_cmap=True)}
+        plot_settings = {'cmap': plt.get_cmap('inferno')}
         if 'plot_settings' in kwargs:
             plot_settings.update(kwargs.get('plot_settings'))
 

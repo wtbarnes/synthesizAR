@@ -11,7 +11,6 @@ synthesizAR is built on Python 3 and has not been tested on Python 2. The easies
 - NumPy
 - numba (optional)
 - scipy
-- seaborn
 - solarbextrapolation
 - SunPy
 - wcsaxes
