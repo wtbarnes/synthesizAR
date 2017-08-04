@@ -303,10 +303,10 @@ Magnetogram Info:
 
     def make_loops(self):
         """
-        Make list of loop objects from the extracted streamlines
+        Make list of `Loop` objects from the extracted streamlines
         """
         loops = []
-        for stream, i in zip(self.streamlines, range(len(self.streamlines))):
+        for i,stream in enumerate(self.streamlines):
             loops.append(Loop('loop{}'.format(i), stream[0].value, stream[1].value))
         self.loops = loops
 
