@@ -173,7 +173,7 @@ class Observer(object):
         Return map of LOS velocity at a given time for a given instrument resolution.
         """
         plot_settings = {
-            'cmap': plt.get_cmap('bwr'),
+            'cmap': matplotlib.cm.get_cmap('bwr'),
             'norm': matplotlib.colors.SymLogNorm(10, vmin=-1e8, vmax=1e8)
         }
         if 'plot_settings' in kwargs:
@@ -210,7 +210,7 @@ class Observer(object):
         """
         Return map of column-averaged electron temperature at a given time for a given instrument resolution.
         """
-        plot_settings = {'cmap': plt.get_cmap('inferno')}
+        plot_settings = {'cmap': matplotlib.cm.get_cmap('inferno')}
         if 'plot_settings' in kwargs:
             plot_settings.update(kwargs.get('plot_settings'))
 
