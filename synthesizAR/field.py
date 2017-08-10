@@ -46,7 +46,7 @@ class Skeleton(object):
         self.logger = logging.getLogger(name=type(self).__name__)
         if hmi_fits_file is not None:
             tmp_map = sunpy.map.Map(hmi_fits_file)
-            self._process_map(tmp_map, **kwargs)
+            self.hmi_map = self._process_map(tmp_map, **kwargs)
         else:
             self.logger.warning('No HMI fits file supplied. A new HMI map object will not be created.')
 
@@ -88,7 +88,7 @@ Magnetogram Info:
         if resample is not None:
             tmp_map = tmp_map.resample(resample, method='linear')
 
-        self.hmi_map = tmp_map
+        return tmp_map
 
     def save(self, savedir=None):
         """
@@ -147,7 +147,7 @@ Magnetogram Info:
         field.loops = loops
         field.hmi_map = hmi_map
         field.streamlines = streamlines
-        field._transform_to_yt(map_3d)
+        field.extrapolated_3d_field = field._transform_to_yt(map_3d)
         field._map_3d = map_3d
 
         return field
@@ -195,9 +195,8 @@ Magnetogram Info:
                                           + map_3d.scale.z*u.Quantity([boundary_clipping[2]*u.pixel,
                                                                       -boundary_clipping[2]*u.pixel])).value])
         # assemble the dataset
-        self.extrapolated_3d_field = yt.load_uniform_grid(data, data['Bx'][0].shape,
-                                                          bbox=bbox, length_unit=yt.units.cm,
-                                                          geometry=('cartesian', ('x', 'y', 'z')))
+        return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox, length_unit=yt.units.cm,
+                                    geometry=('cartesian', ('x', 'y', 'z')))
 
     @u.quantity_input(loop_length_range=u.cm)
     def _filter_streamlines(self, streamline, close_threshold=0.05,
@@ -235,7 +234,7 @@ Magnetogram Info:
         self._map_3d = map_3d
         # hand it to yt
         self.logger.debug('Transforming to yt data object')
-        self._transform_to_yt(map_3d)
+        self.extrapolated_3d_field = self._transform_to_yt(map_3d)
 
     def extract_streamlines(self, number_fieldlines, max_tries=100, **kwargs):
         """
