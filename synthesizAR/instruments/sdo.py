@@ -10,6 +10,7 @@ import json
 import pkg_resources
 
 import numpy as np
+import dask
 from scipy.interpolate import splrep, splev, interp1d
 from scipy.ndimage import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
@@ -158,6 +159,22 @@ class InstrumentSDOAIA(InstrumentBase):
                     counts += counts_tmp
 
             self.interpolate_and_store(counts, loop, interp_s, dset, start_index)
+
+    def delayed_factory(self,loop,interp_s,start_index,tmp_file_dir):
+        """
+        Create a list of dask.delayed procedures for each channel for a given loop
+        """
+        return [self.make_and_write(loop,c,interp_s,start_index,tmp_file_dir) for c in self.channels]
+
+    @dask.delayed
+    def make_and_write(self,loop,channel,interp_s,start_index,tmp_file_dir):
+        response_function = splev(np.ravel(loop.electron_temperature),channel['temperature_response_spline'])*u.count*u.cm**5/u.s/u.pixel
+        counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
+        f_s = interp1d(loop.field_aligned_coordinate.value, counts.value, axis=1, kind='linear')
+        interpolated_y = interp1d(loop.time.value, f_s(interp_s),axis=0, kind='linear', fill_value='extrapolate')(self.observing_time)
+        tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,channel.name)) 
+        np.save(tmp_fn,interpolated_y)
+        return tmp_fn,channel.name,start_index,start_index+len(interp_s),counts.unit
 
     def detect(self, hf, channel, i_time, header, *args):
         """

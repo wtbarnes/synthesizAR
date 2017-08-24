@@ -116,6 +116,37 @@ class Observer(object):
                     instr.flatten(loop, interp_s, hf, start_index)
                     start_index += len(interp_s)
 
+    def flatten_detector_counts_parallel(self,tmp_file_dir,**kwargs):
+        """
+        Parallelizing flattening across loops
+        """
+        delayed_procedures = []
+        for instr in self.instruments:
+            start_index = 0
+            for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
+                los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
+                delayed_procedures += [instr.interpolate_and_store_parallel(los_velocity,loop,interp_s,start_index,'los_velocity',tmp_file_dir),
+                                       instr.interpolate_and_store_parallel(loop.electron_temperature,loop,interp_s,start_index,'electron_temperature',tmp_file_dir),
+                                       instr.interpolate_and_store_parallel(loop.ion_temperature,loop,interp_s,start_index,'ion_temperature',tmp_file_dir),
+                                       instr.interpolate_and_store_parallel(loop.density,loop,interp_s,start_index,'density',tmp_file_dir)]
+                delayed_procedures += instr.delayed_factory(loop,interp_s,start_index,tmp_file_dir)
+                start_index += len(interp_s)
+            build_hdf5_file = self.collect_and_store(delayed_procedures)
+            build_hdf5_file.compute()
+            
+    @dask.delayed
+    def collect_and_store(self,delayed_procedures,instr):
+        """
+        Assemble HDF5 file of flattened counts
+        """
+        with h5py.File(instr.counts_file,'a',driver=None,) as hf:
+            for dp in delayed_procedures:
+                data = np.load(dp[0])
+                dset = hf[dp[1]]
+                dset[dp[2]:dp[3]] = data
+                if 'units' not in dset.attrs:
+                    dset.attrs['units'] = dp[4].to_string()
+
     def bin_detector_counts(self, savedir):
         """
         Assemble instrument data products and print to FITS file.
