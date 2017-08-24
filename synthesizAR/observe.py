@@ -7,6 +7,7 @@ import logging
 import pickle
 
 import numpy as np
+import dask
 from scipy.interpolate import splev, splprep, interp1d
 import scipy.ndimage
 import matplotlib.colors
