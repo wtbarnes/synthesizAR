@@ -132,7 +132,7 @@ class Observer(object):
                                        interpolate_and_store_parallel(instr,loop.density,loop,interp_s,start_index,'density',tmp_file_dir)]
                 delayed_procedures += instr.delayed_factory(loop,interp_s,start_index,tmp_file_dir)
                 start_index += len(interp_s)
-            build_hdf5_file = collect_and_store(delayed_procedures)
+            build_hdf5_file = collect_and_store(delayed_procedures,instr)
             build_hdf5_file.compute()
 
     def bin_detector_counts(self, savedir):
