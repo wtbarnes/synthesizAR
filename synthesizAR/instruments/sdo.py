@@ -202,6 +202,6 @@ def make_and_write(instr,loop,channel,interp_s,start_index,tmp_file_dir):
     counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
     f_s = interp1d(loop.field_aligned_coordinate.value, counts.value, axis=1, kind='linear')
     interpolated_y = interp1d(loop.time.value, f_s(interp_s),axis=0, kind='linear', fill_value='extrapolate')(instr.observing_time)
-    tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,channel.name)) 
+    tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,channel['name'])) 
     np.save(tmp_fn,interpolated_y)
-    return tmp_fn,channel.name,start_index,start_index+len(interp_s),counts.unit
+    return tmp_fn,channel['name'],start_index,start_index+len(interp_s),counts.unit
