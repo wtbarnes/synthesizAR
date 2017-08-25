@@ -311,9 +311,9 @@ def interpolate_and_store_parallel(instr,y,loop,interp_s,start_index,dset_name,t
     f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
     interpolated_y = interp1d(loop.time.value, f_s(interp_s),
                                 axis=0, kind='linear', fill_value='extrapolate')(instr.observing_time)
-    tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,dset_name))
-    np.save(tmp_fn,interpolated_y)
-    return tmp_fn,dset_name,start_index,start_index+len(interp_s),y.unit
+    #tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,dset_name))
+    #np.save(tmp_fn,interpolated_y)
+    return interpolated_y,dset_name,start_index,start_index+len(interp_s),y.unit
 
 @dask.delayed
 def collect_and_store(delayed_procedures,instr):
@@ -322,8 +322,8 @@ def collect_and_store(delayed_procedures,instr):
     """
     with h5py.File(instr.counts_file,'a',driver=None,) as hf:
         for dp in delayed_procedures:
-            data = np.load(dp[0])
+            #data = np.load(dp[0])
             dset = hf[dp[1]]
-            dset[:,dp[2]:dp[3]] = data
+            dset[:,dp[2]:dp[3]] = dp[0]
             if 'units' not in dset.attrs:
                 dset.attrs['units'] = dp[4].to_string()
