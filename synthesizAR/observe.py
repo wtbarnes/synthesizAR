@@ -324,6 +324,6 @@ def collect_and_store(delayed_procedures,instr):
         for dp in delayed_procedures:
             data = np.load(dp[0])
             dset = hf[dp[1]]
-            dset[dp[2]:dp[3]] = data
+            dset[:,dp[2]:dp[3]] = data
             if 'units' not in dset.attrs:
                 dset.attrs['units'] = dp[4].to_string()
