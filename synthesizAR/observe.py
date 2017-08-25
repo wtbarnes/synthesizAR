@@ -126,27 +126,14 @@ class Observer(object):
             start_index = 0
             for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
                 los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
-                delayed_procedures += [instr.interpolate_and_store_parallel(los_velocity,loop,interp_s,start_index,'los_velocity',tmp_file_dir),
-                                       instr.interpolate_and_store_parallel(loop.electron_temperature,loop,interp_s,start_index,'electron_temperature',tmp_file_dir),
-                                       instr.interpolate_and_store_parallel(loop.ion_temperature,loop,interp_s,start_index,'ion_temperature',tmp_file_dir),
-                                       instr.interpolate_and_store_parallel(loop.density,loop,interp_s,start_index,'density',tmp_file_dir)]
+                delayed_procedures += [interpolate_and_store_parallel(instr,los_velocity,loop,interp_s,start_index,'los_velocity',tmp_file_dir),
+                                       interpolate_and_store_parallel(instr,loop.electron_temperature,loop,interp_s,start_index,'electron_temperature',tmp_file_dir),
+                                       interpolate_and_store_parallel(instr,loop.ion_temperature,loop,interp_s,start_index,'ion_temperature',tmp_file_dir),
+                                       interpolate_and_store_parallel(instr,loop.density,loop,interp_s,start_index,'density',tmp_file_dir)]
                 delayed_procedures += instr.delayed_factory(loop,interp_s,start_index,tmp_file_dir)
                 start_index += len(interp_s)
-            build_hdf5_file = self.collect_and_store(delayed_procedures)
+            build_hdf5_file = collect_and_store(delayed_procedures)
             build_hdf5_file.compute()
-            
-    @dask.delayed
-    def collect_and_store(self,delayed_procedures,instr):
-        """
-        Assemble HDF5 file of flattened counts
-        """
-        with h5py.File(instr.counts_file,'a',driver=None,) as hf:
-            for dp in delayed_procedures:
-                data = np.load(dp[0])
-                dset = hf[dp[1]]
-                dset[dp[2]:dp[3]] = data
-                if 'units' not in dset.attrs:
-                    dset.attrs['units'] = dp[4].to_string()
 
     def bin_detector_counts(self, savedir):
         """
@@ -317,3 +304,26 @@ class Observer(object):
         data = np.transpose(hist, (1,0,2))*density_unit*density_unit*self.total_coordinates.unit
 
         return EMCube(data, meta_base, temperature_bin_edges, plot_settings=plot_settings)
+
+
+@dask.delayed
+def interpolate_and_store_parallel(instr,y,loop,interp_s,start_index,dset_name,tmp_file_dir):
+    f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
+    interpolated_y = interp1d(loop.time.value, f_s(interp_s),
+                                axis=0, kind='linear', fill_value='extrapolate')(instr.observing_time)
+    tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,dset_name))
+    np.save(tmp_fn,interpolated_y)
+    return tmp_fn,dset_name,start_index,start_index+len(interp_s),y.unit
+
+@dask.delayed
+def collect_and_store(delayed_procedures,instr):
+    """
+    Assemble HDF5 file of flattened counts
+    """
+    with h5py.File(instr.counts_file,'a',driver=None,) as hf:
+        for dp in delayed_procedures:
+            data = np.load(dp[0])
+            dset = hf[dp[1]]
+            dset[dp[2]:dp[3]] = data
+            if 'units' not in dset.attrs:
+                dset.attrs['units'] = dp[4].to_string()

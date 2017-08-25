@@ -66,15 +66,6 @@ class InstrumentBase(object):
         if 'units' not in dset.attrs:
             dset.attrs['units'] = y.unit.to_string()
 
-    @dask.delayed
-    def interpolate_and_store_parallel(self,y,loop,interp_s,start_index,dset_name,tmp_file_dir):
-        f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
-        interpolated_y = interp1d(loop.time.value, f_s(interp_s),
-                                  axis=0, kind='linear', fill_value='extrapolate')(self.observing_time)
-        tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,dset_name))
-        np.save(tmp_fn,interpolated_y)
-        return tmp_fn,dset_name,start_index,start_index+len(interp_s),y.unit
-
     def make_fits_header(self, field, channel):
         """
         Build up FITS header with relevant instrument information.

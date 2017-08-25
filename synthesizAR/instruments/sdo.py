@@ -164,17 +164,7 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         Create a list of dask.delayed procedures for each channel for a given loop
         """
-        return [self.make_and_write(loop,c,interp_s,start_index,tmp_file_dir) for c in self.channels]
-
-    @dask.delayed
-    def make_and_write(self,loop,channel,interp_s,start_index,tmp_file_dir):
-        response_function = splev(np.ravel(loop.electron_temperature),channel['temperature_response_spline'])*u.count*u.cm**5/u.s/u.pixel
-        counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
-        f_s = interp1d(loop.field_aligned_coordinate.value, counts.value, axis=1, kind='linear')
-        interpolated_y = interp1d(loop.time.value, f_s(interp_s),axis=0, kind='linear', fill_value='extrapolate')(self.observing_time)
-        tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,channel.name)) 
-        np.save(tmp_fn,interpolated_y)
-        return tmp_fn,channel.name,start_index,start_index+len(interp_s),counts.unit
+        return [make_and_write(self,loop,c,interp_s,start_index,tmp_file_dir) for c in self.channels]
 
     def detect(self, hf, channel, i_time, header, *args):
         """
@@ -204,3 +194,14 @@ class InstrumentSDOAIA(InstrumentBase):
             counts = gaussian_filter(counts, (channel['gaussian_width']['y'].value,
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
+
+
+@dask.delayed
+def make_and_write(instr,loop,channel,interp_s,start_index,tmp_file_dir):
+    response_function = splev(np.ravel(loop.electron_temperature),channel['temperature_response_spline'])*u.count*u.cm**5/u.s/u.pixel
+    counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
+    f_s = interp1d(loop.field_aligned_coordinate.value, counts.value, axis=1, kind='linear')
+    interpolated_y = interp1d(loop.time.value, f_s(interp_s),axis=0, kind='linear', fill_value='extrapolate')(instr.observing_time)
+    tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,channel.name)) 
+    np.save(tmp_fn,interpolated_y)
+    return tmp_fn,channel.name,start_index,start_index+len(interp_s),counts.unit
