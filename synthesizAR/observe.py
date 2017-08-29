@@ -122,18 +122,20 @@ class Observer(object):
         Parallelizing flattening across loops
         """
         delayed_procedures = []
-        for instr in self.instruments:
-            start_index = 0
-            for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
-                los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
-                delayed_procedures += [interpolate_and_store_parallel(instr,los_velocity,loop,interp_s,start_index,'los_velocity',tmp_file_dir),
-                                       interpolate_and_store_parallel(instr,loop.electron_temperature,loop,interp_s,start_index,'electron_temperature',tmp_file_dir),
-                                       interpolate_and_store_parallel(instr,loop.ion_temperature,loop,interp_s,start_index,'ion_temperature',tmp_file_dir),
-                                       interpolate_and_store_parallel(instr,loop.density,loop,interp_s,start_index,'density',tmp_file_dir)]
-                delayed_procedures += instr.delayed_factory(loop,interp_s,start_index,tmp_file_dir)
-                start_index += len(interp_s)
-            build_hdf5_file = collect_and_store(delayed_procedures,instr)
-            build_hdf5_file.compute()
+        #for instr in self.instruments:
+        instr = self.instruments[0]
+        start_index = 0
+        for interp_s,loop in zip(self._interpolated_loop_coordinates,self.field.loops):
+            los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
+            delayed_procedures += [interpolate_and_store_parallel(instr,los_velocity,loop,interp_s,start_index,'los_velocity',tmp_file_dir),
+                                    interpolate_and_store_parallel(instr,loop.electron_temperature,loop,interp_s,start_index,'electron_temperature',tmp_file_dir),
+                                    interpolate_and_store_parallel(instr,loop.ion_temperature,loop,interp_s,start_index,'ion_temperature',tmp_file_dir),
+                                    interpolate_and_store_parallel(instr,loop.density,loop,interp_s,start_index,'density',tmp_file_dir)]
+            delayed_procedures += instr.delayed_factory(loop,interp_s,start_index,tmp_file_dir)
+            start_index += len(interp_s)
+        build_hdf5_file = collect_and_store(delayed_procedures,instr)
+        
+        return build_hdf5_file
 
     def bin_detector_counts(self, savedir):
         """
@@ -311,7 +313,7 @@ def interpolate_and_store_parallel(instr,y,loop,interp_s,start_index,dset_name,t
     f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
     interpolated_y = interp1d(loop.time.value, f_s(interp_s),
                                 axis=0, kind='linear', fill_value='extrapolate')(instr.observing_time)
-    tmp_fn = os.path.join(tmp_file_dir,'{}_{}.npy'.format(loop.name,dset_name))
+    tmp_fn = os.path.join(tmp_file_dir,dset_name,'{}.npy'.format(loop.name))
     np.save(tmp_fn,interpolated_y)
     return tmp_fn,dset_name,start_index,start_index+len(interp_s),y.unit
 
