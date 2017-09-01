@@ -95,17 +95,16 @@ class InstrumentHinodeEIS(InstrumentBase):
         header['cdelt3'] = np.fabs(np.diff(channel['response']['x']).value[0])
         return header
 
-    def build_detector_file(self, field, num_loop_coordinates, file_format):
+    def build_detector_file(self, file_format, field):
         """
         Build HDF5 files to store detector counts
         """
-        super().build_detector_file(num_loop_coordinates, file_format)
+        dset_shape = self.observing_time.shape + (len(self.total_coordinates),)
+        super().build_detector_file(file_format)
         with h5py.File(self.counts_file, 'a') as hf:
             for line in field.loops[0].resolved_wavelengths:
                 if str(line.value) not in hf:
-                    hf.create_dataset('{}'.format(str(line.value)),
-                                      (len(self.observing_time), num_loop_coordinates),
-                                      chunks=True)
+                    hf.create_dataset('{}'.format(str(line.value)), dset_shape, chunks=True)
 
     def flatten(self, loop, interp_s, hf, start_index):
         """

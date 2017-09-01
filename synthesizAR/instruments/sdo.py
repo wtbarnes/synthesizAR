@@ -109,17 +109,16 @@ class InstrumentSDOAIA(InstrumentBase):
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline'] = splrep(x, y)
 
-    def build_detector_file(self, field, num_loop_coordinates, file_format):
+    def build_detector_file(self, file_format, *args):
         """
         Allocate space for counts data.
         """
-        super().build_detector_file(num_loop_coordinates, file_format)
+        dset_shape = self.observing_time.shape + (len(self.total_coordinates),)
+        super().build_detector_file(file_format)
         with h5py.File(self.counts_file, 'a') as hf:
             for channel in self.channels:
                 if channel['name'] not in hf:
-                    hf.create_dataset('{}'.format(channel['name']),
-                                      (len(self.observing_time), num_loop_coordinates),
-                                      chunks=True)
+                    hf.create_dataset('{}'.format(channel['name']), dset_shape, chunks=True)
 
     def flatten(self, loop, interp_s, hf, start_index):
         """

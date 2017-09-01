@@ -87,7 +87,7 @@ class Observer(object):
         for instr in self.instruments:
             instr.total_coordinates = self.total_coordinates
             instr.make_detector_array(self.field)
-            instr.build_detector_file(self.field, len(self.total_coordinates), file_template)
+            instr.build_detector_file(file_template, self.field)
 
     def flatten_detector_counts(self, **kwargs):
         """
