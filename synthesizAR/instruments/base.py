@@ -11,6 +11,7 @@ import dask
 from scipy.interpolate import interp1d
 import astropy.units as u
 import h5py
+import dask.delayed
 
 Pair = namedtuple('Pair', 'x y z')
 
@@ -55,16 +56,20 @@ class InstrumentBase(object):
             if 'los_velocity' not in hf:
                 hf.create_dataset('los_velocity', (len(self.observing_time), num_loop_coordinates), chunks=True)
 
-    def interpolate_and_store(self, y, loop, interp_s, dset, start_index):
+    @staticmethod
+    @dask.delayed
+    def interpolate_and_store(y, loop_t, interp_t, loop_s, interp_s, save_path):
         """
         Interpolate in time and space and write to HDF5 file.
         """
-        f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
-        interpolated_y = interp1d(loop.time.value, f_s(interp_s),
-                                  axis=0, kind='linear', fill_value='extrapolate')(self.observing_time)
-        dset[:, start_index:(start_index+len(interp_s))] = interpolated_y
-        if 'units' not in dset.attrs:
-            dset.attrs['units'] = y.unit.to_string()
+        f_s = interp1d(loop_s, y, axis=1, kind='linear')
+        interpolated_y = interp1d(loop_t, f_s(interp_s), axis=0, kind='linear',
+                                  fill_value='extrapolate')(interp_t)
+        np.save(save_path, interpolated_y)
+        return save_path
+        #dset[:, start_index:(start_index+len(interp_s))] = interpolated_y
+        #if 'units' not in dset.attrs:
+        #    dset.attrs['units'] = y.unit.to_string()
 
     def make_fits_header(self, field, channel):
         """
