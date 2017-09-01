@@ -306,7 +306,7 @@ Magnetogram Info:
         """
         loops = []
         for i,stream in enumerate(self.streamlines):
-            loops.append(Loop('loop{}'.format(i), stream[0].value, stream[1].value))
+            loops.append(Loop('loop{:06d}'.format(i), stream[0].value, stream[1].value))
         self.loops = loops
 
     def configure_loop_simulations(self, interface):
