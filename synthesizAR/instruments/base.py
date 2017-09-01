@@ -37,10 +37,11 @@ class InstrumentBase(object):
         """
         raise NotImplementedError('No detect method implemented.')
 
-    def build_detector_file(self, num_loop_coordinates, file_template):
+    def build_detector_file(self, file_template, *args):
         """
         Allocate space for counts data.
         """
+        dset_shape = self.observing_time.shape+(len(self.total_coordinates),)
         self.counts_file = file_template.format(self.name)
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
         with h5py.File(self.counts_file, 'a') as hf:
@@ -48,13 +49,13 @@ class InstrumentBase(object):
                 dset = hf.create_dataset('time', data=self.observing_time.value)
                 dset.attrs['units'] = self.observing_time.unit.to_string()
             if 'density' not in hf:
-                hf.create_dataset('density', (len(self.observing_time), num_loop_coordinates), chunks=True)
+                hf.create_dataset('density', dset_shape, chunks=True)
             if 'electron_temperature' not in hf:
-                hf.create_dataset('electron_temperature', (len(self.observing_time), num_loop_coordinates), chunks=True)
+                hf.create_dataset('electron_temperature', dset_shape, chunks=True)
             if 'ion_temperature' not in hf:
-                hf.create_dataset('ion_temperature', (len(self.observing_time), num_loop_coordinates), chunks=True)
+                hf.create_dataset('ion_temperature', dset_shape, chunks=True)
             if 'los_velocity' not in hf:
-                hf.create_dataset('los_velocity', (len(self.observing_time), num_loop_coordinates), chunks=True)
+                hf.create_dataset('los_velocity', dset_shape, chunks=True)
 
     @staticmethod
     @dask.delayed
