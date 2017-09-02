@@ -37,40 +37,37 @@ class InstrumentBase(object):
         """
         raise NotImplementedError('No detect method implemented.')
 
-    def build_detector_file(self, file_template, *args):
+    def build_detector_file(self, file_template, chunks, *args, **kwargs):
         """
         Allocate space for counts data.
         """
         dset_shape = self.observing_time.shape+(len(self.total_coordinates),)
+        dset_names = ['density', 'electron_temperature', 'ion_temperature', 'los_velocity']
+        dset_names += kwargs.get('additional_fields',[])
         self.counts_file = file_template.format(self.name)
+        self.tmp_file_template = os.path.join(os.path.dirname(self.counts_file),'tmp_parallel_files',self.name,'{}')
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
         with h5py.File(self.counts_file, 'a') as hf:
             if 'time' not in hf:
                 dset = hf.create_dataset('time', data=self.observing_time.value)
                 dset.attrs['units'] = self.observing_time.unit.to_string()
-            if 'density' not in hf:
-                hf.create_dataset('density', dset_shape, chunks=True)
-            if 'electron_temperature' not in hf:
-                hf.create_dataset('electron_temperature', dset_shape, chunks=True)
-            if 'ion_temperature' not in hf:
-                hf.create_dataset('ion_temperature', dset_shape, chunks=True)
-            if 'los_velocity' not in hf:
-                hf.create_dataset('los_velocity', dset_shape, chunks=True)
+            for dn in dset_names:
+                if dn not in hf:
+                    hf.create_dataset(dn, dset_shape, chunks=chunks)
+                if not os.path.exists(self.tmp_file_template.format(dn)) and kwargs.get('make_tmp_files',True):
+                    os.makedirs(self.tmp_file_template.format(dn))
 
     @staticmethod
     @dask.delayed
-    def interpolate_and_store(y, loop_t, interp_t, loop_s, interp_s, save_path):
+    def interpolate_and_store(y, loop, interp_t, interp_s, save_path):
         """
         Interpolate in time and space and write to HDF5 file.
         """
-        f_s = interp1d(loop_s, y, axis=1, kind='linear')
-        interpolated_y = interp1d(loop_t, f_s(interp_s), axis=0, kind='linear',
-                                  fill_value='extrapolate')(interp_t)
+        f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
+        interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
+                                  fill_value='extrapolate')(interp_t.value)
         np.save(save_path, interpolated_y)
-        return save_path
-        #dset[:, start_index:(start_index+len(interp_s))] = interpolated_y
-        #if 'units' not in dset.attrs:
-        #    dset.attrs['units'] = y.unit.to_string()
+        return save_path, y.unit.to_string()
 
     def make_fits_header(self, field, channel):
         """
