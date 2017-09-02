@@ -110,62 +110,60 @@ class InstrumentSDOAIA(InstrumentBase):
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline'] = splrep(x, y)
 
-    def build_detector_file(self, file_format, *args):
+    def build_detector_file(self, file_template, chunks, *args):
         """
         Allocate space for counts data.
         """
-        dset_shape = self.observing_time.shape + (len(self.total_coordinates),)
-        super().build_detector_file(file_format)
-        with h5py.File(self.counts_file, 'a') as hf:
-            for channel in self.channels:
-                if channel['name'] not in hf:
-                    hf.create_dataset('{}'.format(channel['name']), dset_shape, chunks=True)
+        additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
+        super().build_detector_file(file_template, chunks, *args, additional_fields=additional_fields)
+        
+    @staticmethod
+    @dask.delayed
+    def calculate_counts_simple(channel, loop):
+        response_function = (splev(np.ravel(loop.electron_temperature),channel['temperature_response_spline'])
+                             *u.count*u.cm**5/u.s/u.pixel)
+        counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
+        return counts
 
-    def flatten(self, loop, interp_s, hf, start_index):
-        """
-        Flatten channel counts to HDF5 file
-        """
-        if not self.use_temperature_response_functions:
-            # interpolate indices
-            itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
+    @staticmethod
+    @dask.delayed
+    def calculate_counts_full(channel, electron_temperature, density):
+        counts = np.zeros(loop.electron_temperature.shape)
+        for ion in self.emission_model.ions:
+            fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
+                                                                    ion.chianti_ion.meta['Ion'])
+            if ion.emissivity is None:
+                self.emission_model.calculate_emissivity()
+            emiss = ion.emissivity
+            interpolated_response = splev(ion.wavelength.value,
+                                            channel['wavelength_response_spline'], ext=1)
+            em_summed = np.dot(emiss.value, interpolated_response)
+            tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
+                                loop.electron_temperature.shape)
+            tmp = (np.where(tmp > 0.0, tmp, 0.0)*emiss.unit*u.count/u.photon
+                    * u.steradian/u.pixel*u.cm**2)
+            counts_tmp = (fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83
+                            / (4*np.pi*u.steradian)*tmp)
+            if not hasattr(counts, 'unit'):
+                counts = counts*counts_tmp.unit
+            counts += counts_tmp
 
-        for channel in self.channels:
-            dset = hf['{}'.format(channel['name'])]
-            if self.use_temperature_response_functions:
-                response_function = splev(np.ravel(loop.electron_temperature),
-                                          channel['temperature_response_spline']
-                                          )*u.count*u.cm**5/u.s/u.pixel
-                counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
-            else:
-                counts = np.zeros(loop.electron_temperature.shape)
-                for ion in self.emission_model.ions:
-                    fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
-                                                                           ion.chianti_ion.meta['Ion'])
-                    if ion.emissivity is None:
-                        self.emission_model.calculate_emissivity()
-                    emiss = ion.emissivity
-                    interpolated_response = splev(ion.wavelength.value,
-                                                  channel['wavelength_response_spline'], ext=1)
-                    em_summed = np.dot(emiss.value, interpolated_response)
-                    tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
-                                     loop.electron_temperature.shape)
-                    tmp = (np.where(tmp > 0.0, tmp, 0.0)*emiss.unit*u.count/u.photon
-                           * u.steradian/u.pixel*u.cm**2)
-                    counts_tmp = (fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83
-                                  / (4*np.pi*u.steradian)*tmp)
-                    if not hasattr(counts, 'unit'):
-                        counts = counts*counts_tmp.unit
-                    counts += counts_tmp
-
-            self.interpolate_and_store(counts, loop, interp_s, dset, start_index)
-
-    def delayed_factory(self,loop,interp_s,start_index,tmp_file_dir):
+        return counts
+    
+    def delayed_factory(self, loop, interp_s, save_path):
         """
         Create a list of dask.delayed procedures for each channel for a given loop
         """
-        Te = loop.electron_temperature
-        n = loop.density
-        return [make_and_write(self,loop,Te,n,c,interp_s,start_index,tmp_file_dir) for c in self.channels]
+        if self.use_temperature_response_functions:
+            delayed_procedures = []
+            for channel in self.channels:
+                tmp_path = save_path.format(channel['name'],loop.name)
+                y = self.calculate_counts_simple(channel, loop)
+                delayed_procedures.append((channel, self.interpolate_and_store(y, loop, instr.observing_time, interp_s, tmp_path)))
+            return delayed_procedures
+        else:
+            itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
+            raise NotImplementedError('No parallelized version of full counts calculation.')
 
     def detect(self, hf, channel, i_time, header, *args):
         """
@@ -196,13 +194,3 @@ class InstrumentSDOAIA(InstrumentBase):
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
 
-
-@dask.delayed
-def make_and_write(instr,loop,electron_temperature,density,channel,interp_s,start_index,tmp_file_dir):
-    response_function = splev(np.ravel(electron_temperature),channel['temperature_response_spline'])*u.count*u.cm**5/u.s/u.pixel
-    counts = np.reshape(np.ravel(density**2)*response_function, np.shape(density))
-    f_s = interp1d(loop.field_aligned_coordinate.value, counts.value, axis=1, kind='linear')
-    interpolated_y = interp1d(loop.time.value, f_s(interp_s),axis=0, kind='linear', fill_value='extrapolate')(instr.observing_time)
-    tmp_fn = os.path.join(tmp_file_dir,channel['name'],'{}.npy'.format(loop.name)) 
-    np.save(tmp_fn,interpolated_y)
-    return tmp_fn,channel['name'],start_index,start_index+len(interp_s),counts.unit
