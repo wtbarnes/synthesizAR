@@ -159,7 +159,7 @@ class InstrumentSDOAIA(InstrumentBase):
             for channel in self.channels:
                 tmp_path = save_path.format(channel['name'],loop.name)
                 y = self.calculate_counts_simple(channel, loop)
-                delayed_procedures.append((channel, self.interpolate_and_store(y, loop, self.observing_time, interp_s, tmp_path)))
+                delayed_procedures.append((channel['name'], self.interpolate_and_store(y, loop, self.observing_time, interp_s, tmp_path)))
             return delayed_procedures
         else:
             itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
