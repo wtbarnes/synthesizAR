@@ -18,6 +18,7 @@ import h5py
 
 from synthesizAR.util import EMCube
 
+
 class Observer(object):
     """
     Class for assembling AR from loops and creating data products from 2D projections.
