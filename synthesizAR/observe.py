@@ -118,7 +118,7 @@ class Observer(object):
             delayed_procedures = []
             tmp_file_path = os.path.join(instr.tmp_file_template,'{}.npy')
             for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
-                los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
+                los_velocity = dask.delayed(np.dot)(loop.velocity_xyz, self.line_of_sight)
                 params = (loop, instr.observing_time, interp_s)
                 delayed_procedures += [
                     ('los_velocity', instr.interpolate_and_store(los_velocity, *params, tmp_file_path.format('los_velocity', loop.name))),
