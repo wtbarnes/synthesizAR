@@ -106,6 +106,7 @@ class Observer(object):
                         dset.attrs['units'] = units
                     tmp = np.load(filename)
                     dset[:,start_index:(start_index+tmp.shape[1])] = tmp
+                    os.remove(filename)
                     start_index += tmp.shape[1]
 
     def flatten_detector_counts(self, **kwargs):
