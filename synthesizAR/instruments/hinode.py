@@ -25,7 +25,7 @@ import h5py
 import periodictable
 
 from synthesizAR.instruments import InstrumentBase, Pair
-from synthesizAR.util import EISCube
+from synthesizAR.maps import EISCube
 
 
 class InstrumentHinodeEIS(InstrumentBase):
