@@ -37,13 +37,12 @@ class InstrumentBase(object):
         """
         raise NotImplementedError('No detect method implemented.')
 
-    def build_detector_file(self, file_template, chunks, *args, **kwargs):
+    def build_detector_file(self, file_template, dset_shape, chunks, *args, **kwargs):
         """
         Allocate space for counts data.
         """
-        dset_shape = self.observing_time.shape+(len(self.total_coordinates),)
         dset_names = ['density', 'electron_temperature', 'ion_temperature', 'los_velocity']
-        dset_names += kwargs.get('additional_fields',[])
+        dset_names += kwargs.get('additional_fields', [])
         self.counts_file = file_template.format(self.name)
         self.tmp_file_template = os.path.join(os.path.dirname(self.counts_file),'tmp_parallel_files',self.name,'{}')
         self.logger.info('Creating instrument file {}'.format(self.counts_file))
@@ -57,6 +56,13 @@ class InstrumentBase(object):
                 if not os.path.exists(self.tmp_file_template.format(dn)) and kwargs.get('make_tmp_files',True):
                     os.makedirs(self.tmp_file_template.format(dn))
 
+    @property
+    def total_coordinates(self):
+        with h5py.File(self.counts_file,'r') as hf:
+            total_coordinates = u.Quantity(hf['coordinates'],hf['coordinates'].attrs['units'])
+
+        return total_coordinates
+
     @staticmethod
     @dask.delayed
     def interpolate_and_store(y, loop, interp_t, interp_s, save_path):
@@ -68,6 +74,21 @@ class InstrumentBase(object):
                                   fill_value='extrapolate')(interp_t.value)
         np.save(save_path, interpolated_y)
         return save_path, y.unit.to_string()
+
+    @staticmethod
+    @dask.delayed
+    def generic_2d_histogram(counts_filename, dset_name, i_time, bins, bin_range):
+        """
+        Turn flattened quantity into 2D weighted histogram
+        """
+        with h5py.File(counts_filename,'r') as hf:
+            weights = np.array(hf[dset_name][i_time,:])
+            units = u.Unit(hf[dset_name].attrs['units'])
+            coordinates = np.array(hf['coordinates'][:,:2])
+        hc, _ = np.histogramdd(coordinates, bins=bins[:2], range=bin_range[:2])
+        h, _ = np.histogramdd(coordinates, bins=bins[:2], range=bin_range[:2], weights=weights)
+        h /= np.where(hc == 0, 1, hc)
+        return h.T*units
 
     def make_fits_header(self, field, channel):
         """

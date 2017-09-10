@@ -110,12 +110,12 @@ class InstrumentSDOAIA(InstrumentBase):
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline'] = splrep(x, y)
 
-    def build_detector_file(self, file_template, chunks, *args):
+    def build_detector_file(self, file_template, dset_shape, chunks, *args):
         """
         Allocate space for counts data.
         """
         additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
-        super().build_detector_file(file_template, chunks, *args, additional_fields=additional_fields)
+        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields)
         
     @staticmethod
     @dask.delayed
@@ -150,7 +150,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
         return counts
     
-    def delayed_factory(self, loop, interp_s, save_path):
+    def flatten_delayed_factory(self, loop, interp_s, save_path):
         """
         Create a list of dask.delayed procedures for each channel for a given loop
         """
@@ -193,4 +193,16 @@ class InstrumentSDOAIA(InstrumentBase):
             counts = gaussian_filter(counts, (channel['gaussian_width']['y'].value,
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
+
+    def detect_delayed_factory(self,i_time,field):
+        """
+        Create delayed procedures for binning the AIA intensities.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        """
+        pass
 
