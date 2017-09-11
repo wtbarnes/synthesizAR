@@ -73,6 +73,8 @@ class InstrumentBase(object):
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
                                   fill_value='extrapolate')(interp_t.value)
         np.save(save_path, interpolated_y)
+        del f_s
+        del interpolated_y
         return save_path, y.unit.to_string()
 
     @staticmethod
