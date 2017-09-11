@@ -7,6 +7,7 @@ import itertools
 
 import numpy as np
 import numba
+import dask.delayed
 import astropy.units as u
 import solarbextrapolation.utilities
 
@@ -148,3 +149,14 @@ def _numba_interpolator_wrapper(x_data, y_array_data, x, normalize=False, cutoff
     if normalize:
         y /= np.sum(y)
     return y
+
+
+def delay_property(instance,attr):
+    """
+    Lazily evaluate a class property using Dask delayed
+    """
+    for obj in [instance] + instance.__class__.mro():
+        if attr in obj.__dict__:
+            prop = obj.__dict__[attr]
+            return dask.delayed(prop.fget)(instance)
+    raise AttributeError
