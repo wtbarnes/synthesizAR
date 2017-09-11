@@ -87,7 +87,7 @@ class Observer(object):
         interp_s_shape = (int(np.median([s.shape for s in self._interpolated_loop_coordinates])),)
         for instr in self.instruments:
             chunks = kwargs.get('chunks', instr.observing_time.shape+interp_s_shape)
-            dset_shape = inst.observing_time.shape+(len(total_coordinates),)
+            dset_shape = instr.observing_time.shape+(len(total_coordinates),)
             instr.build_detector_file(file_template, dset_shape, chunks, self.field, **kwargs)
             with h5py.File(instr.counts_file,'a') as hf:
                 if 'coordinates' not in hf:
