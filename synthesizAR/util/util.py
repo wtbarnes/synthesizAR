@@ -12,7 +12,7 @@ import astropy.units as u
 import solarbextrapolation.utilities
 
 __all__ = ['convert_angle_to_length', 'find_seed_points', 'collect_points',
-           '_numba_lagrange_interpolator', '_numba_interpolator_wrapper']
+           '_numba_lagrange_interpolator', '_numba_interpolator_wrapper', 'delay_property']
 
 
 def convert_angle_to_length(hmi_map, angle_or_length, working_units=u.meter):
