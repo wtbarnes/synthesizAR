@@ -2,19 +2,17 @@ name: synthesizar
 channels:
 - defaults
 - conda-forge
-- openastronomy
 dependencies:
 - python=3.5
 - ipython=5.1
 - ipyparallel
 - astropy
-- hdf5
+- dask
 - h5py
 - matplotlib
 - numba
 - numpy
 - scipy
-- seaborn
 - sunpy
 - wcsaxes
 - yt
