@@ -165,7 +165,9 @@ class InstrumentSDOAIA(InstrumentBase):
             itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
             raise NotImplementedError('No parallelized version of full counts calculation.')
 
-    def detect(self, hf, channel, i_time, header, *args):
+    @staticmethod
+    @dask.delayed
+    def detect(self, counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
         return the AIA data product.
@@ -181,28 +183,29 @@ class InstrumentSDOAIA(InstrumentBase):
         -------
         AIA data product : `~sunpy.Map`
         """
-        dset = hf['{}'.format(channel['name'])]
-        hist, edges = np.histogramdd(self.total_coordinates.value,
-                                     bins=[self.bins.x, self.bins.y, self.bins.z],
-                                     range=[self.bin_range.x, self.bin_range.y, self.bin_range.z],
-                                     weights=np.array(dset[i_time,:]))
-        header['bunit'] = (u.Unit(dset.attrs['units'])*self.total_coordinates.unit).to_string()
+        with h5py.File(counts_filename,'r') as hf:
+            weights = np.array(hf[channel['name']][i_time,:])
+            units = u.Unit(hf[channel['name']].attrs['units'])
+            coordinates = u.Quantity(hf['coordinates'],hf['coordinates'].attrs['units'])
+
+        hist, edges = np.histogramdd(coordinates.value, bins=bins, range=bin_range, weights=weights)
+        header['bunit'] = (units*coordinates.unit).to_string()
         counts = np.dot(hist, np.diff(edges[2])).T
 
-        if self.apply_psf:
+        if apply_psf:
             counts = gaussian_filter(counts, (channel['gaussian_width']['y'].value,
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
 
-    def detect_delayed_factory(self,i_time,field):
+    def detect_delayed_factory(self, i_time, field):
         """
         Create delayed procedures for binning the AIA intensities.
-
-        Parameters
-        ----------
-
-        Returns
-        -------
         """
-        pass
+        delayed_procedures = []
+        for channel in self.channels:
+            header = self.make_fits_header(field,channel)
+            parameters = [self.counts_file,channel,i_time,header,self.bins,self.bin_range,self.apply_psf]
+            delayed_procedures.append(self.detect(*parameters))
+
+        return delayed_procedures
 

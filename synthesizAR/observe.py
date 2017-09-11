@@ -137,53 +137,33 @@ class Observer(object):
 
         return array_assembly
 
+    @staticmethod
+    @dask.delayed
+    def assemble_map(observed_map, filename, time):
+        observed_map.meta['tunit'] = time.unit.to_string()
+        observed_map.meta['t_obs'] = time.value
+        observed_map.save(filename)
+
     def bin_detector_counts(self, savedir):
         """
-        Assemble instrument data products and print to FITS file.
+        Assemble pipelines for building maps at each timestep.
         """
         fn_template = os.path.join(savedir, '{instr}', '{channel}', 'map_t{i_time:06d}.fits')
+        delayed_procedures = {}
         for instr in self.instruments:
-            self.logger.info('Building data products for {}'.format(instr.name))
-            # make coordinates histogram for normalization, only need them in 2D
-            hist_coordinates, _ = np.histogramdd(self.total_coordinates.value[:,:2],
-                                                 bins=[instr.bins.x, instr.bins.y],
-                                                 range=[instr.bin_range.x, instr.bin_range.y])
-            with h5py.File(instr.counts_file, 'r') as hf:
-                reference_time = np.array(hf['time'])*u.Unit(hf['time'].attrs['units'])
-                # produce map for each timestep
-                for time in instr.observing_time:
-                    try:
-                        i = np.where(reference_time == time)[0][0]
-                    except IndexError:
-                        self.logger.exception('{} {} is not a valid observing time for {}'.format(time.value, time.unit.to_string(), instr.name))
-                    self.logger.debug('Building data products at time {t:.3f} {u}'.format(t=time.value, u=time.unit))
-                    # ion temperature map
-                    hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
-                                             bins=[instr.bins.x, instr.bins.y],
-                                             range=[instr.bin_range.x, instr.bin_range.y],
-                                             weights=np.array(hf['ion_temperature'][i,:]))
-                    hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
-                    ion_temperature = hist.T*u.Unit(hf['ion_temperature'].attrs['units'])
-                    # LOS velocity map
-                    hist, _ = np.histogramdd(self.total_coordinates.value[:,:2],
-                                             bins=[instr.bins.x, instr.bins.y],
-                                             range=[instr.bin_range.x, instr.bin_range.y],
-                                             weights=np.array(hf['los_velocity'][i,:]))
-                    hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
-                    los_velocity = hist.T*u.Unit(hf['los_velocity'].attrs['units'])
-                    for channel in instr.channels:
-                        dummy_dir = os.path.dirname(fn_template.format(instr=instr.name,channel=channel['name'],
-                                                                       i_time=0))
-                        if not os.path.exists(dummy_dir):
-                            os.makedirs(dummy_dir)
-                        # setup fits header
-                        header = instr.make_fits_header(self.field, channel)
-                        header['tunit'] = time.unit.to_string()
-                        header['t_obs'] = time.value
-                        # combine lines for given channel and return SunPy Map
-                        tmp_map = instr.detect(hf, channel, i, header, ion_temperature, los_velocity)
-                        # crop to desired region and save
-                        if instr.observing_area is not None:
-                            tmp_map = tmp_map.crop(instr.observing_area)
-                        tmp_map.save(fn_template.format(instr=instr.name, channel=channel['name'],
-                                                        i_time=i))
+            delayed_procedures[instr.name] = []
+            with h5py.File(instr.counts_file,'r') as hf:
+                reference_time = u.Quantity(hf['time'],hf['time'].attrs['units'])
+            for time in instr.observing_time:
+                try:
+                    i_time = np.where(reference_time == time)[0][0]
+                except IndexError:
+                    self.logger.exception('{} {} is not a valid observing time for {}'.format(time.value, time.unit.to_string(), instr.name))
+                delayed_maps = instr.detect_delayed_factory(i_time, self.field)
+                for channel,dm in zip(instr.channels,delayed_maps):
+                    fn = fn_template.format(instr=instr.name, channel=channel['name'], i_time=i_time)
+                    if not os.path.exists(os.path.dirname(fn)):
+                        os.makedirs(os.path.dirname(fn))
+                    delayed_procedures[instr.name].append(self.assemble_map(dm,fn,time))
+
+        return delayed_procedures
