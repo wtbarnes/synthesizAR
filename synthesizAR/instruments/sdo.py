@@ -167,7 +167,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
     @staticmethod
     @dask.delayed
-    def detect(self, counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
+    def detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
         return the AIA data product.
