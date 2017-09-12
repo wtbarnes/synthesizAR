@@ -72,7 +72,7 @@ class UniformHeating(HeatingBase):
         uniform_heating_rate = 2.0*available_energy/(self.number_events*(2.0*self.heating_options['duration'] 
                                                                          - self.heating_options['duration_rise'] 
                                                                          - self.heating_options['duration_decay']))
-        rates = np.array(self.number_events*[uniform_heating_rate])
+        rates = np.array(self.number_events*[uniform_heating_rate.value])
         tsr, ter, tsd, ted = self._calculate_event_times()
 
         return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd, 
