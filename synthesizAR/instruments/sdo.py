@@ -119,10 +119,10 @@ class InstrumentSDOAIA(InstrumentBase):
         
     @staticmethod
     @dask.delayed
-    def calculate_counts_simple(channel, loop):
-        response_function = (splev(np.ravel(loop.electron_temperature),channel['temperature_response_spline'])
+    def calculate_counts_simple(channel, loop, electron_temperature, density):
+        response_function = (splev(np.ravel(electron_temperature),channel['temperature_response_spline'])
                              *u.count*u.cm**5/u.s/u.pixel)
-        counts = np.reshape(np.ravel(loop.density**2)*response_function, np.shape(loop.density))
+        counts = np.reshape(np.ravel(density**2)*response_function, np.shape(density))
         return counts
 
     @staticmethod
@@ -150,7 +150,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
         return counts
     
-    def flatten_delayed_factory(self, loop, interp_s, save_path):
+    def flatten_delayed_factory(self, loop, interp_s, electron_temperature, density, save_path):
         """
         Create a list of dask.delayed procedures for each channel for a given loop
         """
@@ -158,7 +158,7 @@ class InstrumentSDOAIA(InstrumentBase):
             delayed_procedures = []
             for channel in self.channels:
                 tmp_path = save_path.format(channel['name'],loop.name)
-                y = self.calculate_counts_simple(channel, loop)
+                y = self.calculate_counts_simple(channel, loop, electron_temperature, density)
                 delayed_procedures.append((channel['name'], self.interpolate_and_store(y, loop, self.observing_time, interp_s, tmp_path)))
             return delayed_procedures
         else:

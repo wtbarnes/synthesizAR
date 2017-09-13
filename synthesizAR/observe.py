@@ -123,14 +123,16 @@ class Observer(object):
             tmp_file_path = os.path.join(instr.tmp_file_template,'{}.npy')
             for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
                 los_velocity = dask.delayed(np.dot)(delay_property(loop,'velocity_xyz'), self.line_of_sight)
+                electron_temperature = delay_property(loop, 'electron_temperature')
+                density = delay_property(loop, 'density')
                 params = (loop, instr.observing_time, interp_s)
                 delayed_procedures += [
                     ('los_velocity', instr.interpolate_and_store(los_velocity, *params, tmp_file_path.format('los_velocity', loop.name))),
-                    ('electron_temperature', instr.interpolate_and_store(delay_property(loop,'electron_temperature'), *params, tmp_file_path.format('electron_temperature', loop.name))),
+                    ('electron_temperature', instr.interpolate_and_store(electron_temperature, *params, tmp_file_path.format('electron_temperature', loop.name))),
                     ('ion_temperature', instr.interpolate_and_store(delay_property(loop,'ion_temperature'), *params, tmp_file_path.format('ion_temperature', loop.name))),
-                    ('density', instr.interpolate_and_store(delay_property(loop,'density'), *params, tmp_file_path.format('density', loop.name)))
+                    ('density', instr.interpolate_and_store(density, *params, tmp_file_path.format('density', loop.name)))
                 ]
-                delayed_procedures += instr.flatten_delayed_factory(loop, interp_s, tmp_file_path)
+                delayed_procedures += instr.flatten_delayed_factory(loop, interp_s, electron_temperature, density, tmp_file_path)
             # Reshape delayed procedures into dictionary
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
             delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
