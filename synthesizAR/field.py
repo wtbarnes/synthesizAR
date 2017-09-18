@@ -310,13 +310,15 @@ Magnetogram Info:
             loops.append(Loop('loop{:06d}'.format(i), stream[0].value, stream[1].value))
         self.loops = loops
 
-    def configure_loop_simulations(self, interface):
+    def configure_loop_simulations(self, interface, **kwargs):
         """
         Configure hydrodynamic simulations for each loop object
         """
         self.simulation_type = interface.name
-        for loop in self.loops:
-            interface.configure_input(loop)
+        with ProgressBar(len(self.loops), ipython_widget=kwargs.get('notebook', True)) as progress:
+            for loop in self.loops:
+                interface.configure_input(loop)
+                progress.update()
 
     def load_loop_simulations(self, interface, savefile=None, **kwargs):
         """
