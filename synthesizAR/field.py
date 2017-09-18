@@ -15,6 +15,7 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import sunpy.map
 import astropy.units as u
+from astropy.utils.console import ProgressBar
 import h5py
 import yt
 import solarbextrapolation.map3dclasses
@@ -321,50 +322,53 @@ Magnetogram Info:
         """
         Load in loop parameters from hydrodynamic results.
         """
-        for loop in self.loops:
-            self.logger.debug('Loading parameters for {}'.format(loop.name))
-            time, electron_temperature, ion_temperature, density, velocity = interface.load_results(loop, **kwargs)
-            loop.time = time
-            # convert velocity to cartesian coordinates
-            grad_xyz = np.gradient(loop.coordinates.value, axis=0)
-            s_hat = grad_xyz/np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
-            velocity_xyz = np.stack([velocity.value*s_hat[:, 0],
-                                     velocity.value*s_hat[:, 1],
-                                     velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
-            if savefile is not None:
-                loop.parameters_savefile = savefile
-                with h5py.File(savefile, 'a') as hf:
-                    if loop.name not in hf:
-                        hf.create_group(loop.name)
-                    # electron temperature
-                    dset_electron_temperature = hf[loop.name].create_dataset('electron_temperature',
-                                                                             data=electron_temperature.value)
-                    dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
-                    # ion temperature
-                    dset_ion_temperature = hf[loop.name].create_dataset('ion_temperature',
-                                                                        data=ion_temperature.value)
-                    dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
-                    # number density
-                    dset_density = hf[loop.name].create_dataset('density', data=density.value)
-                    dset_density.attrs['units'] = density.unit.to_string()
-                    # field-aligned velocity
-                    dset_velocity = hf[loop.name].create_dataset('velocity', data=velocity.value)
-                    dset_velocity.attrs['units'] = velocity.unit.to_string()
-                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
-                    # Cartesian xyz velocity
-                    dset_velocity_xyz = hf[loop.name].create_dataset('velocity_xyz',
-                                                                     data=velocity_xyz.value)
-                    dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
-                    dset_velocity_xyz.attrs['note'] = '''Velocity in the Cartesian coordinate
-                                                        system of the extrapolated magnetic
-                                                        field. Index 0->x, index 1->y, index
-                                                        2->z.'''
-            else:
-                loop._electron_temperature = temperature
-                loop._ion_temperature = temperature
-                loop._density = density
-                loop._velocity = velocity
-                loop._velocity_xyz = velocity_xyz
+        with ProgressBar(len(self.loops), ipython_widget=kwargs.get('notebook', True)) as progress:
+            for loop in self.loops:
+                self.logger.debug('Loading parameters for {}'.format(loop.name))
+                time, electron_temperature, ion_temperature, density, velocity = interface.load_results(loop, **kwargs)
+                loop.time = time
+                # convert velocity to cartesian coordinates
+                grad_xyz = np.gradient(loop.coordinates.value, axis=0)
+                s_hat = grad_xyz/np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
+                velocity_xyz = np.stack([velocity.value*s_hat[:, 0],
+                                        velocity.value*s_hat[:, 1],
+                                        velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
+                if savefile is not None:
+                    loop.parameters_savefile = savefile
+                    with h5py.File(savefile, 'a') as hf:
+                        if loop.name not in hf:
+                            hf.create_group(loop.name)
+                        # electron temperature
+                        dset_electron_temperature = hf[loop.name].create_dataset('electron_temperature',
+                                                                                data=electron_temperature.value)
+                        dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
+                        # ion temperature
+                        dset_ion_temperature = hf[loop.name].create_dataset('ion_temperature',
+                                                                            data=ion_temperature.value)
+                        dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
+                        # number density
+                        dset_density = hf[loop.name].create_dataset('density', data=density.value)
+                        dset_density.attrs['units'] = density.unit.to_string()
+                        # field-aligned velocity
+                        dset_velocity = hf[loop.name].create_dataset('velocity', data=velocity.value)
+                        dset_velocity.attrs['units'] = velocity.unit.to_string()
+                        dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
+                        # Cartesian xyz velocity
+                        dset_velocity_xyz = hf[loop.name].create_dataset('velocity_xyz',
+                                                                        data=velocity_xyz.value)
+                        dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
+                        dset_velocity_xyz.attrs['note'] = '''Velocity in the Cartesian coordinate
+                                                            system of the extrapolated magnetic
+                                                            field. Index 0->x, index 1->y, index
+                                                            2->z.'''
+                else:
+                    loop._electron_temperature = temperature
+                    loop._ion_temperature = temperature
+                    loop._density = density
+                    loop._velocity = velocity
+                    loop._velocity_xyz = velocity_xyz
+
+                progress.update()
 
     def calculate_emission(self, emission_model, savefile=None, **kwargs):
         """
