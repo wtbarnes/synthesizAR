@@ -15,6 +15,7 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import sunpy.map
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from astropy.utils.console import ProgressBar
 import h5py
 import yt
@@ -76,16 +77,17 @@ Magnetogram Info:
         ----------
         map : `~sunpy.map.Map`
             Original HMI map
-        crop : `tuple` `[xrange,yrange]`, optional
-            The x- and y-ranges of the cropped map, both should be of type `~astropy.units.Quantity`
-            and have the same units as `map.xrange` and `map.yrange`
+        crop : `tuple` `[bottom_left_corner,top_right_corner]`, optional
+            The lower left and upper right corners of the cropped map. Both should be of type `~astropy.units.Quantity` and have the same units as `map.xrange` and `map.yrange`
         resample : `~astropy.units.Quantity`, `[new_xdim,new_ydim]`, optional
             The new x- and y-dimensions of the resampled map, should have the same units as
             `map.dimensions.x` and `map.dimensions.y`
         """
         tmp_map = tmp_map.rotate()
         if crop is not None:
-            tmp_map = tmp_map.submap(crop[0], crop[1])
+            bottom_left = SkyCoord(*crop[0], frame=tmp_map.coordinate_frame)
+            top_right = SkyCoord(*crop[1], frame=tmp_map.coordinate_frame)
+            tmp_map = tmp_map.submap(bottom_left, top_right)
         if resample is not None:
             tmp_map = tmp_map.resample(resample, method='linear')
 
@@ -111,8 +113,7 @@ Magnetogram Info:
         with open(os.path.join(savedir, 'streamlines.pickle'), 'wb') as f:
             pickle.dump(self.streamlines, f)
         # sunpy maps
-        with open(os.path.join(savedir, 'hmi_map.pickle'), 'wb') as f:
-            pickle.dump(self.hmi_map, f)
+        self.hmi_map.save(os.path.join(savedir, 'hmi_map.fits'))
         # 3d extrapolated field
         with open(os.path.join(savedir, 'map_3d.pickle'), 'wb') as f:
             pickle.dump(self._map_3d, f)
@@ -139,8 +140,7 @@ Magnetogram Info:
         with open(os.path.join(savedir, 'streamlines.pickle'), 'rb') as f:
             streamlines = pickle.load(f)
         # sunpy maps
-        with open(os.path.join(savedir, 'hmi_map.pickle'), 'rb') as f:
-            hmi_map = pickle.load(f)
+        hmi_map = sunpy.map.Map(os.path.join(savedir, 'hmi_map.fits'))
         # 3d extapolated fields
         with open(os.path.join(savedir, 'map_3d.pickle'), 'rb') as f:
             map_3d = pickle.load(f)
@@ -181,13 +181,11 @@ Magnetogram Info:
                     By=(np.swapaxes(_tmp[:, :, :, 0], 0, 1), 'T'),
                     Bz=(np.swapaxes(_tmp[:, :, :, 2], 0, 1), 'T'))
         # trim the boundary hmi map appropriately
-        self.clipped_hmi_map = self.hmi_map.submap(
-                                (self.hmi_map.xrange
-                                 + self.hmi_map.scale.x*u.Quantity([boundary_clipping[0]*u.pixel,
-                                                                   -boundary_clipping[0]*u.pixel])),
-                                (self.hmi_map.yrange
-                                 + self.hmi_map.scale.y*u.Quantity([boundary_clipping[1]*u.pixel,
-                                                                   -boundary_clipping[1]*u.pixel])))
+        lcx, rcx = self.hmi_map.xrange + self.hmi_map.scale.axis1*u.Quantity([boundary_clipping[0], -boundary_clipping[0]], u.pixel)
+        lcy, rcy = self.hmi_map.yrange + self.hmi_map.scale.axis2*u.Quantity([boundary_clipping[1], -boundary_clipping[1]], u.pixel)
+        bottom_left = SkyCoord(lcx, lcy, frame=self.hmi_map.coordinate_frame)
+        top_right = SkyCoord(rcx, rcy, frame=self.hmi_map.coordinate_frame)
+        self.clipped_hmi_map = self.hmi_map.submap(bottom_left, top_right)
         # create the bounding box
         bbox = np.array([
             self._convert_angle_to_length(self.clipped_hmi_map.xrange).value,
@@ -201,7 +199,7 @@ Magnetogram Info:
 
     @u.quantity_input(loop_length_range=u.cm)
     def _filter_streamlines(self, streamline, close_threshold=0.05,
-                            loop_length_range=[2.e+9, 5.e+10]*u.cm):
+                            loop_length_range=[2.e+9, 5.e+10]*u.cm, **kwargs):
         """
         Check extracted loop to make sure it fits given criteria. Return True if it passes.
 
@@ -254,15 +252,16 @@ Magnetogram Info:
             # calculate seed points
             seed_points = find_seed_points(self.extrapolated_3d_field,
                                            self.clipped_hmi_map, remaining_fieldlines,
-                                           preexisting_seeds=seed_points, mask_threshold=0.1,
-                                           safety=2.)
+                                           preexisting_seeds=seed_points,
+                                           mask_threshold=kwargs.get('mask_threshold', 0.1),
+                                           safety=kwargs.get('safety', 2.))
             # trace fieldlines
             streamlines = yt.visualization.api.Streamlines(self.extrapolated_3d_field, 
                                                            (seed_points
                                                             * self.extrapolated_3d_field.domain_width
                                                             / self.extrapolated_3d_field.domain_width.value), 
                                                            xfield='Bx', yfield='By', zfield='Bz',
-                                                           get_magnitude=True, direction=-1)
+                                                           get_magnitude=True, direction=kwargs.get('direction',-1))
             streamlines.integrate_through_volume()
             streamlines.clean_streamlines()
             # filter
