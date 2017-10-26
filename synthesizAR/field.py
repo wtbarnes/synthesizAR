@@ -115,8 +115,10 @@ Magnetogram Info:
         # sunpy maps
         self.hmi_map.save(os.path.join(savedir, 'hmi_map.fits'))
         # 3d extrapolated field
-        with open(os.path.join(savedir, 'map_3d.pickle'), 'wb') as f:
-            pickle.dump(self._map_3d, f)
+        with h5py.File(os.path.join(savedir, 'map_3d.h5'),'w') as hf:
+            hf.create_dataset('map_3d', data=self._map_3d)
+            zrange = hf.create_dataset('zrange', data=self._zrange.value)
+            zrange.attrs['units'] = self._zrange.unit.to_string()
 
     @classmethod
     def restore(cls, savedir):
@@ -142,14 +144,16 @@ Magnetogram Info:
         # sunpy maps
         hmi_map = sunpy.map.Map(os.path.join(savedir, 'hmi_map.fits'))
         # 3d extapolated fields
-        with open(os.path.join(savedir, 'map_3d.pickle'), 'rb') as f:
-            map_3d = pickle.load(f)
+        with h5py.File(os.path.join(savedir, 'map_3d.h5'), 'r') as hf:
+            map_3d = np.array(hf['map_3d'])
+            zrange = u.Quantity(hf['zrange'], hf['zrange'].attrs['units'])
         field = cls()
         field.loops = loops
         field.hmi_map = hmi_map
         field.streamlines = streamlines
-        field.extrapolated_3d_field = field._transform_to_yt(map_3d)
+        field.extrapolated_3d_field = field._transform_to_yt(map_3d, zrange)
         field._map_3d = map_3d
+        field._zrange = zrange
 
         return field
 
@@ -159,22 +163,24 @@ Magnetogram Info:
         """
         return convert_angle_to_length(self.hmi_map, angle_or_length, working_units=working_units)
 
-    def _transform_to_yt(self, map_3d, boundary_clipping=(2, 2, 2)):
+    def _transform_to_yt(self, map_3d, zrange, boundary_clipping=(2, 2, 2)):
         """
         Reshape data structure to something yt can work with.
 
         Parameters
         ----------
-        map_3d : `solarbextrapolation.map3dclasses.Map3D`
-            Result from the field extrapolation routine
+        map_3d : `np.array`
+            3D+x,y,z array holding the x,y,z components of the extrapolated field
+        zrange : `astropy.Quantity`
+            Spatial range of the extrapolated field
         boundary_clipping : `tuple`, optional
             The extrapolated volume has a layer of ghost cells in each dimension. This tuple of
             (nx,ny,nz) tells how many cells to contract the volume and map in each direction.
         """
         # reshape the magnetic field data
-        _tmp = map_3d.data[boundary_clipping[0]:-boundary_clipping[0],
-                           boundary_clipping[1]:-boundary_clipping[1],
-                           boundary_clipping[2]:-boundary_clipping[2], :]
+        _tmp = map_3d[boundary_clipping[0]:-boundary_clipping[0],
+                      boundary_clipping[1]:-boundary_clipping[1],
+                      boundary_clipping[2]:-boundary_clipping[2], :]
         # some annoying and cryptic translation between yt and SunPy
         data = dict(
                     Bx=(np.swapaxes(_tmp[:, :, :, 1], 0, 1), 'T'),
@@ -187,12 +193,11 @@ Magnetogram Info:
         top_right = SkyCoord(rcx, rcy, frame=self.hmi_map.coordinate_frame)
         self.clipped_hmi_map = self.hmi_map.submap(bottom_left, top_right)
         # create the bounding box
-        bbox = np.array([
-            self._convert_angle_to_length(self.clipped_hmi_map.xrange).value,
-            self._convert_angle_to_length(self.clipped_hmi_map.yrange).value,
-            self._convert_angle_to_length(map_3d.zrange
-                                          + map_3d.scale.z*u.Quantity([boundary_clipping[2]*u.pixel,
-                                                                      -boundary_clipping[2]*u.pixel])).value])
+        zscale = np.diff(zrange)[0]/(map_3d.shape[2]*u.pixel)
+        clipped_zrange = zrange + zscale*u.Quantity([boundary_clipping[2]*u.pixel, -boundary_clipping[2]*u.pixel])
+        bbox = np.array([self._convert_angle_to_length(self.clipped_hmi_map.xrange).value,
+                         self._convert_angle_to_length(self.clipped_hmi_map.yrange).value,
+                         self._convert_angle_to_length(clipped_zrange).value])
         # assemble the dataset
         return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox, length_unit=yt.units.cm,
                                     geometry=('cartesian', ('x', 'y', 'z')))
@@ -230,10 +235,11 @@ Magnetogram Info:
         extrapolator = solarbextrapolation.extrapolators.PotentialExtrapolator(self.hmi_map, zshape=zshape, zrange=zrange)
         map_3d = extrapolator.extrapolate(enable_numba=use_numba_for_extrapolation)
         # preserve the 3d numpy array for restoration purposes
-        self._map_3d = map_3d
+        self._map_3d = map_3d.data
+        self._zrange = zrange
         # hand it to yt
         self.logger.debug('Transforming to yt data object')
-        self.extrapolated_3d_field = self._transform_to_yt(map_3d)
+        self.extrapolated_3d_field = self._transform_to_yt(map_3d.data, zrange)
 
     def extract_streamlines(self, number_fieldlines, max_tries=100, **kwargs):
         """
