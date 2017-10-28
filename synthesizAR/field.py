@@ -226,13 +226,14 @@ Magnetogram Info:
             return True
 
     @u.quantity_input(zrange=u.arcsec)
-    def extrapolate_field(self, zshape, zrange, use_numba_for_extrapolation=True):
+    def extrapolate_field(self, zshape, zrange, extrapolator=None, use_numba_for_extrapolation=True):
         """
         Extrapolate the 3D field and transform it into a yt data object.
         """
         # extrapolate field
         self.logger.debug('Extrapolating field.')
-        extrapolator = solarbextrapolation.extrapolators.PotentialExtrapolator(self.hmi_map, zshape=zshape, zrange=zrange)
+        if extrapolator is None:
+            extrapolator = solarbextrapolation.extrapolators.PotentialExtrapolator(self.hmi_map, zshape=zshape, zrange=zrange)
         map_3d = extrapolator.extrapolate(enable_numba=use_numba_for_extrapolation)
         # preserve the 3d numpy array for restoration purposes
         self._map_3d = map_3d.data
@@ -279,7 +280,7 @@ Magnetogram Info:
             else:
                 i_tries = 0
             # save strealines
-            self.streamlines += [(stream[np.all(stream != 0.0, axis=1)], mag) for stream, mag, keep 
+            self.streamlines += [(stream[np.all(stream != 0.0, axis=1)], mag) for stream, mag, keep
                                  in zip(streamlines.streamlines, streamlines.magnitudes, keep_streamline) 
                                  if keep is True]
 
