@@ -103,18 +103,15 @@ Magnetogram Info:
                                                       .strftime('%Y%m%d-%H%M%S')))
         if not os.path.exists(savedir):
             os.makedirs(savedir)
-        # loops
         if not os.path.exists(os.path.join(savedir, 'loops')):
             os.makedirs(os.path.join(savedir, 'loops'))
         for l in self.loops:
             with open(os.path.join(savedir, 'loops', l.name+'.pickle'), 'wb') as f:
                 pickle.dump(l, f)
-        # streamlines
         with open(os.path.join(savedir, 'streamlines.pickle'), 'wb') as f:
             pickle.dump(self.streamlines, f)
-        # sunpy maps
-        self.hmi_map.save(os.path.join(savedir, 'hmi_map.fits'))
-        # 3d extrapolated field
+        if not os.path.isfile(os.path.join(savedir, 'hmi_map.fits')):
+            self.hmi_map.save(os.path.join(savedir, 'hmi_map.fits'))
         with h5py.File(os.path.join(savedir, 'map_3d.h5'),'w') as hf:
             hf.create_dataset('map_3d', data=self._map_3d)
             zrange = hf.create_dataset('zrange', data=self._zrange.value)
@@ -141,9 +138,8 @@ Magnetogram Info:
         # streamlines
         with open(os.path.join(savedir, 'streamlines.pickle'), 'rb') as f:
             streamlines = pickle.load(f)
-        # sunpy maps
+        # sunpy maps and 3D field
         hmi_map = sunpy.map.Map(os.path.join(savedir, 'hmi_map.fits'))
-        # 3d extapolated fields
         with h5py.File(os.path.join(savedir, 'map_3d.h5'), 'r') as hf:
             map_3d = np.array(hf['map_3d'])
             zrange = u.Quantity(hf['zrange'], hf['zrange'].attrs['units'])
