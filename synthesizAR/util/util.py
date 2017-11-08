@@ -152,7 +152,7 @@ def _numba_interpolator_wrapper(x_data, y_array_data, x, normalize=False, cutoff
     return y
 
 
-def delay_property(instance,attr):
+def delay_property(instance, attr):
     """
     Lazily evaluate a class property using Dask delayed
     """

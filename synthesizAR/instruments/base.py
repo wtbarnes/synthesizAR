@@ -7,11 +7,9 @@ import logging
 from collections import namedtuple
 
 import numpy as np
-import dask
 from scipy.interpolate import interp1d
 import astropy.units as u
 import h5py
-import dask.delayed
 
 Pair = namedtuple('Pair', 'x y z')
 
@@ -53,7 +51,7 @@ class InstrumentBase(object):
             for dn in dset_names:
                 if dn not in hf:
                     hf.create_dataset(dn, dset_shape, chunks=chunks)
-                if not os.path.exists(self.tmp_file_template.format(dn)) and kwargs.get('make_tmp_files',True):
+                if not os.path.exists(self.tmp_file_template.format(dn)) and kwargs.get('parallel', False):
                     os.makedirs(self.tmp_file_template.format(dn))
 
     @property
@@ -64,24 +62,25 @@ class InstrumentBase(object):
         return total_coordinates
 
     @staticmethod
-    @dask.delayed
-    def interpolate_and_store(y, loop, interp_t, interp_s, save_path):
+    def interpolate_and_store(y, loop, interp_t, interp_s, save_path=False):
         """
         Interpolate in time and space and write to HDF5 file.
         """
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
                                   fill_value='extrapolate')(interp_t.value)
-        np.save(save_path, interpolated_y)
-        return save_path, y.unit.to_string()
+        if save_path:
+            np.save(save_path, interpolated_y)
+            return save_path, y.unit.to_string()
+        else:
+            return interpolated_y*y.unit
 
     @staticmethod
-    @dask.delayed
     def generic_2d_histogram(counts_filename, dset_name, i_time, bins, bin_range):
         """
         Turn flattened quantity into 2D weighted histogram
         """
-        with h5py.File(counts_filename,'r') as hf:
+        with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[dset_name][i_time,:])
             units = u.Unit(hf[dset_name].attrs['units'])
             coordinates = np.array(hf['coordinates'][:,:2])

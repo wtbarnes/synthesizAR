@@ -110,15 +110,14 @@ class InstrumentSDOAIA(InstrumentBase):
                 y = aia_info[channel['name']]['response_y']
                 channel['wavelength_response_spline'] = splrep(x, y)
 
-    def build_detector_file(self, file_template, dset_shape, chunks, *args):
+    def build_detector_file(self, file_template, dset_shape, chunks, *args, parallel=False):
         """
         Allocate space for counts data.
         """
         additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
-        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields)
+        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, parallel=parallel)
         
     @staticmethod
-    @dask.delayed
     def calculate_counts_simple(channel, loop, electron_temperature, density):
         response_function = (splev(np.ravel(electron_temperature),channel['temperature_response_spline'])
                              *u.count*u.cm**5/u.s/u.pixel)
@@ -126,7 +125,6 @@ class InstrumentSDOAIA(InstrumentBase):
         return counts
 
     @staticmethod
-    @dask.delayed
     def calculate_counts_full(channel, electron_temperature, density):
         counts = np.zeros(loop.electron_temperature.shape)
         for ion in self.emission_model.ions:
@@ -150,24 +148,36 @@ class InstrumentSDOAIA(InstrumentBase):
 
         return counts
     
-    def flatten_delayed_factory(self, loop, interp_s, electron_temperature, density, save_path):
+    def flatten(self, loop, interp_s, electron_temperature, density, save_path=False):
         """
-        Create a list of dask.delayed procedures for each channel for a given loop
+        Interpolate intensity in each channel to temporal resolution of the instrument
+        and appropriate spatial scale.
+
+        Note
+        ----
+        If using parallel option, this returns a list of dask tasks. Otherwise, the interpolated
+        counts are returned.
         """
         if self.use_temperature_response_functions:
-            delayed_procedures = []
+            counts = []
             for channel in self.channels:
-                tmp_path = save_path.format(channel['name'],loop.name)
-                y = self.calculate_counts_simple(channel, loop, electron_temperature, density)
-                delayed_procedures.append((channel['name'], self.interpolate_and_store(y, loop, self.observing_time, interp_s, tmp_path)))
-            return delayed_procedures
+                if save_path:
+                    tmp_path = save_path.format(channel['name'], loop.name)
+                    y = dask.delayed(self.interpolate_and_store)(
+                            dask.delayed(self.calculate_counts_simple)(channel, loop, electron_temperature, density), 
+                            loop, self.observing_time, interp_s, tmp_path)
+                else:
+                    y = self.interpolate_and_store(self.calculate_counts_simple(channel, loop, electron_temperature,
+                                                                                density),
+                                                   loop, self.observing_time, interp_s)
+                counts.append((channel['name'], y))
+            return counts
         else:
             itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
             raise NotImplementedError('No parallelized version of full counts calculation.')
 
     @staticmethod
-    @dask.delayed
-    def detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
+    def _detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
         return the AIA data product.
@@ -183,10 +193,10 @@ class InstrumentSDOAIA(InstrumentBase):
         -------
         AIA data product : `~sunpy.Map`
         """
-        with h5py.File(counts_filename,'r') as hf:
+        with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time,:])
             units = u.Unit(hf[channel['name']].attrs['units'])
-            coordinates = u.Quantity(hf['coordinates'],hf['coordinates'].attrs['units'])
+            coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
         hist, edges = np.histogramdd(coordinates.value, bins=bins, range=bin_range, weights=weights)
         header['bunit'] = (units*coordinates.unit).to_string()
@@ -197,15 +207,11 @@ class InstrumentSDOAIA(InstrumentBase):
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
 
-    def detect_delayed_factory(self, i_time, field):
-        """
-        Create delayed procedures for binning the AIA intensities.
-        """
-        delayed_procedures = []
-        for channel in self.channels:
-            header = self.make_fits_header(field,channel)
-            parameters = [self.counts_file,channel,i_time,header,self.bins,self.bin_range,self.apply_psf]
-            delayed_procedures.append(self.detect(*parameters))
-
-        return delayed_procedures
+    def detect(self, channel, i_time, field, parallel=False):
+        header = self.make_fits_header(field, channel)
+        parameters = (self.counts_file, channel, i_time, header, self.bins, self.bin_range, self.apply_psf)
+        if parallel:
+            return dask.delayed(self._detect)(*parameters)
+        else:
+            return self._detect(*parameters)
 
