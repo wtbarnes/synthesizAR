@@ -129,8 +129,8 @@ Maximum field strength : {max_b:.2f}
         else:
             return self._velocity_xyz
 
-    @u.quantity_input(wavelength=u.angstrom)
-    def get_emission(self, wavelength, return_ion_name=False):
+    @u.quantity_input
+    def get_emission(self, wavelength: u.angstrom, return_ion_name=False):
         """
         Get the calculated emission (energy per unit volume per unit time per unit solid angle) for
         a particular wavelength. Can be stored in memory or pulled from an HDF5 file.

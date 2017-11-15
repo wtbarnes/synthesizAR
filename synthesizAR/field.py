@@ -198,9 +198,9 @@ Magnetogram Info:
         return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox, length_unit=yt.units.cm,
                                     geometry=('cartesian', ('x', 'y', 'z')))
 
-    @u.quantity_input(loop_length_range=u.cm)
+    @u.quantity_input
     def _filter_streamlines(self, streamline, close_threshold=0.05,
-                            loop_length_range=[2.e+9, 5.e+10]*u.cm, **kwargs):
+                            loop_length_range: u.cm =[2.e+9, 5.e+10]*u.cm, **kwargs):
         """
         Check extracted loop to make sure it fits given criteria. Return True if it passes.
 
@@ -221,8 +221,8 @@ Magnetogram Info:
         else:
             return True
 
-    @u.quantity_input(zrange=u.arcsec)
-    def extrapolate_field(self, zshape, zrange, extrapolator=None, use_numba_for_extrapolation=True):
+    @u.quantity_input
+    def extrapolate_field(self, zshape, zrange: u.arcsec, extrapolator=None, use_numba_for_extrapolation=True):
         """
         Extrapolate the 3D field and transform it into a yt data object.
         """
