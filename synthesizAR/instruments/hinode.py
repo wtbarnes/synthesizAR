@@ -13,12 +13,7 @@ import pkg_resources
 import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
 from scipy.ndimage.filters import gaussian_filter
-try:
-    from sunpy.map import MapMeta
-except ImportError:
-    # This has been renamed in the newest SunPy release, can eventually be removed
-    # But necessary for the time being with current dev release
-    from sunpy.util.metadata import MetaDict as MapMeta
+from sunpy.util.metadata import MetaDict
 import astropy.units as u
 import astropy.constants as const
 import h5py
@@ -38,7 +33,7 @@ class InstrumentHinodeEIS(InstrumentBase):
     name = 'Hinode_EIS'
     cadence = 10.0*u.s
     resolution = Pair(1.0*u.arcsec/u.pixel, 2.0*u.arcsec/u.pixel, None)
-    fits_template = MapMeta()
+    fits_template = MetaDict()
     fits_template['telescop'] = 'Hinode'
     fits_template['instrume'] = 'EIS'
     fits_template['detector'] = 'EIS'

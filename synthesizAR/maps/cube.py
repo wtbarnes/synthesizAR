@@ -10,12 +10,7 @@ import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
 from sunpy.map import Map, MapCube, GenericMap
-try:
-    from sunpy.map import MapMeta
-except ImportError:
-    # This has been renamed in the newest SunPy release, can eventually be removed
-    # But necessary for the time being with current dev release
-    from sunpy.util.metadata import MetaDict as MapMeta
+from sunpy.util.metadata import MetaDict
 from sunpy.io.fits import get_header
 
 
@@ -146,7 +141,7 @@ class EMCube(MapCube):
         """
         Restore `EMCube` from an HDF5 file.
         """
-        header = MapMeta()
+        header = MetaDict()
         with h5py.File(filename,'r') as hf:
             data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs['units'])
             temperature_bin_edges = u.Quantity(hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs['units'])
@@ -350,7 +345,7 @@ Wavelength dimension : {wvl_dim}
         """
         Helper to load cube from HDF5 file
         """
-        header = MapMeta()
+        header = MetaDict()
         with h5py.File(filename, 'r') as hf:
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
@@ -364,7 +359,7 @@ Wavelength dimension : {wvl_dim}
         Helper to load cube from FITS file
         """
         tmp = astropy.io.fits.open(filename)
-        header = MapMeta(get_header(tmp)[0])
+        header = MetaDict(get_header(tmp)[0])
         data = tmp[0].data*u.Unit(header['bunit'])
         wavelength = tmp[1].data.field(0)*u.Unit(tmp[1].header['TUNIT1'])
         tmp.close()

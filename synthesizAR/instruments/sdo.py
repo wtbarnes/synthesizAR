@@ -10,19 +10,18 @@ import json
 import pkg_resources
 
 import numpy as np
-import dask
 from scipy.interpolate import splrep, splev, interp1d
 from scipy.ndimage import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 import astropy.units as u
 from sunpy.map import Map
-try:
-    from sunpy.map import MapMeta
-except ImportError:
-    # This has been renamed in the newest SunPy release, can eventually be removed
-    # But necessary for the time being with current dev release
-    from sunpy.util.metadata import MetaDict as MapMeta
+from sunpy.util.metadata import MetaDict
 import h5py
+try:
+    import dask
+except ImportError:
+    warnings.warn('Dask library not found. You will not be able to use the parallel option.')
+
 
 from synthesizAR.instruments import InstrumentBase, Pair
 
@@ -49,7 +48,7 @@ class InstrumentSDOAIA(InstrumentBase):
     -----
     """
 
-    fits_template = MapMeta()
+    fits_template = MetaDict()
     fits_template['telescop'] = 'SDO/AIA'
     fits_template['detector'] = 'AIA'
     fits_template['waveunit'] = 'angstrom'
@@ -129,17 +128,15 @@ class InstrumentSDOAIA(InstrumentBase):
         counts = np.zeros(loop.electron_temperature.shape)
         for ion in self.emission_model.ions:
             fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
-                                                                    ion.chianti_ion.meta['Ion'])
+                                                                   ion.chianti_ion.meta['Ion'])
             if ion.emissivity is None:
                 self.emission_model.calculate_emissivity()
             emiss = ion.emissivity
-            interpolated_response = splev(ion.wavelength.value,
-                                            channel['wavelength_response_spline'], ext=1)
+            interpolated_response = splev(ion.wavelength.value, channel['wavelength_response_spline'], ext=1)
             em_summed = np.dot(emiss.value, interpolated_response)
             tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
-                                loop.electron_temperature.shape)
-            tmp = (np.where(tmp > 0.0, tmp, 0.0)*emiss.unit*u.count/u.photon
-                    * u.steradian/u.pixel*u.cm**2)
+                             loop.electron_temperature.shape)
+            tmp = np.where(tmp > 0.0, tmp, 0.0) * emiss.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
             counts_tmp = (fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83
                             / (4*np.pi*u.steradian)*tmp)
             if not hasattr(counts, 'unit'):
@@ -155,7 +152,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
         Note
         ----
-        If using parallel option, this returns a list of dask tasks. Otherwise, the interpolated
+        If using parallel option, this returns a list of Dask tasks. Otherwise, the interpolated
         counts are returned.
         """
         if self.use_temperature_response_functions:
@@ -184,10 +181,13 @@ class InstrumentSDOAIA(InstrumentBase):
 
         Parameters
         ----------
-        hf : `~h5py.File`
+        counts_filename : `str`
         channel : `dict`
         i_time : `int`
-        header : `~sunpy.MapMeta`
+        header : `~sunpy.util.metadata.MetaDict`
+        bins : `Pair`
+        bin_range : `Pair`
+        apply_psf : `bool`
 
         Returns
         -------

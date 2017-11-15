@@ -3,15 +3,19 @@ Create data products loop simulations
 """
 
 import os
+import warnings
 import logging
 from itertools import groupby
 
 import numpy as np
-import dask
 from scipy.interpolate import splev, splprep, interp1d
 import scipy.ndimage
 import astropy.units as u
 import h5py
+try:
+    import dask
+except ImportError:
+    warnings.warn('Dask library not found. You will not be able to use the parallel option.')
 
 from synthesizAR.util import delay_property
 
@@ -98,34 +102,42 @@ class Observer(object):
                     dset.attrs['units'] = total_coordinates.unit.to_string()
             instr.make_detector_array(self.field)
 
-    @staticmethod
-    def commit(y, dset, start_index):
-        if 'units' not in dset.attrs:
-            dset.attrs['units'] = y.unit.to_string()
-        dset[:, start_index:(start_index + y.shape[1])] = y.value
-    
-    @staticmethod
-    @dask.delayed
-    def assemble_arrays(delayed_procedures, h5py_filename, **kwargs):
-        with h5py.File(h5py_filename, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
-            for key in delayed_procedures:
-                dset = hf[key]
-                start_index = 0
-                for filename, units in delayed_procedures[key]:
-                    tmp = u.Quantity(np.load(filename), units)
-                    Observer.commit(tmp, dset, start_index)
-                    os.remove(filename)
-                    start_index += tmp.shape[1]
-
     def flatten_detector_counts(self, **kwargs):
+        """
+        Calculate intensity for each loop, interpolate it to the appropriate spatial and temporal
+        resolution, and store it. This is done either in serial or parallel.
+        """
         if self.parallel:
             return self._flatten_detector_counts_parallel(**kwargs)
         else:
             self._flatten_detector_counts_serial(**kwargs)
 
+    def _flatten_detector_counts_serial(self, **kwargs):
+        for instr in self.instruments:
+            with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver',None)) as hf:
+                start_index = 0
+                for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
+                    params = (loop, instr.observing_time, interp_s)
+                    los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
+                    self.commit(instr.interpolate_and_store(los_velocity, *params), hf['los_velocity'], start_index)
+                    self.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
+                                hf['electron_temperature'], start_index)
+                    self.commit(instr.interpolate_and_store(loop.ion_temperature, *params), hf['ion_temperature'],
+                                start_index)
+                    self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'], start_index)
+                    for name, y in instr.flatten(loop, interp_s, loop.electron_temperature, loop.density):
+                        self.commit(y, hf[name], start_index)
+                    start_index += interp_s.shape[0]
+
+    @staticmethod
+    def commit(y, dset, start_index):
+        if 'units' not in dset.attrs:
+            dset.attrs['units'] = y.unit.to_string()
+        dset[:, start_index:(start_index + y.shape[1])] = y.value
+
     def _flatten_detector_counts_parallel(self, **kwargs):
         """
-        Interpolate and flatten emission data from loop objects.
+        Create Dask task graph for interpolating quantities for each in loop in time and space.
         """
         array_assembly = {}
         # Build list of delayed procedures for each instrument
@@ -152,26 +164,22 @@ class Observer(object):
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
             delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
             # Add assemble procedure
-            array_assembly[instr.name] = self.assemble_arrays(delayed_procedures, instr.counts_file, **kwargs)
+            array_assembly[instr.name] = dask.delayed(self.assemble_arrays)(delayed_procedures, instr.counts_file, 
+                                                      **kwargs)
 
         return array_assembly
 
-    def _flatten_detector_counts_serial(self, **kwargs):
-        for instr in self.instruments:
-            with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver',None)) as hf:
+    @staticmethod
+    def assemble_arrays(delayed_procedures, h5py_filename, **kwargs):
+        with h5py.File(h5py_filename, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
+            for key in delayed_procedures:
+                dset = hf[key]
                 start_index = 0
-                for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
-                    params = (loop, instr.observing_time, interp_s)
-                    los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
-                    self.commit(instr.interpolate_and_store(los_velocity, *params), hf['los_velocity'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
-                                hf['electron_temperature'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.ion_temperature, *params), hf['ion_temperature'],
-                                start_index)
-                    self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'], start_index)
-                    for name, y in instr.flatten(loop, interp_s, loop.electron_temperature, loop.density):
-                        self.commit(y, hf[name], start_index)
-                    start_index += interp_s.shape[0]
+                for filename, units in delayed_procedures[key]:
+                    tmp = u.Quantity(np.load(filename), units)
+                    Observer.commit(tmp, dset, start_index)
+                    os.remove(filename)
+                    start_index += tmp.shape[1]
 
     @staticmethod
     def assemble_map(observed_map, filename, time):
