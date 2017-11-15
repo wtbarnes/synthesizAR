@@ -87,8 +87,8 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
         del unmasked_indices[choice]
 
     if i_fail == max_failures:
-        raise ValueError('Could not find desired number of seed points within failure tolerance of {}.'.format(max_failures)
-                         + 'Try increasing safety factor or the mask threshold')
+        raise ValueError('''Could not find desired number of seed points within failure tolerance of {}.
+                            Try increasing safety factor or the mask threshold'''.format(max_failures))
 
     return seed_points
 
@@ -105,12 +105,15 @@ def collect_points(x, y):
     """
     unique_sorted_x = np.array(sorted(set(x)))
     summed_sorted_y = np.array([np.array([g[1] for g in grp]).sum(axis=0)
-                                for lvl,grp in itertools.groupby(sorted(zip(x,y),key=lambda k:k[0]),lambda k:k[0])])
-    return unique_sorted_x,summed_sorted_y
+                                for lvl,grp in itertools.groupby(sorted(zip(x, y), key=lambda k:k[0]),lambda k:k[0])])
+    return unique_sorted_x, summed_sorted_y
 
 
 @numba.jit(nopython=True)
 def _numba_lagrange_interpolator(x_data, y_data, x):
+    """
+    Lagrange interpolation
+    """
     # checks
     if len(x_data) != len(y_data):
         raise ValueError('x_data and y_data must be of equal length')
@@ -143,6 +146,9 @@ def _numba_lagrange_interpolator(x_data, y_data, x):
 
 @numba.jit(nopython=True)
 def _numba_interpolator_wrapper(x_data, y_array_data, x, normalize=False, cutoff=0.):
+    """
+    Convenience wrapper for Lagrange interpolator
+    """
     y = np.zeros(y_array_data.shape[1])
     for i in range(y_array_data.shape[1]):
         y[i] = _numba_lagrange_interpolator(x_data, y_array_data[:,i], x)
