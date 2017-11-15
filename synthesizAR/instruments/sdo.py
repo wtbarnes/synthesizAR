@@ -56,17 +56,17 @@ class InstrumentSDOAIA(InstrumentBase):
     name = 'SDO_AIA'
     channels = [
         {'wavelength': 94*u.angstrom, 'telescope_number': 4,
-            'gaussian_width': {'x': 0.951*u.pixel, 'y': 0.951*u.pixel}},
+         'gaussian_width': {'x': 0.951*u.pixel, 'y': 0.951*u.pixel}},
         {'wavelength': 131*u.angstrom, 'telescope_number': 1,
-            'gaussian_width': {'x': 1.033*u.pixel, 'y': 1.033*u.pixel}},
+         'gaussian_width': {'x': 1.033*u.pixel, 'y': 1.033*u.pixel}},
         {'wavelength': 171*u.angstrom, 'telescope_number': 3,
-            'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}},
+         'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}},
         {'wavelength': 193*u.angstrom, 'telescope_number': 2,
-            'gaussian_width': {'x': 1.512*u.pixel, 'y': 1.512*u.pixel}},
+         'gaussian_width': {'x': 1.512*u.pixel, 'y': 1.512*u.pixel}},
         {'wavelength': 211*u.angstrom, 'telescope_number': 2,
-            'gaussian_width': {'x': 1.199*u.pixel, 'y': 1.199*u.pixel}},
+         'gaussian_width': {'x': 1.199*u.pixel, 'y': 1.199*u.pixel}},
         {'wavelength': 335*u.angstrom, 'telescope_number': 1,
-            'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
+         'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
 
     cadence = 10.0*u.s
     resolution = Pair(0.600698*u.arcsec/u.pixel, 0.600698*u.arcsec/u.pixel, None)
@@ -117,14 +117,14 @@ class InstrumentSDOAIA(InstrumentBase):
         super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, parallel=parallel)
         
     @staticmethod
-    def calculate_counts_simple(channel, loop, electron_temperature, density):
-        response_function = (splev(np.ravel(electron_temperature),channel['temperature_response_spline'])
+    def calculate_counts_simple(channel, loop):
+        response_function = (splev(np.ravel(loop.electron_temperature), channel['temperature_response_spline'])
                              *u.count*u.cm**5/u.s/u.pixel)
-        counts = np.reshape(np.ravel(density**2)*response_function, np.shape(density))
+        counts = np.reshape(np.ravel(loop.density**2)*response_function, loop.density.shape)
         return counts
 
     @staticmethod
-    def calculate_counts_full(channel, electron_temperature, density):
+    def calculate_counts_full(channel, loops):
         counts = np.zeros(loop.electron_temperature.shape)
         for ion in self.emission_model.ions:
             fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
@@ -145,7 +145,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
         return counts
     
-    def flatten(self, loop, interp_s, electron_temperature, density, save_path=False):
+    def flatten(self, loop, interp_s, save_path=False):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale.
@@ -161,16 +161,16 @@ class InstrumentSDOAIA(InstrumentBase):
                 if save_path:
                     tmp_path = save_path.format(channel['name'], loop.name)
                     y = dask.delayed(self.interpolate_and_store)(
-                            dask.delayed(self.calculate_counts_simple)(channel, loop, electron_temperature, density), 
+                            dask.delayed(self.calculate_counts_simple)(channel, loop), 
                             loop, self.observing_time, interp_s, tmp_path)
                 else:
-                    y = self.interpolate_and_store(self.calculate_counts_simple(channel, loop, electron_temperature,
-                                                                                density),
-                                                   loop, self.observing_time, interp_s)
+                    y = self.interpolate_and_store(
+                            self.calculate_counts_simple(channel, loop),
+                            loop, self.observing_time, interp_s)
                 counts.append((channel['name'], y))
             return counts
         else:
-            itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
+            #itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
             raise NotImplementedError('No parallelized version of full counts calculation.')
 
     @staticmethod

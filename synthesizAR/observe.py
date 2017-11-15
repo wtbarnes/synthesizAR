@@ -14,10 +14,9 @@ import astropy.units as u
 import h5py
 try:
     import dask
+    from synthesizAR.util import delay_property
 except ImportError:
     warnings.warn('Dask library not found. You will not be able to use the parallel option.')
-
-from synthesizAR.util import delay_property
 
 
 class Observer(object):
@@ -125,7 +124,7 @@ class Observer(object):
                     self.commit(instr.interpolate_and_store(loop.ion_temperature, *params), hf['ion_temperature'],
                                 start_index)
                     self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'], start_index)
-                    for name, y in instr.flatten(loop, interp_s, loop.electron_temperature, loop.density):
+                    for name, y in instr.flatten(loop, interp_s):
                         self.commit(y, hf[name], start_index)
                     start_index += interp_s.shape[0]
 
@@ -159,7 +158,7 @@ class Observer(object):
                                                        tmp_file_path.format('ion_temperature', loop.name))),
                     ('density', delayed_interp(density, *params, tmp_file_path.format('density', loop.name)))
                 ]
-                delayed_procedures += instr.flatten(loop, interp_s, electron_temperature, density, tmp_file_path)
+                delayed_procedures += instr.flatten(loop, interp_s, tmp_file_path)
             # Reshape delayed procedures into dictionary
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
             delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
