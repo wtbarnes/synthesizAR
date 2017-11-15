@@ -17,7 +17,7 @@ from sunpy.util.metadata import MetaDict
 import astropy.units as u
 import astropy.constants as const
 import h5py
-import periodictable
+import plasmapy
 
 from synthesizAR.instruments import InstrumentBase, Pair
 from synthesizAR.maps import EISCube
@@ -126,7 +126,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         for wavelength in channel['model_wavelengths']:
             # thermal width + instrument width
             ion_name = hf['{}'.format(str(wavelength.value))].attrs['ion_name']
-            ion_mass = periodictable.elements.symbol(ion_name.split(' ')[0]).mass*const.u.cgs
+            ion_mass = plasmapy.atomic.ion_mass(ion_name.split(' ')[0].capitalize()).cgs
             thermal_velocity = 2.*const.k_B.cgs*temperature/ion_mass
             thermal_velocity = np.expand_dims(thermal_velocity, axis=2)*thermal_velocity.unit
             line_width = ((wavelength**2)/(2.*const.c.cgs**2)*thermal_velocity
