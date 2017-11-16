@@ -15,7 +15,7 @@ dependencies:
 - sunpy=0.8
 - yt
 - pip:
-  - plasmapy
+  - git+git://github.com/PlasmaPy/PlasmaPy.git
   - git+git://github.com/sunpy/solarbextrapolation.git
   - git+git://github.com/wtbarnes/fiasco.git
   
