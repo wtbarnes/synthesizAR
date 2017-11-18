@@ -112,6 +112,7 @@ class Observer(object):
             self._flatten_detector_counts_serial(**kwargs)
 
     def _flatten_detector_counts_serial(self, **kwargs):
+        emission_model = kwargs.get('emission_model', None)
         for instr in self.instruments:
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver',None)) as hf:
                 start_index = 0
@@ -124,7 +125,7 @@ class Observer(object):
                     self.commit(instr.interpolate_and_store(loop.ion_temperature, *params), hf['ion_temperature'],
                                 start_index)
                     self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'], start_index)
-                    for name, y in instr.flatten(loop, interp_s):
+                    for name, y in instr.flatten(loop, interp_s, emission_model=emission_model):
                         self.commit(y, hf[name], start_index)
                     start_index += interp_s.shape[0]
 
