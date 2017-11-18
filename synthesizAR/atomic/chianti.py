@@ -1,352 +1,206 @@
 """
 Wrappers for aggregating CHIANTI data and doing fundamental atomic physics calculations.
-This should eventually be deprecated in favor of using ChiantiPy.
-"""
 
+Note
+----
+Question of whether this can all be done with the fiasco ion object or whether some 
+sort of wrapper will always be needed
+"""
 import os
-import logging
-import copy
-import itertools
-import datetime
-import pickle
+import warnings
 
 import numpy as np
 import h5py
-from scipy.interpolate import interp1d, splrep, splev
-import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 import astropy.units as u
 import astropy.constants as const
-from ChiantiPy.tools import io as ch_tools_io
-from ChiantiPy.tools import util as ch_tools_util
-from ChiantiPy.tools import data as ch_tools_data
-
-from synthesizAR.util import collect_points
+import fiasco
 
 
-class ChIon(object):
+class Element(fiasco.Element):
+    def __getitem__(self, value):
+        if type(value) is int:
+            value = self.ions[value]
+        return Ion(value, self.temperature, hdf5_path=self.hdf5_dbase_root)
+    
+
+class Ion(fiasco.Ion):
     """
-    Stripped down version of `~ChiantiPy.core.ion`. It speeds up and
-    streamlines the emissivity calculation.
+    Subclass of fiasco ion that adds functionality for calculating level populations.
+    """
+    
+    @fiasco.util.needs_dataset('scups')
+    def effective_collision_strength(self):
+        """
+        Calculate the effective collision strength or the Maxwellian-averaged collision
+        strength, typically denoted by upsilon.
+        
+        Note
+        ----
+        Need a more efficient way of calculating upsilon for all transitions. Current method is slow ions with
+        many transitions, e.g. Fe IX and Fe XI
+        """
+        energy_ratio = np.outer(const.k_B.cgs*self.temperature, 1.0/self._scups['delta_energy'].to(u.erg))
+        upsilon = np.array(list(map(self.burgess_tully_descale, self._scups['bt_t'], self._scups['bt_upsilon'],
+                                    energy_ratio.T, self._scups['bt_c'], self._scups['bt_type'])))
+        upsilon = u.Quantity(np.where(upsilon > 0., upsilon, 0.))
+        return upsilon.T
+    
+    @fiasco.util.needs_dataset('elvlc', 'scups')
+    def electron_collision_rate(self):
+        """
+        Calculates the collision rate for de-exciting and exciting collisions for electrons
+        """
+        c = (const.h.cgs**2)/((2. * np.pi * const.m_e.cgs)**(1.5) * np.sqrt(const.k_B.cgs))
+        upsilon = self.effective_collision_strength()
+        omega_upper = 2.*self._elvlc['J'][self._scups['upper_level'] - 1] + 1.
+        omega_lower = 2.*self._elvlc['J'][self._scups['lower_level'] - 1] + 1.
+        dex_rate = c*upsilon/np.sqrt(self.temperature[:,np.newaxis])/omega_upper
+        energy_ratio = np.outer(1./const.k_B.cgs/self.temperature, self._scups['delta_energy'].to(u.erg))
+        ex_rate = omega_upper/omega_lower*dex_rate*np.exp(-energy_ratio)
+        
+        return dex_rate, ex_rate
+    
+    @fiasco.util.needs_dataset('psplups', default=(None, None))
+    def proton_collision_rate(self):
+        """
+        Calculates the collision rate for de-exciting and exciting collisions for protons
+        """
+        # Create scaled temperature--these are not stored in the file
+        bt_t = np.vectorize(np.linspace, excluded=[0,1], otypes='O')(0, 1, [ups.shape[0] 
+                                                                     for ups in self._psplups['bt_rate']])
+        # Get excitation rates directly from scaled data
+        energy_ratio = np.outer(const.k_B.cgs*self.temperature, 1.0/self._psplups['delta_energy'].to(u.erg))
+        ex_rate = np.array(list(map(self.burgess_tully_descale, bt_t, self._psplups['bt_rate'], energy_ratio.T,
+                                    self._psplups['bt_c'], self._psplups['bt_type'])))
+        ex_rate = u.Quantity(np.where(ex_rate > 0., ex_rate, 0.), u.cm**3/u.s).T
+        # Calculation de-excitation rates from excitation rate
+        omega_upper = 2.*self._elvlc['J'][self._psplups['upper_level'] - 1] + 1.
+        omega_lower = 2.*self._elvlc['J'][self._psplups['lower_level'] - 1] + 1.
+        dex_rate = (omega_lower/omega_upper)*ex_rate*np.exp(1./energy_ratio)
+        
+        return dex_rate, ex_rate
+    
+    @fiasco.util.needs_dataset('wgfa', 'elvlc', 'scups')
+    @u.quantity_input
+    def level_populations(self, density: u.cm**(-3), include_protons=True):
+        """
+        Calculate populations of all energy levels as a function temperature and density.
 
-    .. warning:: This object will eventually be deprecated once improvements
-                 are made to `~ChiantiPy.core.ion`
+        Note
+        ----
+        There are two very inefficient loops over temperature and density. This could be
+        vectorized, but for some ions (e.g. Fe IX, XI) the resulting arrays would be too
+        large to fit into memory.
+        """
+        def collect(a, b, c, axis):
+            return c[np.where(a == b)].sum(axis=axis)
+        collect_v = np.vectorize(collect, excluded=[0,2,3])
+        level = self._elvlc['level']
+        upper_level = self._scups['upper_level']
+        lower_level = self._scups['lower_level']
+        coeff_matrix = np.zeros(self.temperature.shape + level.shape + level.shape)/u.s
+        
+        # Radiative decays
+        a_diagonal = collect_v(self._wgfa['upper_level'], level, self._wgfa['A'].value, None)*self._wgfa['A'].unit
+        # Decay out of current level
+        coeff_matrix[:,level - 1,level - 1] -= a_diagonal
+        # Decay into current level from upper levels
+        coeff_matrix[:,self._wgfa['lower_level']-1,self._wgfa['upper_level']-1] += self._wgfa['A']
+        
+        # Proton and electron collision rates
+        dex_rate_e, ex_rate_e = self.electron_collision_rate()
+        ex_diagonal = np.array([collect(lower_level, l, ex_rate_e.value.T, 0)
+                                for l in level]).T*ex_rate_e.unit
+        dex_diagonal = np.array([collect(upper_level, l, dex_rate_e.value.T, 0)
+                                 for l in level]).T*dex_rate_e.unit
+        if include_protons and self._psplups is not None:
+            p2e_ratio = proton_ratio(self.temperature)
+            dex_rate_p, ex_rate_p = self.proton_collision_rate()
+            upper_level_p = self._psplups['upper_level']
+            lower_level_p = self._psplups['lower_level']
+            ex_diagonal_p = np.array([collect(lower_level_p, l, ex_rate_p.value.T,0)
+                                      for l in level]).T*ex_rate_p.unit
+            dex_diagonal_p = np.array([collect(upper_level_p, l, dex_rate_p.value.T,0)
+                                       for l in level]).T*dex_rate_p.unit
+        
+        populations = np.zeros(self.temperature.shape + density.shape + level.shape)
+        b = np.zeros(self.temperature.shape+level.shape)
+        b[:,-1] = 1.0
+        for i_d, d in enumerate(density):
+            coeff_matrix_copy = coeff_matrix.copy()
+            # Excitation and de-excitation out of current state
+            coeff_matrix_copy[:, level - 1, level - 1] -= d*(dex_diagonal + ex_diagonal)
+            # De-excitation from upper states and excitation from lower states
+            coeff_matrix_copy[:, lower_level - 1, upper_level - 1] += d*dex_rate_e
+            coeff_matrix_copy[:, upper_level - 1, lower_level - 1] += d*ex_rate_e
+            
+            # Same processes as above, but for protons
+            if include_protons and self._psplups is not None:
+                coeff_matrix_copy[:, level-1, level-1] -= d*p2e_ratio[:,np.newaxis]*(dex_diagonal_p + ex_diagonal_p)
+                coeff_matrix_copy[:, lower_level_p - 1, upper_level_p - 1] += d*p2e_ratio[:,np.newaxis]*dex_rate_p
+                coeff_matrix_copy[:, upper_level_p - 1, lower_level_p - 1] += d*p2e_ratio[:,np.newaxis]*ex_rate_p
+            
+            coeff_matrix_copy[:,-1,:] = 1.*coeff_matrix_copy.unit
+            pop = np.linalg.solve(coeff_matrix_copy.value, b)
+            pop = np.where(pop < 0., 0., pop)
+            pop /= pop.sum(axis=1)[:,np.newaxis]
+            populations[:,i_d,:] = pop
+                
+        return u.Quantity(populations)
+    
+    @fiasco.util.needs_dataset('wgfa', default=(None, None))
+    @u.quantity_input
+    def emissivity(self, density: u.cm**(-3), include_energy=False, **kwargs):
+        """
+        Calculate emissivity for all lines as a function of temperature and density
+        """
+        populations = self.level_populations(density, include_protons=kwargs.get('include_protons', True))
+        if populations is None:
+            return (None, None)
+        wavelengths = np.fabs(self._wgfa['wavelength'])
+        # Exclude 0 wavelengths which correspond to two-photon decays
+        upper_levels = self._wgfa['upper_level'][wavelengths != 0*u.angstrom]
+        a_values = self._wgfa['A'][wavelengths != 0*u.angstrom]
+        wavelengths = wavelengths[wavelengths != 0*u.angstrom]
+        if include_energy:
+            energy = const.h.cgs*const.c.cgs/wavelengths.to(u.cm)
+        else:
+            energy = 1.*u.photon
+        emissivity = populations[:,:,upper_levels - 1]*(a_values*energy)
+        
+        return wavelengths, emissivity
 
-    Parameters
+
+@u.quantity_input
+def proton_ratio(temperature: u.K):
+    """
+    Calculate ratio between proton and electron density as a function of temperature. See Eq. 7 of [1]_.
+
+    References
     ----------
-    temperature : `~astropy.units.Quantity`
-    density : `~astropy.units.Quantity`
-    setup : `bool`
+    .. [1] Young, P. et al., 2003, ApJS, `144 135 <http://adsabs.harvard.edu/abs/2003ApJS..144..135Y>`_
     """
-
-    @u.quantity_input(temperature=u.K, electron_density=u.cm**(-3))
-    def __init__(self, ion_name, temperature, electron_density, 
-                 chianti_db_h5, setup=True, **kwargs):
-        self.logger = logging.getLogger(name=type(self).__name__)
-        if ion_name not in ch_tools_data.MasterList:
-            raise ValueError('{} not in CHIANTI database'.format(ion_name))
-        self.meta = ch_tools_util.convertName(ion_name)
-        self.meta['name'] = ion_name
-        self.meta['spectroscopic_name'] = ch_tools_util.zion2spectroscopic(self.meta['Z'],
-                                                                           self.meta['Ion'])
-        self.meta['rcparams'] = ch_tools_data.Defaults.copy()
-        # set location of CHIANTI database
-        self._chianti_db_h5 = chianti_db_h5
-        # read ion data from CHIANTI database
-        if setup:
-            self._setup_ion(**kwargs)
-        # check and set temperature and density
-        if temperature.size != electron_density.size:
-            if temperature.size == 1:
-                temperature = np.tile(temperature, len(electron_density))
-            elif electron_density.size == 1:
-                electron_density = np.tile(electron_density, len(temperature))
+    denominator = None
+    for el_name in list_elements():
+        el = fiasco.Element(el_name, temperature=temperature)
+        for ion in el:
+            if denominator is None:
+                denominator = ion._ioneq['chianti']['ionization_fraction']*ion.abundance*ion.charge_state
             else:
-                raise ValueError('''Temperature and density must be equal-sized arrays
-                                    if neither is a scalar.''')
-        self.temperature = temperature
-        self.electron_density = electron_density
-        self.proton_density = electron_density*self._calculate_proton_density()
+                denominator += ion._ioneq['chianti']['ionization_fraction']*ion.abundance*ion.charge_state
+            
+    el_h = fiasco.Element('hydrogen', temperature=temperature)
+    numerator = el_h[1].abundance*el_h[1]._ioneq['chianti']['ionization_fraction']
+    f_ratio = interp1d(el_h[1]._ioneq['chianti']['temperature'], numerator/denominator, fill_value='extrapolate')
+    
+    return f_ratio(temperature.value)
 
-    def _setup_ion(self, **kwargs):
-        """
-        Read files from CHIANTI database for specified ion
-        """
-        _tmp = ch_tools_io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
-        self.abundance = _tmp['abundance'][self.meta['Z']-1]*u.dimensionless_unscaled
-        self.meta['abundance_filename'] = _tmp['abundancename']
-        elvlc_lvl = self._read_chianti_db_h5('elvlc', 'lvl')
-        wgfa_lvl2 = self._read_chianti_db_h5('wgfa', 'lvl2')
-        # FIXME: These warnings should really go in the respective reader functions
-        try:
-            self._has_scups = True
-            scups_lvl2 = self._read_chianti_db_h5('scups', 'lvl2')
-            n_levels_scups = np.max(scups_lvl2)
-        except ValueError:
-            self._has_scups = False
-            self.logger.warning('{} scups file not found'.format(self.meta['spectroscopic_name']))
-            n_levels_scups = 1e+300
-        try:
-            psplups_tmp = self._read_chianti_db_h5('psplups', 'lvl2')
-            self._has_psplups = True
-        except ValueError:
-            self._has_psplups = False
-            self.logger.warning('{} psplups file not found'.format(self.meta['spectroscopic_name']))
-        self.n_levels = np.min([np.max(elvlc_lvl), max(np.max(wgfa_lvl2), n_levels_scups)])
 
-    def _read_chianti_db_h5(self, filetype, data):
-        """
-        Reader function for CHIANTI data from HDF5 file
-        """
-        with h5py.File(self._chianti_db_h5, 'r') as hf:
-            _tmp_grp = hf['/'.join([self.meta['Element'].lower(), str(self.meta['Ion'])])]
-            if filetype in _tmp_grp:
-                _tmp = np.array(_tmp_grp['/'.join([filetype, data])])
-            else:
-                raise ValueError('{} file does not exist for {}'.format(filetype,
-                                                                        self.meta['spectroscopic_name']))
-        return _tmp
-
-    def _calculate_proton_density(self):
-        """
-        Calculate proton density to electron density ratio from Eq. 7 of Young et al. (2003)
-        """
-        _tmp_ioneq = ch_tools_io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
-        _tmp_abundance = ch_tools_io.abundanceRead(abundancename=self.meta['rcparams']['abundfile'])
-        abundance = _tmp_abundance['abundance'][_tmp_abundance['abundance']>0]
-
-        denominator = np.zeros(len(_tmp_ioneq['ioneqTemperature']))
-        for i in range(len(abundance)):
-            for z in range(1,i+2):
-                denominator += z*_tmp_ioneq['ioneqAll'][i, z, :]*abundance[i]
-
-        p2eratio = abundance[0]*_tmp_ioneq['ioneqAll'][0, 1, :]/denominator
-        nots = splrep(np.log10(_tmp_ioneq['ioneqTemperature']), p2eratio, s=0)
-
-        return splev(np.log10(self.temperature.value), nots, der=0)
-
-    def _descale_collision_strengths(self, x, y, energy_ratio, c, bt_type):
-        """
-        Apply descaling procedure of BT92 to scaled thermally averaged collision strengths.
-        """
-        nots = splrep(x, y, s=0)
-        if bt_type == 1:
-            x_new = 1.0 - np.log(c)/np.log(energy_ratio + c)
-            upsilon = splev(x_new, nots, der=0)*np.log(energy_ratio + np.e)
-        elif bt_type == 2:
-            x_new = energy_ratio/(energy_ratio + c)
-            upsilon = splev(x_new, nots, der=0)
-        elif bt_type == 3:
-            x_new = energy_ratio/(energy_ratio + c)
-            upsilon = splev(x_new, nots, der=0)/(energy_ratio + 1.0)
-        elif bt_type == 4:
-            x_new = 1.0 - np.log(c)/np.log(energy_ratio + c)
-            upsilon = splev(x_new, nots, der=0)*np.log(energy_ratio + c)
-        elif bt_type == 6:
-            x_new = energy_ratio/(energy_ratio + c)
-            upsilon = 10**splev(x_new, nots, der=0)
-        else:
-            raise ValueError('Unrecognized BT92 scaling option.')
-
-        return upsilon
-
-    def _calculate_collision_strengths(self, protons=False):
-        """
-        Calculate collision strengths and excitation and de-excitation rates.
-        """
-        if protons:
-            filetype = 'psplups'
-            scups_key = 'splups'
-            btemp = [np.linspace(0, 1, n_spline) for n_spline in self._read_chianti_db_h5(filetype, 'nspl')]
-        else:
-            filetype = 'scups'
-            scups_key = 'bscups'
-            btemp = self._read_chianti_db_h5(filetype,'btemp')
-        energy_ratios = np.outer((self._read_chianti_db_h5(filetype,'de')*u.Ry).to(u.erg),
-                                 1.0/(self.temperature*const.k_B.cgs))
-        upsilon = np.array(list(map(self._descale_collision_strengths,btemp,
-                                    self._read_chianti_db_h5(filetype,scups_key),
-                                    1.0/energy_ratios,
-                                    self._read_chianti_db_h5(filetype,'cups'),
-                                    self._read_chianti_db_h5(filetype,'ttype'))))
-        upsilon = np.where(upsilon > 0., upsilon, 0.0)
-
-        return upsilon
-
-    def _calculate_excitation_rate(self,protons=False):
-        """
-        """
-        # read in the needed data
-        if protons:
-            filetype = 'psplups'
-        else:
-            filetype = 'scups'
-        scups_lvl1 = self._read_chianti_db_h5(filetype,'lvl1')
-        scups_lvl2 = self._read_chianti_db_h5(filetype,'lvl2')
-        elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
-
-        # calculate modified transition energies
-        level_energies = np.where(self._read_chianti_db_h5('elvlc', 'eryd') >= 0,
-                                  self._read_chianti_db_h5('elvlc', 'eryd'),
-                                  self._read_chianti_db_h5('elvlc', 'erydth'))
-        transition_energies = (level_energies[scups_lvl2-1]
-                               - level_energies[scups_lvl1-1])*u.Ry.to(u.erg)
-
-        # get upsilon collision strengths
-        rate = self._calculate_collision_strengths(protons=protons)
-        # multiply by rate factor
-        rate *= 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))
-        # multiply by energy ratios
-        rate *= np.exp(-np.outer(transition_energies, 1.0/(self.temperature*const.k_B.cgs)))
-        # divide by lower level multiplicities
-        rate /= elvlc_mult[scups_lvl1 - 1][:,np.newaxis]
-
-        return rate
-
-    def _calculate_deexcitation_rate(self, protons=False):
-        """
-        """
-        # read in some data
-        if protons:
-            filetype = 'psplups'
-        else:
-            filetype = 'scups'
-        scups_lvl2 = self._read_chianti_db_h5(filetype,'lvl2')
-        elvlc_mult = self._read_chianti_db_h5('elvlc','mult')
-        # calculate collision strengths
-        rate = self._calculate_collision_strengths(protons=protons)
-        # multiply by rate factor
-        rate *= 2.172e-8*np.sqrt((13.6*u.eV).to(u.erg)/(self.temperature*const.k_B.cgs))
-        # divide by upper level multiplicities
-        rate /= elvlc_mult[scups_lvl2 - 1][:,np.newaxis]
-
-        return rate
-
-    def _calculate_level_populations(self):
-        """
-        Calculate level populations for excited states as a function of temperature
-        for relevant transitions.
-        """
-        # alias some of the chianti data
-        wgfa_lvl1 = self._read_chianti_db_h5('wgfa','lvl1')
-        wgfa_lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
-        wgfa_avalue = self._read_chianti_db_h5('wgfa','avalue')
-        scups_lvl1 = self._read_chianti_db_h5('scups','lvl1')
-        scups_lvl2 = self._read_chianti_db_h5('scups','lvl2')
-        self.logger.debug('''Calculating descaled collision strengths and excitation and
-                            deexcitation rates for electrons.''')
-        upsilon = self._calculate_collision_strengths()
-        excitation_rate = self._calculate_excitation_rate()
-        deexcitation_rate = self._calculate_deexcitation_rate()
-        # create excitation/deexcitation rate sums for broadcasting
-        l1_indices_electron, _electron_ex_broadcast = collect_points(scups_lvl1,excitation_rate)
-        l2_indices_electron, _electron_dex_broadcast = collect_points(scups_lvl2,deexcitation_rate)
-
-        # account for protons if the file exists
-        if self._has_psplups:
-            # alias some of the chianti data
-            psplups_lvl1 = self._read_chianti_db_h5('psplups','lvl1')
-            psplups_lvl2 = self._read_chianti_db_h5('psplups','lvl2')
-            self.logger.debug('''Calculating descaled collision strengths and excitation and
-                                deexcitation rates for protons.''')
-            upsilon_proton = self._calculate_collision_strengths(protons=True)
-            excitation_rate_proton = self._calculate_excitation_rate(protons=True)
-            deexcitation_rate_proton = self._calculate_deexcitation_rate(protons=True)
-
-            # create excitation/deexcitation rate sums for broadcasting
-            l1_indices_proton,_proton_ex_broadcast = collect_points(psplups_lvl1,
-                                                                    excitation_rate_proton)
-            l2_indices_proton,_proton_dex_broadcast = collect_points(psplups_lvl2,
-                                                                    deexcitation_rate_proton)
-
-        process_matrix = np.zeros([self.n_levels, self.n_levels])
-        # add spontaneous emission, TODO: correction for recombination and ionization
-        self.logger.debug('Adding contributions from A-values to population matrix.')
-        process_matrix[wgfa_lvl1-1,wgfa_lvl2-1] += wgfa_avalue
-        # sum all of the level 2 Avalues to broadcast
-        wgfa_indices,_wgfa_broadcasts = collect_points(wgfa_lvl2,wgfa_avalue)
-        process_matrix[wgfa_indices-1,wgfa_indices-1] -= _wgfa_broadcasts
-        # TODO: add photoexcitation and stimulated emission
-
-        # b vector used for inversion later on
-        b = np.zeros(process_matrix.shape[0])
-        b[-1] = 1.0
-        # preallocate memory for level populations
-        populations = np.zeros([self.n_levels,len(self.temperature)])
-        for i,(nel,npr,T) in enumerate(zip(self.electron_density,self.proton_density,
-                                           self.temperature)):
-            _tmp = np.copy(process_matrix)
-            # excitation and de-excitation by electrons
-            _tmp[scups_lvl1-1,scups_lvl2-1] += nel*deexcitation_rate[:,i]
-            _tmp[scups_lvl2-1,scups_lvl1-1] += nel*excitation_rate[:,i]
-            # broadcast summed excitation rates for level 1
-            _tmp[l1_indices_electron-1,l1_indices_electron-1] -= nel*_electron_ex_broadcast[:,i]
-            # sum deexcitation rates for level 2 to broadcast
-            _tmp[l2_indices_electron-1,l2_indices_electron-1] -= nel*_electron_dex_broadcast[:,i]
-            # excitation and de-excitation by protons
-            if hasattr(self,'_psplups'):
-                _tmp[psplups_lvl1-1,psplups_lvl2-1] += npr*deexcitation_rate_proton[:,i]
-                _tmp[psplups_lvl2-1,psplups_lvl1-1] += npr*excitation_rate_proton[:,i]
-                # sum excitation rates for level 1 broadcast
-                _tmp[l1_indices_proton-1,l1_indices_proton-1] -= npr*_proton_ex_broadcast[:,i]
-                # sum deexcitation rates for level 2 broadcast
-                _tmp[l2_indices_proton-1,l2_indices_proton-1] -= npr*_proton_dex_broadcast[:,i]
-            # TODO: add effects from ionization and recombination
-            # invert
-            self.logger.debug('Calculating level populations for T,ne,np = {}'.format(T,nel,npr))
-            _tmp[-1,:] = np.ones(_tmp.shape[0])
-            populations[:,i] = np.linalg.solve(_tmp,b)
-
-        return populations
-
-    def calculate_emissivity(self):
-        """
-        Calculate the emissivity for each transition using the equation,
-
-        .. math::
-            \\varepsilon_{\lambda}(n,T) = A_{ij}\\frac{N_j(X^{+m})}{N(X^{+m})}
-
-        in units of photons s\ :sup:`-1`. If `flux` is set to "erg" in the `chiantirc` file, then a 
-        factor of :math:`\\Delta E_{ij} = hc/\\lambda_{ij}` is included in the above expression and 
-        fthe units are erg s\ :sup:`-1`.
-        """
-        # find where wavelength is nonzero
-        wavelength = np.fabs(self._read_chianti_db_h5('wgfa','wvl'))*u.angstrom
-        lvl2 = self._read_chianti_db_h5('wgfa','lvl2')
-        avalues = self._read_chianti_db_h5('wgfa','avalue')/u.s
-        # exclude two-photon decays that are denoted by 0 wavelength
-        lvl2 = lvl2[wavelength!=0]
-        avalues = avalues[wavelength!=0]
-        wavelength = wavelength[wavelength!=0]
-        # set energy conversion factor
-        if self.meta['rcparams']['flux'] == 'erg':
-            energy_factor = (const.h*const.c).to(u.erg*u.angstrom)/wavelength
-        else:
-            self.logger.info('Expressing emissivity in units of photons')
-            energy_factor = 1.0*u.photon
-        # calculate level populations
-        self.logger.info('Calculating level populations.')
-        level_populations = self._calculate_level_populations()
-        # calculate emissivity
-        self.logger.info('Calculating emissivity')
-        emissivity = ((level_populations[lvl2-1,:]).T*avalues*energy_factor).T
-
-        return wavelength,emissivity
-
-    @property
-    def equilibrium_fractional_ionization(self):
-        """Calculate ionization equilibrium."""
-        _tmp_ioneq = ch_tools_io.ioneqRead(ioneqname=self.meta['rcparams']['ioneqfile'])
-        match_indices = np.where(
-            (self.temperature.value >= _tmp_ioneq['ioneqTemperature'].min()) & 
-            (self.temperature.value <= _tmp_ioneq['ioneqTemperature'].max()))[0]
-        if len(match_indices) != len(self.temperature):
-            warnings.warn('''Temperature out of ionization equilibrium range.
-                            Those temperatures will have zero fractional ionization.''')
-        fractional_ionization = np.zeros(len(self.temperature))
-        f_interp = splrep(np.log10(_tmp_ioneq['ioneqTemperature']),
-                          _tmp_ioneq['ioneqAll'][self.meta['Z']-1,self.meta['Ion']-1+self.meta['Dielectronic'],:], k=1)
-        fractional_ionization[match_indices] = splev(np.log10(self.temperature[match_indices].value), f_interp, ext=1)
-        fractional_ionization[fractional_ionization < 0] = 0.0
-
-        # make it a unitless quantity
-        return fractional_ionization*u.dimensionless_unscaled
+def list_elements():
+    """
+    List all available elements in the CHIANTI database.
+    """
+    with h5py.File(fiasco.defaults['hdf5_dbase_root']) as hf:
+        elements = [k.capitalize() for k in hf.keys()]
+    return elements
