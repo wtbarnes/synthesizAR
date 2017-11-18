@@ -65,13 +65,10 @@ Maximum field strength : {max_b:.2f}
         Loop electron temperature as function of coordinate and time. Can be stored in memory or
         pulled from an HDF5 file.
         """
-        if hasattr(self, 'parameters_savefile'):
-            with h5py.File(self.parameters_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, 'electron_temperature'])]
-                temperature = np.array(dset)*u.Unit(dset.attrs['units'])
-            return temperature
-        else:
-            return self._electron_temperature
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'electron_temperature'])]
+            temperature = np.array(dset)*u.Unit(dset.attrs['units'])
+        return temperature
 
     @property
     def ion_temperature(self):
@@ -79,13 +76,10 @@ Maximum field strength : {max_b:.2f}
         Loop ion temperature as function of coordinate and time. Can be stored in memory or
         pulled from an HDF5 file.
         """
-        if hasattr(self, 'parameters_savefile'):
-            with h5py.File(self.parameters_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, 'ion_temperature'])]
-                temperature = np.array(dset)*u.Unit(dset.attrs['units'])
-            return temperature
-        else:
-            return self._ion_temperature
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'ion_temperature'])]
+            temperature = np.array(dset)*u.Unit(dset.attrs['units'])
+        return temperature
 
     @property
     def density(self):
@@ -93,13 +87,10 @@ Maximum field strength : {max_b:.2f}
         Loop density as a function of coordinate and time. Can be stored in memory or pulled from an
         HDF5 file.
         """
-        if hasattr(self, 'parameters_savefile'):
-            with h5py.File(self.parameters_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, 'density'])]
-                density = np.array(dset)*u.Unit(dset.attrs['units'])
-            return density
-        else:
-            return self._density
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'density'])]
+            density = np.array(dset)*u.Unit(dset.attrs['units'])
+        return density
 
     @property
     def velocity(self):
@@ -107,13 +98,10 @@ Maximum field strength : {max_b:.2f}
         Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
         time. Can be stored in memory or pulled from an HDF5 file.
         """
-        if hasattr(self, 'parameters_savefile'):
-            with h5py.File(self.parameters_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, 'velocity'])]
-                velocity = np.array(dset)*u.Unit(dset.attrs['units'])
-            return velocity
-        else:
-            return self._velocity
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'velocity'])]
+            velocity = np.array(dset)*u.Unit(dset.attrs['units'])
+        return velocity
 
     @property
     def velocity_xyz(self):
@@ -121,13 +109,10 @@ Maximum field strength : {max_b:.2f}
         Velocity in the Cartesian coordinate system as defined by the HMI map as a function of
         loop coordinate and time. Can be stored in memory or pulled from an HDF5 file.
         """
-        if hasattr(self, 'parameters_savefile'):
-            with h5py.File(self.parameters_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, 'velocity_xyz'])]
-                velocity_xyz = np.array(dset)*u.Unit(dset.attrs['units'])
-            return velocity_xyz
-        else:
-            return self._velocity_xyz
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'velocity_xyz'])]
+            velocity_xyz = np.array(dset)*u.Unit(dset.attrs['units'])
+        return velocity_xyz
 
     @u.quantity_input
     def get_emission(self, wavelength: u.angstrom, return_ion_name=False):
@@ -148,18 +133,17 @@ Maximum field strength : {max_b:.2f}
         else:
             return emiss
 
-    def get_fractional_ionization(self, element, ion):
+    def get_ionization_fraction(self, ion_name):
         """
         Get ionization state from the ionization balance equations.
-        """
-        ion_key = '{}_{}'.format(element, ion)
-        if hasattr(self, 'fractional_ionization_savefile'):
-            with h5py.File(self.fractional_ionization_savefile, 'r') as hf:
-                dset = hf['/'.join([self.name, ion_key])]
-                fractional_ionization = np.array(dset)*u.Unit(dset.attrs['units'])
-        elif hasattr(self, '_fractional_ionization'):
-            fractional_ionization = self._fractional_ionization
-        else:
-            raise ValueError('Fractional ionization of {} {} not calculated for {}'.format(element, ion, self.name))
 
-        return fractional_ionization
+        Note
+        ----
+        This can be either the equilibrium or the non-equilibrium ionization 
+        fraction, depending on which was calculated.
+        """
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'ionization_fraction', ion_name])]
+            ionization_fraction = u.Quantity(dset, dset.attrs['units'])
+
+        return ionization_fraction
