@@ -83,7 +83,7 @@ class EbtelInterface(object):
 
         return time, electron_temperature, ion_temperature, density, velocity
 
-    def get_fractional_ionization(self, ion_list, loop, **kwargs):
+    def get_ionization_fraction(self, loop, emission_model, **kwargs):
         """
         Solve the ionization balance equation for a particular loop and ion.
         """

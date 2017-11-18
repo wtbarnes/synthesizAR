@@ -78,7 +78,8 @@ Magnetogram Info:
         map : `~sunpy.map.Map`
             Original HMI map
         crop : `tuple` `[bottom_left_corner,top_right_corner]`, optional
-            The lower left and upper right corners of the cropped map. Both should be of type `~astropy.units.Quantity` and have the same units as `map.xrange` and `map.yrange`
+            The lower left and upper right corners of the cropped map. Both should be of type 
+            `~astropy.units.Quantity` and have the same units as `map.xrange` and `map.yrange`
         resample : `~astropy.units.Quantity`, `[new_xdim,new_ydim]`, optional
             The new x- and y-dimensions of the resampled map, should have the same units as
             `map.dimensions.x` and `map.dimensions.y`
@@ -112,7 +113,7 @@ Magnetogram Info:
             pickle.dump(self.streamlines, f)
         if not os.path.isfile(os.path.join(savedir, 'hmi_map.fits')):
             self.hmi_map.save(os.path.join(savedir, 'hmi_map.fits'))
-        with h5py.File(os.path.join(savedir, 'map_3d.h5'),'w') as hf:
+        with h5py.File(os.path.join(savedir, 'map_3d.h5'), 'w') as hf:
             hf.create_dataset('map_3d', data=self._map_3d)
             zrange = hf.create_dataset('zrange', data=self._zrange.value)
             zrange.attrs['units'] = self._zrange.unit.to_string()
@@ -262,9 +263,9 @@ Magnetogram Info:
             streamlines = yt.visualization.api.Streamlines(self.extrapolated_3d_field, 
                                                            (seed_points
                                                             * self.extrapolated_3d_field.domain_width
-                                                            / self.extrapolated_3d_field.domain_width.value), 
+                                                            / self.extrapolated_3d_field.domain_width.value),
                                                            xfield='Bx', yfield='By', zfield='Bz',
-                                                           get_magnitude=True, direction=kwargs.get('direction',-1))
+                                                           get_magnitude=True, direction=kwargs.get('direction', -1))
             streamlines.integrate_through_volume()
             streamlines.clean_streamlines()
             # filter
@@ -277,7 +278,7 @@ Magnetogram Info:
                 i_tries = 0
             # save strealines
             self.streamlines += [(stream[np.all(stream != 0.0, axis=1)], mag) for stream, mag, keep
-                                 in zip(streamlines.streamlines, streamlines.magnitudes, keep_streamline) 
+                                 in zip(streamlines.streamlines, streamlines.magnitudes, keep_streamline)
                                  if keep is True]
 
         if i_tries == max_tries:
@@ -308,7 +309,7 @@ Magnetogram Info:
         Make list of `Loop` objects from the extracted streamlines
         """
         loops = []
-        for i,stream in enumerate(self.streamlines):
+        for i, stream in enumerate(self.streamlines):
             loops.append(Loop('loop{:06d}'.format(i), stream[0].value, stream[1].value))
         self.loops = loops
 
@@ -344,7 +345,7 @@ Magnetogram Info:
                             hf.create_group(loop.name)
                         # electron temperature
                         dset_electron_temperature = hf[loop.name].create_dataset('electron_temperature',
-                                                                                data=electron_temperature.value)
+                                                                                 data=electron_temperature.value)
                         dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
                         # ion temperature
                         dset_ion_temperature = hf[loop.name].create_dataset('ion_temperature',
@@ -359,7 +360,7 @@ Magnetogram Info:
                         dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
                         # Cartesian xyz velocity
                         dset_velocity_xyz = hf[loop.name].create_dataset('velocity_xyz',
-                                                                        data=velocity_xyz.value)
+                                                                         data=velocity_xyz.value)
                         dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
                         dset_velocity_xyz.attrs['note'] = '''Velocity in the Cartesian coordinate
                                                             system of the extrapolated magnetic
@@ -397,40 +398,32 @@ Magnetogram Info:
             else:
                 loop._emission = emiss
 
-    def calculate_fractional_ionization(self, emission_model, interface=None, savefile=None, **kwargs):
+    def calculate_ionization_fraction(self, emission_model, interface=None, include_nei=False, **kwargs):
         """
         Find the fractional ionization for each loop in the model as defined by the loop
         model interface.
         """
-        ion_list = [(i.chianti_ion.meta['Element'], i.chianti_ion.meta['Ion']) for i in emission_model.ions]
-        for loop in self.loops:
-            if interface and hasattr(interface, 'get_fractional_ionization'):
-                fractional_ionization = interface.get_fractional_ionization(ion_list, loop, **kwargs)
-            else:
-                self.logger.warning('''Model interface None or get_fractional_ionization method
-                                    not defined. Falling back to ionization equilibrium.''')
-                for ion in emission_model.ions:
-                    f_ioneq = interp1d(emission_model.temperature_mesh[:, 0],
-                                       ion.fractional_ionization[:, 0])
-                    key = '{}_{}'.format(ion.chianti_ion.meta['Element'], ion.chianti_ion.meta['Ion'])
-                    tmp = f_ioneq(loop.electron_temperature)
-                    fractional_ionization[key] = np.where(tmp > 0.0, tmp, 0.0)
+        with h5py.File(self.loops[0].parameters_savefile, 'a') as hf:
+            for loop in self.loops:
+                if 'ionization_fraction' not in hf[loop.name]:
+                    grp = hf[loop.name].create_group('ionization_fraction')
+                else:
+                    grp = hf['/'.join([loop.name, 'ionization_fraction'])]
+                if interface and include_nei:
+                    grp.attrs['description'] = 'non-equilibrium ionization fractions'
+                    ionization_fraction = interface.get_ionization_fraction(loop, emission_model, **kwargs)
+                else:
+                    grp.attrs['description'] = 'equilibrium ionization fractions'
+                    ionization_fraction = {}
+                    for ion in emission_model:
+                        f_ioneq = interp1d(ion.temperature, ion.ioneq, fill_value='extrapolate')
+                        tmp = f_ioneq(loop.electron_temperature)
+                        ionization_fraction[ion.ion_name] = u.Quantity(np.where(tmp < 0., 0., tmp), ion.ioneq.unit)
 
-            if savefile is not None:
-                loop.fractional_ionization_savefile = savefile
-                with h5py.File(savefile, 'a') as hf:
-                    if loop.name not in hf:
-                        hf.create_group(loop.name)
-                    for key in fractional_ionization:
-                        self.logger.debug('Saving fractional ionization for {}'.format(key))
-                        dset = hf[loop.name].create_dataset(key, data=fractional_ionization[key])
-                        dset.attrs['description'] = '''Ion populations as a function of
-                                                        temperature and density, either
-                                                        interpolated from ionization equilibrium
-                                                        data or calculated from the level
-                                                        population equations.'''
-                        dset.attrs['units'] = u.dimensionless_unscaled.to_string()
-                        dset.attrs['element'] = key.split('_')[0]
-                        dset.attrs['ion'] = key.split('_')[1]
-            else:
-                loop._fractional_ionization = fractional_ionization
+                for key in ionization_fraction:
+                    if key not in grp:
+                        dset = grp.create_dataset(key, data=ionization_fraction[key].value)
+                    else:
+                        dset = grp[key]
+                        dset[:,:] = ionization_fraction[key].value
+                    dset.attrs['units'] = ionization_fraction[key].unit.to_string()
