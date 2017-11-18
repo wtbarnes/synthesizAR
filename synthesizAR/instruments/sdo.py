@@ -4,10 +4,10 @@ spatial and spectroscopic resolution.
 """
 
 import os
-import sys
 import logging
 import json
 import pkg_resources
+import warnings
 
 import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
@@ -72,13 +72,10 @@ class InstrumentSDOAIA(InstrumentBase):
     resolution = Pair(0.600698*u.arcsec/u.pixel, 0.600698*u.arcsec/u.pixel, None)
 
     def __init__(self, observing_time, observing_area=None,
-                 use_temperature_response_functions=True, apply_psf=True, emission_model=None):
+                 use_temperature_response_functions=True, apply_psf=True):
         super().__init__(observing_time, observing_area)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
-        self.emission_model = emission_model
-        if not self.use_temperature_response_functions and not self.emission_model:
-            raise ValueError('Must supply an emission model if not using temperature response functions.')
         self._setup_channels()
 
     def _setup_channels(self):
@@ -99,15 +96,12 @@ class InstrumentSDOAIA(InstrumentBase):
             channel['instrument_label'] = '{}_{}'.format(self.fits_template['detector'],
                                                          channel['telescope_number'])
             channel['wavelength_range'] = None
-
-            if self.use_temperature_response_functions:
-                x = aia_info[channel['name']]['temperature_response_x']
-                y = aia_info[channel['name']]['temperature_response_y']
-                channel['temperature_response_spline'] = splrep(x, y)
-            else:
-                x = aia_info[channel['name']]['response_x']
-                y = aia_info[channel['name']]['response_y']
-                channel['wavelength_response_spline'] = splrep(x, y)
+            x = aia_info[channel['name']]['temperature_response_x']
+            y = aia_info[channel['name']]['temperature_response_y']
+            channel['temperature_response_spline'] = splrep(x, y)
+            x = aia_info[channel['name']]['response_x']
+            y = aia_info[channel['name']]['response_y']
+            channel['wavelength_response_spline'] = splrep(x, y)
 
     def build_detector_file(self, file_template, dset_shape, chunks, *args, parallel=False):
         """
@@ -117,35 +111,41 @@ class InstrumentSDOAIA(InstrumentBase):
         super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, parallel=parallel)
         
     @staticmethod
-    def calculate_counts_simple(channel, loop):
+    def calculate_counts_simple(channel, loop, *args):
+        """
+        Calculate the AIA intensity using only the temperature response functions.
+        """
         response_function = (splev(np.ravel(loop.electron_temperature), channel['temperature_response_spline'])
-                             *u.count*u.cm**5/u.s/u.pixel)
+                             * u.count*u.cm**5/u.s/u.pixel)
         counts = np.reshape(np.ravel(loop.density**2)*response_function, loop.density.shape)
         return counts
 
     @staticmethod
-    def calculate_counts_full(channel, loops):
+    def calculate_counts_full(channel, loop, emission_model):
+        """
+        Calculate the AIA intensity using the wavelength response functions and a 
+        full emission model.
+        """
         counts = np.zeros(loop.electron_temperature.shape)
-        for ion in self.emission_model.ions:
-            fractional_ionization = loop.get_fractional_ionization(ion.chianti_ion.meta['Element'],
-                                                                   ion.chianti_ion.meta['Ion'])
-            if ion.emissivity is None:
-                self.emission_model.calculate_emissivity()
-            emiss = ion.emissivity
-            interpolated_response = splev(ion.wavelength.value, channel['wavelength_response_spline'], ext=1)
-            em_summed = np.dot(emiss.value, interpolated_response)
+        itemperature, idensity = emission_model.interpolate_to_mesh_indices(loop)
+        for ion in emission_model:
+            wavelength, emissivity = emission_model.get_emissivity(ion)
+            if wavelength is None or emissivity is None:
+                continue
+            ionization_fraction = loop.get_ionization_fraction(ion.ion_name)
+            interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'], ext=1)
+            em_summed = np.dot(emissivity.value, interpolated_response)
             tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
                              loop.electron_temperature.shape)
-            tmp = np.where(tmp > 0.0, tmp, 0.0) * emiss.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
-            counts_tmp = (fractional_ionization*loop.density*ion.chianti_ion.abundance*0.83
-                            / (4*np.pi*u.steradian)*tmp)
+            tmp = np.where(tmp < 0., 0., tmp) * emissivity.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
+            counts_tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*loop.density*tmp
             if not hasattr(counts, 'unit'):
                 counts = counts*counts_tmp.unit
             counts += counts_tmp
 
         return counts
     
-    def flatten(self, loop, interp_s, save_path=False):
+    def flatten(self, loop, interp_s, save_path=False, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale.
@@ -155,23 +155,24 @@ class InstrumentSDOAIA(InstrumentBase):
         If using parallel option, this returns a list of Dask tasks. Otherwise, the interpolated
         counts are returned.
         """
-        if self.use_temperature_response_functions:
-            counts = []
-            for channel in self.channels:
-                if save_path:
-                    tmp_path = save_path.format(channel['name'], loop.name)
-                    y = dask.delayed(self.interpolate_and_store)(
-                            dask.delayed(self.calculate_counts_simple)(channel, loop), 
-                            loop, self.observing_time, interp_s, tmp_path)
-                else:
-                    y = self.interpolate_and_store(
-                            self.calculate_counts_simple(channel, loop),
-                            loop, self.observing_time, interp_s)
-                counts.append((channel['name'], y))
-            return counts
+        if self.use_temperature_response_functions or emission_model is None:
+            calculate_counts = self.calculate_counts_simple
         else:
-            #itemperature, idensity = self.emission_model.interpolate_to_mesh_indices(loop)
-            raise NotImplementedError('No parallelized version of full counts calculation.')
+            calculate_counts = self.calculate_counts_full
+        
+        counts = []
+        for channel in self.channels:
+            if save_path:
+                tmp_path = save_path.format(channel['name'], loop.name)
+                y = dask.delayed(self.interpolate_and_store)(
+                        dask.delayed(calculate_counts)(channel, loop, emission_model),
+                        loop, self.observing_time, interp_s, tmp_path)
+            else:
+                y = self.interpolate_and_store(
+                        calculate_counts(channel, loop, emission_model),
+                        loop, self.observing_time, interp_s)
+            counts.append((channel['name'], y))
+        return counts
 
     @staticmethod
     def _detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
