@@ -16,13 +16,15 @@ import astropy.units as u
 import astropy.constants as const
 import fiasco
 
+__all__ = ['Element', 'Ion', 'list_elements']
+
 
 class Element(fiasco.Element):
     def __getitem__(self, value):
         if type(value) is int:
             value = self.ions[value]
         return Ion(value, self.temperature, hdf5_path=self.hdf5_dbase_root)
-    
+
 
 class Ion(fiasco.Ion):
     """
