@@ -2,7 +2,7 @@
 Various models for calculating emission from multiple ions
 """
 import numpy as np
-from scipy.interpolate import splrep, splev
+from scipy.interpolate import splrep, splev, interp1d
 import astropy.units as u
 from astropy.utils.console import ProgressBar
 import h5py
@@ -64,6 +64,53 @@ class EmissionModel(fiasco.IonCollection):
             emissivity = u.Quantity(ds,  ds.attrs['units'])
             
         return wavelength, emissivity
+
+    def calculate_ionization_fraction(self, field, savefile, interface=None, **kwargs):
+        """
+        Find the fractional ionization for each loop in the model as defined by the loop
+        model interface.
+        """
+        self.ionization_fraction_savefile = savefile
+        with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
+            for loop in field.loops:
+                if loop.name not in hf:
+                    grp = hf.create_group(loop.name)
+                else:
+                    grp = hf[loop.name]
+                if interface:
+                    description = 'non-equilibrium ionization fractions'
+                    ionization_fraction = interface.get_ionization_fraction(loop, emission_model, **kwargs)
+                else:
+                    description = 'equilibrium ionization fractions'
+                    ionization_fraction = {}
+                    for ion in self:
+                        f_ioneq = interp1d(ion.temperature, ion.ioneq, fill_value='extrapolate')
+                        tmp = f_ioneq(loop.electron_temperature)
+                        ionization_fraction[ion.ion_name] = u.Quantity(np.where(tmp < 0., 0., tmp), ion.ioneq.unit)
+
+                for key in ionization_fraction:
+                    if key not in grp:
+                        dset = grp.create_dataset(key, data=ionization_fraction[key].value)
+                    else:
+                        dset = grp[key]
+                    dset[:,:] = ionization_fraction[key].value
+                    dset.attrs['units'] = ionization_fraction[key].unit.to_string()
+                    dset.attrs['description'] = description
+
+    def get_ionization_fraction(self, loop, ion):
+        """
+        Get ionization state from the ionization balance equations.
+
+        Note
+        ----
+        This can be either the equilibrium or the non-equilibrium ionization 
+        fraction, depending on which was calculated.
+        """
+        with h5py.File(self.ionization_fraction_savefile, 'r') as hf:
+            dset = hf['/'.join([loop.name, ion.ion_name])]
+            ionization_fraction = u.Quantity(dset, dset.attrs['units'])
+
+        return ionization_fraction
 
     def calculate_emission(self, loop, **kwargs):
         """
