@@ -139,6 +139,7 @@ class Observer(object):
         """
         Create Dask task graph for interpolating quantities for each in loop in time and space.
         """
+        emission_model = kwargs.get('emission_model', None)
         array_assembly = {}
         # Build list of delayed procedures for each instrument
         for instr in self.instruments:
@@ -159,7 +160,7 @@ class Observer(object):
                                                        tmp_file_path.format('ion_temperature', loop.name))),
                     ('density', delayed_interp(density, *params, tmp_file_path.format('density', loop.name)))
                 ]
-                delayed_procedures += instr.flatten(loop, interp_s, tmp_file_path)
+                delayed_procedures += instr.flatten(loop, interp_s, tmp_file_path, emission_model=emission_model)
             # Reshape delayed procedures into dictionary
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
             delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
