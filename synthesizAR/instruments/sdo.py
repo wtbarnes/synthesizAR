@@ -126,19 +126,21 @@ class InstrumentSDOAIA(InstrumentBase):
         Calculate the AIA intensity using the wavelength response functions and a 
         full emission model.
         """
-        counts = np.zeros(loop.electron_temperature.shape)
+        density = loop.density
+        electron_temperature = loop.electron_temperature
+        counts = np.zeros(electron_temperature.shape)
         itemperature, idensity = emission_model.interpolate_to_mesh_indices(loop)
         for ion in emission_model:
             wavelength, emissivity = emission_model.get_emissivity(ion)
             if wavelength is None or emissivity is None:
                 continue
-            ionization_fraction = loop.get_ionization_fraction(ion.ion_name)
+            ionization_fraction = emission_model.get_ionization_fraction(loop, ion)
             interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'], ext=1)
             em_summed = np.dot(emissivity.value, interpolated_response)
             tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
-                             loop.electron_temperature.shape)
+                             electron_temperature.shape)
             tmp = np.where(tmp < 0., 0., tmp) * emissivity.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
-            counts_tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*loop.density*tmp
+            counts_tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*density*tmp
             if not hasattr(counts, 'unit'):
                 counts = counts*counts_tmp.unit
             counts += counts_tmp
