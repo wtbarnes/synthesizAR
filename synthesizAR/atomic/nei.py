@@ -7,8 +7,8 @@ import logging
 
 import numpy as np
 import numba
-from ChiantiPy.core import ion
-from ChiantiPy.tools.util import el2z, zion2name
+#from ChiantiPy.core import ion
+#from ChiantiPy.tools.util import el2z, zion2name
 
 from synthesizAR.util import _numba_interpolator_wrapper, _numba_lagrange_interpolator
 
