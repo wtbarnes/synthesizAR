@@ -23,7 +23,7 @@ class Element(fiasco.Element):
     def __getitem__(self, value):
         if type(value) is int:
             value = self.ions[value]
-        return Ion(value, self.temperature, hdf5_path=self.hdf5_dbase_root)
+        return Ion(value, self.temperature, **self._ion_kwargs)
 
 
 class Ion(fiasco.Ion):
