@@ -397,33 +397,3 @@ Magnetogram Info:
                             dset.attrs[m] = meta[key][m]
             else:
                 loop._emission = emiss
-
-    def calculate_ionization_fraction(self, emission_model, interface=None, include_nei=False, **kwargs):
-        """
-        Find the fractional ionization for each loop in the model as defined by the loop
-        model interface.
-        """
-        with h5py.File(self.loops[0].parameters_savefile, 'a') as hf:
-            for loop in self.loops:
-                if 'ionization_fraction' not in hf[loop.name]:
-                    grp = hf[loop.name].create_group('ionization_fraction')
-                else:
-                    grp = hf['/'.join([loop.name, 'ionization_fraction'])]
-                if interface and include_nei:
-                    grp.attrs['description'] = 'non-equilibrium ionization fractions'
-                    ionization_fraction = interface.get_ionization_fraction(loop, emission_model, **kwargs)
-                else:
-                    grp.attrs['description'] = 'equilibrium ionization fractions'
-                    ionization_fraction = {}
-                    for ion in emission_model:
-                        f_ioneq = interp1d(ion.temperature, ion.ioneq, fill_value='extrapolate')
-                        tmp = f_ioneq(loop.electron_temperature)
-                        ionization_fraction[ion.ion_name] = u.Quantity(np.where(tmp < 0., 0., tmp), ion.ioneq.unit)
-
-                for key in ionization_fraction:
-                    if key not in grp:
-                        dset = grp.create_dataset(key, data=ionization_fraction[key].value)
-                    else:
-                        dset = grp[key]
-                        dset[:,:] = ionization_fraction[key].value
-                    dset.attrs['units'] = ionization_fraction[key].unit.to_string()

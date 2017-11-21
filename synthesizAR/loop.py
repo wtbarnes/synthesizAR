@@ -132,18 +132,3 @@ Maximum field strength : {max_b:.2f}
             return emiss, ion_name
         else:
             return emiss
-
-    def get_ionization_fraction(self, ion_name):
-        """
-        Get ionization state from the ionization balance equations.
-
-        Note
-        ----
-        This can be either the equilibrium or the non-equilibrium ionization 
-        fraction, depending on which was calculated.
-        """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
-            dset = hf['/'.join([self.name, 'ionization_fraction', ion_name])]
-            ionization_fraction = u.Quantity(dset, dset.attrs['units'])
-
-        return ionization_fraction
