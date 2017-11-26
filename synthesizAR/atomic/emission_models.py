@@ -20,7 +20,7 @@ class EmissionModel(fiasco.IonCollection):
         super().__init__(*args, **kwargs)
         self.temperature = self[0].temperature
         self.density = density
-        self.resolved_wavelengths = kwargs.get('resolved_wavelengths',{})
+        self.resolved_wavelengths = kwargs.get('resolved_wavelengths', {})
         
     def interpolate_to_mesh_indices(self, loop):
         """
@@ -45,7 +45,7 @@ class EmissionModel(fiasco.IonCollection):
                     wavelength, emissivity = ion.emissivity(self.density, include_energy=False)
                     if wavelength is None or emissivity is None:
                         continue
-                    emissivity = emissivity[:,:,np.argsort(wavelength)]
+                    emissivity = emissivity[:, :, np.argsort(wavelength)]
                     wavelength = np.sort(wavelength)
                     grp = hf.create_group(ion.ion_name)
                     ds = grp.create_dataset('wavelength', data=wavelength.value)
@@ -93,7 +93,7 @@ class EmissionModel(fiasco.IonCollection):
                         dset = grp.create_dataset(key, data=ionization_fraction[key].value)
                     else:
                         dset = grp[key]
-                    dset[:,:] = ionization_fraction[key].value
+                    dset[:, :] = ionization_fraction[key].value
                     dset.attrs['units'] = ionization_fraction[key].unit.to_string()
                     dset.attrs['description'] = description
 
