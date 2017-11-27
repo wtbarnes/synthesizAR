@@ -11,8 +11,7 @@ import dask.delayed
 import astropy.units as u
 import solarbextrapolation.utilities
 
-__all__ = ['convert_angle_to_length', 'find_seed_points', 'collect_points',
-           '_numba_lagrange_interpolator', '_numba_interpolator_wrapper', 'delay_property']
+__all__ = ['convert_angle_to_length', 'find_seed_points', 'delay_property']
 
 
 def convert_angle_to_length(hmi_map, angle_or_length, working_units=u.meter):
@@ -91,71 +90,6 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
                             Try increasing safety factor or the mask threshold'''.format(max_failures))
 
     return seed_points
-
-
-def collect_points(x, y):
-    """
-    Using two lists, where the first has repeated entries, sum the corresponding entries
-    in the repeated list for each unique entry in the first list.
-
-    Parameters
-    ----------
-    x : `list`
-    y : `list`
-    """
-    unique_sorted_x = np.array(sorted(set(x)))
-    summed_sorted_y = np.array([np.array([g[1] for g in grp]).sum(axis=0)
-                                for lvl,grp in itertools.groupby(sorted(zip(x, y), key=lambda k:k[0]),lambda k:k[0])])
-    return unique_sorted_x, summed_sorted_y
-
-
-@numba.jit(nopython=True)
-def _numba_lagrange_interpolator(x_data, y_data, x):
-    """
-    Lagrange interpolation
-    """
-    # checks
-    if len(x_data) != len(y_data):
-        raise ValueError('x_data and y_data must be of equal length')
-    if len(x_data) < 3:
-        raise ValueError('Data must be at least length 3')
-    if x>np.max(x_data) or x<np.min(x_data):
-        raise ValueError('x is outside of the interpolation range.')
-
-    # get the points
-    if len(np.where(x==x_data)[0])>0:
-        return y_data[np.where(x==x_data)[0][0]]
-    else:
-        i_min = np.where(x_data<x)[0][-1]
-        i_max = np.where(x_data>x)[0][0]
-        if i_min == 0:
-            i_mid,i_max = 1,2
-        else:
-            i_min,i_mid = i_max-2,i_max-1
-
-    x0,x1,x2 = x_data[i_min],x_data[i_mid],x_data[i_max]
-    y0,y1,y2 = y_data[i_min],y_data[i_mid],y_data[i_max]
-
-    # calculate Lagrange interpolation points
-    term1 = (x - x1)*(x - x2)/(x0 - x1)/(x0 - x2)*y0
-    term2 = (x - x0)*(x - x2)/(x1 - x0)/(x1 - x2)*y1
-    term3 = (x - x0)*(x - x1)/(x2 - x0)/(x2 - x1)*y2
-
-    return term1 + term2 + term3
-
-
-@numba.jit(nopython=True)
-def _numba_interpolator_wrapper(x_data, y_array_data, x, normalize=False, cutoff=0.):
-    """
-    Convenience wrapper for Lagrange interpolator
-    """
-    y = np.zeros(y_array_data.shape[1])
-    for i in range(y_array_data.shape[1]):
-        y[i] = _numba_lagrange_interpolator(x_data, y_array_data[:,i], x)
-    y = np.where(y < cutoff, np.zeros(len(y)), y)
-    if normalize:
-        y /= np.sum(y)
-    return y
 
 
 def delay_property(instance, attr):
