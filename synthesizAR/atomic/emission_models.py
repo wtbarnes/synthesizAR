@@ -1,12 +1,16 @@
 """
 Various models for calculating emission from multiple ions
 """
+import json
+
 import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
 import astropy.units as u
 from astropy.utils.console import ProgressBar
 import h5py
 import fiasco
+
+from .chianti import Ion
 
 
 class EmissionModel(fiasco.IonCollection):
@@ -21,6 +25,42 @@ class EmissionModel(fiasco.IonCollection):
         self.temperature = self[0].temperature
         self.density = density
         self.resolved_wavelengths = kwargs.get('resolved_wavelengths', {})
+
+    def save(self, savefile):
+        """
+        Save a JSON representation of the emission model.
+        """
+        save_dict = {
+            'temperature': self.temperature.value.tolist(),
+            'temperature_unit': self.temperature.unit.to_string(),
+            'density': self.density.value.tolist(),
+            'density_unit': self.density.unit.to_string(),
+            'ion_list': ['_'.join([ion.ion_name.split()[0].lower(), ion.ion_name.split()[1]]) for ion in self]
+        }
+        if hasattr(self, 'emissivity_savefile'):
+            save_dict['emissivity_savefile'] = self.emissivity_savefile
+        if hasattr(self, 'ionization_fraction_savefile'):
+            save_dict['ionization_fraction_savefile'] = self.ionization_fraction_savefile
+        with open(savefile, 'w') as f:
+            json.dump(save_dict, f, indent=4, sort_keys=True)
+
+    @classmethod
+    def restore(cls, savefile):
+        """
+        Restore the emission model from a JSON representation.
+        """
+        with open(savefile, 'r') as f:
+            restore_dict = json.load(f)
+        temperature = u.Quantity(restore_dict['temperature'], restore_dict['temperature_unit'])
+        density = u.Quantity(restore_dict['density'], restore_dict['density_unit'])
+        ion_list = [Ion(ion, temperature) for ion in restore_dict['ion_list']]
+        emission_model = cls(density, *ion_list)
+        if 'emissivity_savefile' in restore_dict:
+            emission_model.emissivity_savefile = restore_dict['emissivity_savefile']
+        if 'ionization_fraction_savefile' in restore_dict:
+            emission_model.ionization_fraction_savefile = restore_dict['ionization_fraction_savefile']
+
+        return emission_model
         
     def interpolate_to_mesh_indices(self, loop):
         """
