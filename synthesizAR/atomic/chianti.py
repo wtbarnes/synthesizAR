@@ -77,6 +77,7 @@ class Element(fiasco.Element):
             term1 = identity - density[i]*dt/2.*rate_matrix[interpolate_indices[i], :, :]
             term2 = identity + density[i-1]*dt/2.*rate_matrix[interpolate_indices[i-1], :, :]
             y[i, :] = np.linalg.inv(term1) @ term2 @ y[i-1, :]
+            y[i, :] = np.fabs(y[i, :])
             y[i, :] /= y[i, :].sum()
 
         return u.Quantity(y)
