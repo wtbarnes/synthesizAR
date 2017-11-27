@@ -3,15 +3,15 @@ Interface between loop object and ebtel++ simulation
 """
 
 import os
-import itertools
 import logging
 import copy
 
 import numpy as np
+import h5py
 import astropy.units as u
 
 from synthesizAR.util import InputHandler, OutputHandler
-from synthesizAR.atomic import get_ion_data, solve_nei_populations
+from synthesizAR.atomic import Element
 
 
 class EbtelInterface(object):
@@ -83,43 +83,31 @@ class EbtelInterface(object):
 
         return time, electron_temperature, ion_temperature, density, velocity
 
-    def get_ionization_fraction(self, loop, emission_model, **kwargs):
+    def calculate_ionization_fraction(self, field, emission_model, **kwargs):
         """
-        Solve the ionization balance equation for a particular loop and ion.
+        Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
-        ion_data_options = kwargs.get('ion_data_options', {})
-        nei_solver_options = kwargs.get('nei_solver_options', {})
+        unique_elements = list(set([ion.element_name for ion in emission_model]))
+        grouped_ions = {el: [ion for ion in emission_model if ion.element_name == el] for el in unique_elements}
 
-        fractional_ionization = {}
-        # group ions by element and remove any duplicates
-        grouped_ions = {key: list(set(sorted([g[1] for g in group])))
-                        for key, group in itertools.groupby(sorted(ion_list), lambda x: x[0])}
-        # iterate over elements
-        for element in grouped_ions:
-            # only get data once for each element
-            if not hasattr(self, '_rate_data'):
-                self._rate_data = {}
-            if element not in self._rate_data:
-                self._rate_data[element] = {}
-                self.logger.info('Retrieving rate information for {}'.format(element))
-                irate, rrate, eq_pop, temperature = get_ion_data(element, **ion_data_options)
-                self._rate_data[element]['ionization_rate'] = irate
-                self._rate_data[element]['recombination_rate'] = rrate
-                self._rate_data[element]['equilibrium_populations'] = eq_pop
-                self._rate_data[element]['temperature'] = temperature
-
-            # calculate the NEI populations
-            self.logger.debug('Calculating NEI populations for {}'.format(element))
-            nei_populations = solve_nei_populations(loop.time.value,
-                                                    loop.electron_temperature.value[:, 0],
-                                                    loop.density.value[:, 0],
-                                                    self._rate_data[element]['ionization_rate'],
-                                                    self._rate_data[element]['recombination_rate'],
-                                                    self._rate_data[element]['equilibrium_populations'],
-                                                    self._rate_data[element]['temperature'],
-                                                    **nei_solver_options)
-            for ion in grouped_ions[element]:
-                fractional_ionization['{}_{}'.format(element, ion)] = np.repeat(nei_populations[:, ion, np.newaxis],
-                                                                                loop.electron_temperature.shape[1],axis=1)
-
-        return fractional_ionization
+        with h5py.File(emission_model.ionization_fraction_savefile, 'a') as hf:
+            for el_name in grouped_ions:
+                element = Element(el_name, emission_model.temperature)
+                rate_matrix = element._rate_matrix()
+                for loop in field.loops:
+                    if loop.name not in hf:
+                        grp = hf.create_group(loop.name)
+                    else:
+                        grp = hf[loop.name]
+                    y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
+                                                               loop.density[:, 0], rate_matrix=rate_matrix)
+                    for ion in grouped_ions[el_name]:
+                        data = np.tile(y_nei[:, ion.charge_state], (loop.field_aligned_coordinate.shape[0], 1)).T
+                        if ion.ion_name not in grp:
+                            dset = grp.create_dataset(ion.ion_name, data=data.value)
+                        else:
+                            dset = grp[ion.ion_name]
+                            dset[:, :] = data.value
+                        dset.attrs['units'] = data.unit.to_string()
+                        dset.attrs['description'] = 'non-equilibrium ionization fractions'
+                        

@@ -71,31 +71,26 @@ class EmissionModel(fiasco.IonCollection):
         model interface.
         """
         self.ionization_fraction_savefile = savefile
-        with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
-            for loop in field.loops:
-                if loop.name not in hf:
-                    grp = hf.create_group(loop.name)
-                else:
-                    grp = hf[loop.name]
-                if interface:
-                    description = 'non-equilibrium ionization fractions'
-                    ionization_fraction = interface.get_ionization_fraction(loop, emission_model, **kwargs)
-                else:
-                    description = 'equilibrium ionization fractions'
-                    ionization_fraction = {}
-                    for ion in self:
-                        f_ioneq = interp1d(ion.temperature, ion.ioneq, fill_value='extrapolate')
+        if interface is not None:
+            interface.calculate_ionization_fraction(field, self, **kwargs)
+        else:
+            with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
+                for ion in self:
+                    f_ioneq = interp1d(ion.temperature, ion.ioneq, fill_value='extrapolate')
+                    for loop in field.loops:
+                        if loop.name not in hf:
+                            grp = hf.create_group(loop.name)
+                        else:
+                            grp = hf[loop.name]
                         tmp = f_ioneq(loop.electron_temperature)
-                        ionization_fraction[ion.ion_name] = u.Quantity(np.where(tmp < 0., 0., tmp), ion.ioneq.unit)
-
-                for key in ionization_fraction:
-                    if key not in grp:
-                        dset = grp.create_dataset(key, data=ionization_fraction[key].value)
-                    else:
-                        dset = grp[key]
-                    dset[:, :] = ionization_fraction[key].value
-                    dset.attrs['units'] = ionization_fraction[key].unit.to_string()
-                    dset.attrs['description'] = description
+                        data = u.Quantity(np.where(tmp < 0., 0., tmp), ion.ioneq.unit)
+                        if ion.ion_name not in grp:
+                            dset = grp.create_dataset(ion.ion_name, data=data.value)
+                        else:
+                            dset = grp[ion.ion_name]
+                            dset[:, :] = data.value
+                        dset.attrs['units'] = data.unit.to_string()
+                        dset.attrs['description'] = 'equilibrium ionization fractions'
 
     def get_ionization_fraction(self, loop, ion):
         """
