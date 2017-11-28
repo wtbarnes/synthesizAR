@@ -10,7 +10,7 @@ from astropy.utils.console import ProgressBar
 import h5py
 import fiasco
 
-from .chianti import Ion
+from .chianti import Ion, Element
 
 
 class EmissionModel(fiasco.IonCollection):
@@ -108,29 +108,44 @@ class EmissionModel(fiasco.IonCollection):
     def calculate_ionization_fraction(self, field, savefile, interface=None, **kwargs):
         """
         Find the fractional ionization for each loop in the model as defined by the loop
-        model interface.
+        model interface. If no interface is provided, the ionization fractions are calculated
+        assuming ionization equilibrium.
         """
         self.ionization_fraction_savefile = savefile
         if interface is not None:
             interface.calculate_ionization_fraction(field, self, **kwargs)
         else:
+            # Group ions by element
+            unique_elements = list(set([ion.element_name for ion in self]))
+            grouped_ions = {el: [ion for ion in self if ion.element_name == el] for el in unique_elements}
+            
+            # Create sufficiently fine temperature grid
+            dex = kwargs.get('log_temperature_dex', 0.01)
+            logTmin, logTmax = np.log10(self.temperature.value.min()), np.log10(self.temperature.value.max())
+            temperature = u.Quantity(10.**(np.arange(logTmin, logTmax+dex, dex)), self.temperature.unit)
+            
+            # Calculate ionization equilibrium for each ion and interpolate to each loop
             with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
-                for ion in self:
-                    f_ioneq = interp1d(ion.temperature, ion.ioneq, fill_value='extrapolate')
-                    for loop in field.loops:
-                        if loop.name not in hf:
-                            grp = hf.create_group(loop.name)
-                        else:
-                            grp = hf[loop.name]
-                        tmp = f_ioneq(loop.electron_temperature)
-                        data = u.Quantity(np.where(tmp < 0., 0., tmp), ion.ioneq.unit)
-                        if ion.ion_name not in grp:
-                            dset = grp.create_dataset(ion.ion_name, data=data.value)
-                        else:
-                            dset = grp[ion.ion_name]
-                            dset[:, :] = data.value
-                        dset.attrs['units'] = data.unit.to_string()
-                        dset.attrs['description'] = 'equilibrium ionization fractions'
+                for el_name in grouped_ions:
+                    element = Element(el_name, temperature)
+                    ioneq = element.equilibrium_ionization()
+                    for ion in grouped_ions[el_name]:
+                        f_ioneq = interp1d(temperature, ioneq[:, ion.charge_state], kind='linear', 
+                                           fill_value='extrapolate')
+                        for loop in field.loops:
+                            if loop.name not in hf:
+                                grp = hf.create_group(loop.name)
+                            else:
+                                grp = hf[loop.name]
+                            tmp = f_ioneq(loop.electron_temperature)
+                            data = u.Quantity(np.where(tmp < 0., 0., tmp), ioneq.unit)
+                            if ion.ion_name not in grp:
+                                dset = grp.create_dataset(ion.ion_name, data=data.value)
+                            else:
+                                dset = grp[ion.ion_name]
+                                dset[:, :] = data.value
+                            dset.attrs['units'] = data.unit.to_string()
+                            dset.attrs['description'] = 'equilibrium ionization fractions'
 
     def get_ionization_fraction(self, loop, ion):
         """
