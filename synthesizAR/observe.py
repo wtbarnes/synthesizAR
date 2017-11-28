@@ -165,8 +165,15 @@ class Observer(object):
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
             delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
             # Add assemble procedure
-            array_assembly[instr.name] = dask.delayed(self.assemble_arrays)(delayed_procedures, instr.counts_file, 
-                                                      **kwargs)
+            parameters = ['los_velocity', 'electron_temperature', 'ion_temperature', 'density']
+            parameter_keys = [k for k in delayed_procedures if k in parameters]
+            count_keys = [k for k in delayed_procedures if k not in parameters]
+            # One set of tasks for pure interpolation
+            array_assembly[f'{instr.name}_parameters'] = dask.delayed(self.assemble_arrays)(
+                {k: delayed_procedures[k] for k in parameter_keys}, instr.counts_file, **kwargs)
+            # Another set for counts calculation
+            array_assembly[f'{instr.name}_counts'] = dask.delayed(self.assemble_arrays)(
+                {k: delayed_procedures[k] for k in count_keys}, instr.counts_file, **kwargs)
 
         return array_assembly
 
