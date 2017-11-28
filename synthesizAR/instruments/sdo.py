@@ -108,7 +108,8 @@ class InstrumentSDOAIA(InstrumentBase):
         Allocate space for counts data.
         """
         additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
-        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, parallel=parallel)
+        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, 
+                                    parallel=parallel)
         
     @staticmethod
     def calculate_counts_simple(channel, loop, *args):
@@ -121,7 +122,7 @@ class InstrumentSDOAIA(InstrumentBase):
         return counts
 
     @staticmethod
-    def calculate_counts_full(channel, loop, emission_model):
+    def calculate_counts_full(channel, loop, emission_model, ion_list):
         """
         Calculate the AIA intensity using the wavelength response functions and a 
         full emission model.
@@ -130,7 +131,7 @@ class InstrumentSDOAIA(InstrumentBase):
         electron_temperature = loop.electron_temperature
         counts = np.zeros(electron_temperature.shape)
         itemperature, idensity = emission_model.interpolate_to_mesh_indices(loop)
-        for ion in emission_model:
+        for ion in ion_list:
             wavelength, emissivity = emission_model.get_emissivity(ion)
             if wavelength is None or emissivity is None:
                 continue
@@ -146,6 +147,19 @@ class InstrumentSDOAIA(InstrumentBase):
             counts += counts_tmp
 
         return counts
+
+    @staticmethod
+    def add_counts(*counts):
+        """
+        Sum the counts for all ions or elements
+        """
+        total = np.zeros(counts[0].shape)
+        for c in counts:
+            if not hasattr(total, 'unit'):
+                total = total*c.unit
+            total += c
+
+        return total
     
     def flatten(self, loop, interp_s, save_path=False, emission_model=None):
         """
@@ -157,21 +171,31 @@ class InstrumentSDOAIA(InstrumentBase):
         If using parallel option, this returns a list of Dask tasks. Otherwise, the interpolated
         counts are returned.
         """
-        if self.use_temperature_response_functions or emission_model is None:
+        simple = self.use_temperature_response_functions or emission_model is None
+        if simple:
             calculate_counts = self.calculate_counts_simple
         else:
             calculate_counts = self.calculate_counts_full
+            elements = list(set([ion.element_name for ion in emission_model]))
+            grouped_ions = {el: [ion for ion in emission_model if ion.element_name == el] for el in elements}
         
         counts = []
         for channel in self.channels:
+            # Parallel
             if save_path:
+                if simple:
+                    channel_counts = dask.delayed(calculate_counts)(channel, loop)
+                else:
+                    el_counts = [dask.delayed(calculate_counts)(channel, loop, emission_model, grouped_ions[el]) 
+                                 for el in grouped_ions]
+                    channel_counts = dask.delayed(self.add_counts)(*el_counts)
                 tmp_path = save_path.format(channel['name'], loop.name)
-                y = dask.delayed(self.interpolate_and_store)(
-                        dask.delayed(calculate_counts)(channel, loop, emission_model),
-                        loop, self.observing_time, interp_s, tmp_path)
+                y = dask.delayed(self.interpolate_and_store)(channel_counts, loop, self.observing_time, 
+                                                             interp_s, tmp_path)
+            # Serial
             else:
                 y = self.interpolate_and_store(
-                        calculate_counts(channel, loop, emission_model),
+                        calculate_counts(channel, loop, emission_model, [ion for ion in emission_model]),
                         loop, self.observing_time, interp_s)
             counts.append((channel['name'], y))
         return counts
@@ -197,7 +221,7 @@ class InstrumentSDOAIA(InstrumentBase):
         AIA data product : `~sunpy.Map`
         """
         with h5py.File(counts_filename, 'r') as hf:
-            weights = np.array(hf[channel['name']][i_time,:])
+            weights = np.array(hf[channel['name']][i_time, :])
             units = u.Unit(hf[channel['name']].attrs['units'])
             coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
