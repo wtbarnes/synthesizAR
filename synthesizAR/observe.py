@@ -35,7 +35,7 @@ class Observer(object):
     -----
     """
 
-    def __init__(self, field, instruments, line_of_sight=(0,0,-1), parallel=False):
+    def __init__(self, field, instruments, line_of_sight=(0, 0, -1), parallel=False):
         self.logger = logging.getLogger(name=type(self).__name__)
         self.parallel = parallel
         self.field = field
@@ -78,7 +78,7 @@ class Observer(object):
             interpolated_loop_coordinates.append(interpolated_s)
             nots, _ = splprep(loop.coordinates.value.T)
             _tmp = splev(np.linspace(0, 1, n_interp), nots)
-            total_coordinates += [(x,y,z) for x, y, z in zip(_tmp[0], _tmp[1], _tmp[2])]
+            total_coordinates += [(x, y, z) for x, y, z in zip(_tmp[0], _tmp[1], _tmp[2])]
 
         total_coordinates = np.array(total_coordinates)*loop.coordinates.unit
 
@@ -114,7 +114,7 @@ class Observer(object):
     def _flatten_detector_counts_serial(self, **kwargs):
         emission_model = kwargs.get('emission_model', None)
         for instr in self.instruments:
-            with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver',None)) as hf:
+            with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
                 for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
                     params = (loop, instr.observing_time, interp_s)
@@ -144,7 +144,7 @@ class Observer(object):
         # Build list of delayed procedures for each instrument
         for instr in self.instruments:
             delayed_procedures = []
-            tmp_file_path = os.path.join(instr.tmp_file_template,'{}.npy')
+            tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npy')
             delayed_interp = dask.delayed(instr.interpolate_and_store)
             for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
                 los_velocity = dask.delayed(np.dot)(delay_property(loop, 'velocity_xyz'), self.line_of_sight)
