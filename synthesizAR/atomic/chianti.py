@@ -3,7 +3,7 @@ Wrappers for aggregating CHIANTI data and doing fundamental atomic physics calcu
 
 Note
 ----
-Question of whether this can all be done with the fiasco ion object or whether some 
+Question of whether this can all be done with the fiasco ion object or whether some
 sort of wrapper will always be needed
 """
 import os
