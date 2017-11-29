@@ -183,7 +183,6 @@ class InstrumentSDOAIA(InstrumentBase):
                                                loop, self.observing_time, interp_s)
                 synthesizAR.Observer.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
-        return counts
 
     def flatten_parallel(self, loops, interpolated_loop_coordinates, save_path, emission_model=None):
         """
