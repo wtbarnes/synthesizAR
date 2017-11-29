@@ -22,7 +22,7 @@ try:
 except ImportError:
     warnings.warn('Dask library not found. You will not be able to use the parallel option.')
 
-
+import synthesizAR
 from synthesizAR.instruments import InstrumentBase, Pair
 
 
@@ -122,87 +122,88 @@ class InstrumentSDOAIA(InstrumentBase):
         return counts
 
     @staticmethod
-    def calculate_counts_full(channel, loop, emission_model, ion_list=None):
+    def flatten_emissivities(channel, emission_model):
+        """
+        Compute product between wavelength response and emissivity for all ions
+        """
+        flattened_emissivities = []
+        for ion in emission_model:
+            wavelength, emissivity = emission_model.get_emissivity(ion)
+            if wavelength is None or emissivity is None:
+                flattened_emissivities.append(None)
+                continue
+            interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'], ext=1)
+            em_summed = np.dot(emissivity.value, interpolated_response)
+            unit = emissivity.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
+            flattened_emissivities.append(u.Quantity(em_summed, unit))
+
+        return flattened_emissivities
+
+    @staticmethod
+    def calculate_counts_full(channel, loop, emission_model, flattened_emissivities):
         """
         Calculate the AIA intensity using the wavelength response functions and a 
         full emission model.
         """
-        if ion_list is None:
-            ion_list = emission_model._ion_list
         density = loop.density
         electron_temperature = loop.electron_temperature
         counts = np.zeros(electron_temperature.shape)
         itemperature, idensity = emission_model.interpolate_to_mesh_indices(loop)
-        for ion in ion_list:
-            wavelength, emissivity = emission_model.get_emissivity(ion)
-            if wavelength is None or emissivity is None:
+        for ion, flat_emiss in zip(emission_model, flattened_emissivities):
+            if flat_emiss is None:
                 continue
             ionization_fraction = emission_model.get_ionization_fraction(loop, ion)
-            interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'], ext=1)
-            em_summed = np.dot(emissivity.value, interpolated_response)
-            tmp = np.reshape(map_coordinates(em_summed, np.vstack([itemperature, idensity])),
+            tmp = np.reshape(map_coordinates(flat_emiss.value, np.vstack([itemperature, idensity])),
                              electron_temperature.shape)
-            tmp = np.where(tmp < 0., 0., tmp) * emissivity.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
+            tmp = u.Quantity(np.where(tmp < 0., 0., tmp), flat_emiss.unit)
             counts_tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*density*tmp
             if not hasattr(counts, 'unit'):
                 counts = counts*counts_tmp.unit
             counts += counts_tmp
 
         return counts
-
-    @staticmethod
-    def add_counts(*counts):
-        """
-        Sum the counts for groups of ions
-        """
-        total = np.zeros(counts[0].shape)
-        for c in counts:
-            # If has no units, all are zero and can be skipped
-            if not hasattr(c, 'unit'):
-                continue
-            if not hasattr(total, 'unit'):
-                total = total*c.unit
-            total += c
-
-        return total
     
-    def flatten(self, loop, interp_s, save_path=False, emission_model=None):
+    def flatten_serial(self, loops, interpolated_loop_coordinates, hf, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale.
-
-        Note
-        ----
-        If using parallel option, this returns a list of Dask tasks. Otherwise, the interpolated
-        counts are returned.
         """
-        simple = self.use_temperature_response_functions or emission_model is None
+        simple = self.use_temperature_response_functions or emission_model is None 
         if simple:
             calculate_counts = self.calculate_counts_simple
         else:
             calculate_counts = self.calculate_counts_full
-            elements = list(set([ion.element_name for ion in emission_model]))
-            grouped_ions = {el: [ion for ion in emission_model if ion.element_name == el] for el in elements}
         
-        counts = []
         for channel in self.channels:
-            # Parallel
-            if save_path:
-                if simple:
-                    channel_counts = dask.delayed(calculate_counts)(channel, loop)
-                else:
-                    el_counts = [dask.delayed(calculate_counts)(channel, loop, emission_model, grouped_ions[el])
-                                 for el in grouped_ions]
-                    channel_counts = dask.delayed(self.add_counts)(*el_counts)
-                tmp_path = save_path.format(channel['name'], loop.name)
-                y = dask.delayed(self.interpolate_and_store)(channel_counts, loop, self.observing_time, 
-                                                             interp_s, tmp_path)
-            # Serial
-            else:
-                y = self.interpolate_and_store(calculate_counts(channel, loop, emission_model),
+            start_index = 0
+            dset = hf[channel['name']]
+            flattened_emissivities = [] if simple else self.flatten_emissivities(channel, emission_model)
+            for loop, interp_s in zip(loops, interpolated_loop_coordinates):
+                y = self.interpolate_and_store(calculate_counts(channel, loop, emission_model, flattened_emissivities),
                                                loop, self.observing_time, interp_s)
-            counts.append((channel['name'], y))
+                synthesizAR.Observer.commit(y, dset, start_index)
+                start_index += interp_s.shape[0]
         return counts
+
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, save_path, emission_model=None):
+        """
+        Interpolate intensity in each channel to temporal resolution of the instrument
+        and appropriate spatial scale. Returns a dask task.
+        """
+        simple = self.use_temperature_response_functions or emission_model is None
+        calculate_counts = self.calculate_counts_simple if simple else self.calculate_counts_full
+
+        tasks = {}
+        for channel in self.channels:
+            tasks[channel['name']] = []
+            flattened_emissivities = [] if simple else dask.delayed(self.flatten_emissivities)(channel, emission_model)
+            for loop, interp_s in zip(loops, interpolated_loop_coordinates):
+                y = dask.delayed(calculate_counts)(channel, loop, emission_model, flattened_emissivities)
+                tmp_path = save_path.format(channel['name'], loop.name)
+                task = dask.delayed(self.interpolate_and_store)(y, loop, self.observing_time, interp_s, tmp_path)
+                tasks[channel['name']].append(task)
+
+        return tasks
 
     @staticmethod
     def _detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):

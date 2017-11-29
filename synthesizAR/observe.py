@@ -116,7 +116,7 @@ class Observer(object):
         for instr in self.instruments:
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
-                for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
+                for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                     params = (loop, instr.observing_time, interp_s)
                     los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
                     self.commit(instr.interpolate_and_store(los_velocity, *params), hf['los_velocity'], start_index)
@@ -125,9 +125,9 @@ class Observer(object):
                     self.commit(instr.interpolate_and_store(loop.ion_temperature, *params), hf['ion_temperature'],
                                 start_index)
                     self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'], start_index)
-                    for name, y in instr.flatten(loop, interp_s, emission_model=emission_model):
-                        self.commit(y, hf[name], start_index)
                     start_index += interp_s.shape[0]
+                instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
+                                     emission_model=emission_model)
 
     @staticmethod
     def commit(y, dset, start_index):
@@ -146,7 +146,8 @@ class Observer(object):
             delayed_procedures = []
             tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npy')
             delayed_interp = dask.delayed(instr.interpolate_and_store)
-            for counter, (interp_s, loop) in enumerate(zip(self._interpolated_loop_coordinates, self.field.loops)):
+            # Tasks for interpolating needed quantities
+            for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                 los_velocity = dask.delayed(np.dot)(delay_property(loop, 'velocity_xyz'), self.line_of_sight)
                 electron_temperature = delay_property(loop, 'electron_temperature')
                 density = delay_property(loop, 'density')
@@ -160,20 +161,17 @@ class Observer(object):
                                                        tmp_file_path.format('ion_temperature', loop.name))),
                     ('density', delayed_interp(density, *params, tmp_file_path.format('density', loop.name)))
                 ]
-                delayed_procedures += instr.flatten(loop, interp_s, tmp_file_path, emission_model=emission_model)
             # Reshape delayed procedures into dictionary
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
             delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
             # Add assemble procedure
-            parameters = ['los_velocity', 'electron_temperature', 'ion_temperature', 'density']
-            parameter_keys = [k for k in delayed_procedures if k in parameters]
-            count_keys = [k for k in delayed_procedures if k not in parameters]
-            # One set of tasks for pure interpolation
             array_assembly[f'{instr.name}_parameters'] = dask.delayed(self.assemble_arrays)(
-                {k: delayed_procedures[k] for k in parameter_keys}, instr.counts_file, **kwargs)
+                                                            delayed_procedures, instr.counts_file, **kwargs)            
             # Another set for counts calculation
+            delayed_procedures = instr.flatten(self.field.loops, self._interpolated_loop_coordinates, 
+                                               tmp_file_path, emission_model=emission_model)
             array_assembly[f'{instr.name}_counts'] = dask.delayed(self.assemble_arrays)(
-                {k: delayed_procedures[k] for k in count_keys}, instr.counts_file, **kwargs)
+                                                        delayed_procedures, instr.counts_file, **kwargs)
 
         return array_assembly
 
