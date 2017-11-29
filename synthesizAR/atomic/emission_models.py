@@ -35,7 +35,8 @@ class EmissionModel(fiasco.IonCollection):
             'temperature_unit': self.temperature.unit.to_string(),
             'density': self.density.value.tolist(),
             'density_unit': self.density.unit.to_string(),
-            'ion_list': ['_'.join([ion.ion_name.split()[0].lower(), ion.ion_name.split()[1]]) for ion in self]
+            'ion_list': ['_'.join([ion.ion_name.split()[0].lower(), ion.ion_name.split()[1]]) for ion in self],
+            'dset_names': [ion._dset_names for ion in self]
         }
         if hasattr(self, 'emissivity_savefile'):
             save_dict['emissivity_savefile'] = self.emissivity_savefile
@@ -53,7 +54,8 @@ class EmissionModel(fiasco.IonCollection):
             restore_dict = json.load(f)
         temperature = u.Quantity(restore_dict['temperature'], restore_dict['temperature_unit'])
         density = u.Quantity(restore_dict['density'], restore_dict['density_unit'])
-        ion_list = [Ion(ion, temperature) for ion in restore_dict['ion_list']]
+        ion_list = [Ion(ion, temperature, **ds) for ion, ds in zip(restore_dict['ion_list'],
+                                                                   restore_dict['dset_names'])]
         emission_model = cls(density, *ion_list)
         if 'emissivity_savefile' in restore_dict:
             emission_model.emissivity_savefile = restore_dict['emissivity_savefile']
