@@ -122,11 +122,13 @@ class InstrumentSDOAIA(InstrumentBase):
         return counts
 
     @staticmethod
-    def calculate_counts_full(channel, loop, emission_model, ion_list):
+    def calculate_counts_full(channel, loop, emission_model, ion_list=None):
         """
         Calculate the AIA intensity using the wavelength response functions and a 
         full emission model.
         """
+        if ion_list is None:
+            ion_list = emission_model._ion_list
         density = loop.density
         electron_temperature = loop.electron_temperature
         counts = np.zeros(electron_temperature.shape)
@@ -151,10 +153,13 @@ class InstrumentSDOAIA(InstrumentBase):
     @staticmethod
     def add_counts(*counts):
         """
-        Sum the counts for all ions or elements
+        Sum the counts for groups of ions
         """
         total = np.zeros(counts[0].shape)
         for c in counts:
+            # If has no units, all are zero and can be skipped
+            if not hasattr(c, 'unit'):
+                continue
             if not hasattr(total, 'unit'):
                 total = total*c.unit
             total += c
@@ -186,7 +191,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 if simple:
                     channel_counts = dask.delayed(calculate_counts)(channel, loop)
                 else:
-                    el_counts = [dask.delayed(calculate_counts)(channel, loop, emission_model, grouped_ions[el]) 
+                    el_counts = [dask.delayed(calculate_counts)(channel, loop, emission_model, grouped_ions[el])
                                  for el in grouped_ions]
                     channel_counts = dask.delayed(self.add_counts)(*el_counts)
                 tmp_path = save_path.format(channel['name'], loop.name)
@@ -194,9 +199,8 @@ class InstrumentSDOAIA(InstrumentBase):
                                                              interp_s, tmp_path)
             # Serial
             else:
-                y = self.interpolate_and_store(
-                        calculate_counts(channel, loop, emission_model, [ion for ion in emission_model]),
-                        loop, self.observing_time, interp_s)
+                y = self.interpolate_and_store(calculate_counts(channel, loop, emission_model),
+                                               loop, self.observing_time, interp_s)
             counts.append((channel['name'], y))
         return counts
 
