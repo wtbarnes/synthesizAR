@@ -120,7 +120,7 @@ class EmissionModel(fiasco.IonCollection):
         """
         self.ionization_fraction_savefile = savefile
         if interface is not None:
-            interface.calculate_ionization_fraction(field, self, **kwargs)
+            return interface.calculate_ionization_fraction(field, self, **kwargs)
         else:
             # Group ions by element
             unique_elements = list(set([ion.element_name for ion in self]))
