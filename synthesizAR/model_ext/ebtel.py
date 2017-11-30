@@ -9,6 +9,7 @@ import copy
 import numpy as np
 import h5py
 import astropy.units as u
+import dask
 
 from synthesizAR.util import InputHandler, OutputHandler
 from synthesizAR.atomic import Element
@@ -98,24 +99,47 @@ class EbtelInterface(object):
         logTmax = np.log10(emission_model.temperature.value.max())
         temperature = u.Quantity(10.**(np.arange(logTmin, logTmax+dex, dex)), emission_model.temperature.unit)
 
-        # Calculate NEI for each ion and each loop
-        with h5py.File(emission_model.ionization_fraction_savefile, 'a') as hf:
-            for el_name in grouped_ions:
-                element = Element(el_name, temperature)
-                rate_matrix = element._rate_matrix()
-                for loop in field.loops:
-                    if loop.name not in hf:
-                        grp = hf.create_group(loop.name)
-                    else:
-                        grp = hf[loop.name]
-                    y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
-                                                               loop.density[:, 0], rate_matrix=rate_matrix)
+        @dask.delayed
+        def compute_rate_matrix(element):
+            return element.rate_matrix()
+        
+        @dask.delayed
+        def compute_and_save_nei(loop, element, rate_matrix, save_root_path):
+            y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
+                                                       loop.density[:, 0], rate_matrix=rate_matrix)
+            save_path = os.path.join(save_root_path, f'{element.element_name}_{loop.name}.npy')
+            np.save(save_path, y_nei.value)
+            return save_path, loop.field_aligned_coordinate.shape[0]
+
+        @dask.delayed
+        def slice_and_store(nei_matrices):
+            with h5py.File(emission_model.ionization_fraction_savefile, 'a') as hf:
+                for fn, n_s in nei_matrices:
+                    element_name = fn.split('.')[0].split('_')[0]
+                    loop_name = fn.split('.')[0].split('_')[1]
+                    grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
+                    y_nei = np.load(fn)
                     for ion in grouped_ions[el_name]:
-                        data = np.tile(y_nei[:, ion.charge_state], (loop.field_aligned_coordinate.shape[0], 1)).T
+                        data = np.tile(y_nei[:, ion.charge_state], (n_s, 1)).T
                         if ion.ion_name not in grp:
-                            dset = grp.create_dataset(ion.ion_name, data=data.value)
+                            dset = grp.create_dataset(ion.ion_name, data=data)
                         else:
                             dset = grp[ion.ion_name]
-                            dset[:, :] = data.value
-                        dset.attrs['units'] = data.unit.to_string()
+                            dset[:, :] = data
+                        dset.attrs['units'] = ''
                         dset.attrs['description'] = 'non-equilibrium ionization fractions'
+                    os.remove(fn)
+        
+        # Build task list
+        tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile), 'tmp_nei')
+        tasks = []
+        for el_name in grouped_ions:
+            element = Element(el_name, temperature)
+            rate_matrix = compute_rate_matrix(element)
+            for loop in field.loops:
+                tasks.append(compute_and_save_nei(loop, element, rate_matrix, tmpdir))
+
+        # Execute tasks and compile to single file
+        if not os.path.exists(tmpdir):
+            os.makedirs(tmpdir)
+        slice_and_store(tasks).compute()
