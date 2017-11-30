@@ -168,12 +168,9 @@ class InstrumentSDOAIA(InstrumentBase):
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale.
         """
-        simple = self.use_temperature_response_functions or emission_model is None 
-        if simple:
-            calculate_counts = self.calculate_counts_simple
-        else:
-            calculate_counts = self.calculate_counts_full
-        
+        simple = self.use_temperature_response_functions or emission_model is None
+        calculate_counts = self.calculate_counts_simple if simple else self.calculate_counts_full
+
         for channel in self.channels:
             start_index = 0
             dset = hf[channel['name']]
@@ -245,4 +242,3 @@ class InstrumentSDOAIA(InstrumentBase):
             return dask.delayed(self._detect)(*parameters)
         else:
             return self._detect(*parameters)
-
