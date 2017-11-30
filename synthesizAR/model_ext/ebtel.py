@@ -142,4 +142,5 @@ class EbtelInterface(object):
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
-        return slice_and_store(tasks)
+        assemble_tasks = slice_and_store(tasks)
+        return assemble_tasks
