@@ -101,7 +101,7 @@ class EbtelInterface(object):
 
         @dask.delayed
         def compute_rate_matrix(element):
-            return element.rate_matrix()
+            return element._rate_matrix()
         
         @dask.delayed
         def compute_and_save_nei(loop, element, rate_matrix, save_root_path):
