@@ -119,7 +119,7 @@ class EbtelInterface(object):
                     loop_name = fn.split('.')[0].split('_')[1]
                     grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
                     y_nei = np.load(fn)
-                    for ion in grouped_ions[el_name]:
+                    for ion in grouped_ions[element_name]:
                         data = np.tile(y_nei[:, ion.charge_state], (n_s, 1)).T
                         if ion.ion_name not in grp:
                             dset = grp.create_dataset(ion.ion_name, data=data)
