@@ -25,6 +25,11 @@ class EmissionModel(fiasco.IonCollection):
         self.temperature = self[0].temperature
         self.density = density
         self.resolved_wavelengths = kwargs.get('resolved_wavelengths', {})
+        # Cannot have empty abundances so replace them as needed
+        default_abundance = kwargs.get('default_abundance_dataset', 'sun_photospheric_2009_asplund')
+        for ion in self._ion_list:
+            if ion.abundance is None:
+                ion._dset_names['abundance_filename'] = default_abundance
 
     def save(self, savefile):
         """
