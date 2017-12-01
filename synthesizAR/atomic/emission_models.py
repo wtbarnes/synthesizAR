@@ -119,40 +119,31 @@ class EmissionModel(fiasco.IonCollection):
         assuming ionization equilibrium.
         """
         self.ionization_fraction_savefile = savefile
+        # Create sufficiently fine temperature grid
+        dex = kwargs.get('log_temperature_dex', 0.01)
+        logTmin, logTmax = np.log10(self.temperature.value.min()), np.log10(self.temperature.value.max())
+        temperature = u.Quantity(10.**(np.arange(logTmin, logTmax+dex, dex)), self.temperature.unit)
         if interface is not None:
-            return interface.calculate_ionization_fraction(field, self, **kwargs)
+            return interface.calculate_ionization_fraction(field, self, temperature=temperature, **kwargs)
         else:
-            # Group ions by element
-            unique_elements = list(set([ion.element_name for ion in self]))
-            grouped_ions = {el: [ion for ion in self if ion.element_name == el] for el in unique_elements}
-            
-            # Create sufficiently fine temperature grid
-            dex = kwargs.get('log_temperature_dex', 0.01)
-            logTmin, logTmax = np.log10(self.temperature.value.min()), np.log10(self.temperature.value.max())
-            temperature = u.Quantity(10.**(np.arange(logTmin, logTmax+dex, dex)), self.temperature.unit)
-            
-            # Calculate ionization equilibrium for each ion and interpolate to each loop
+            unique_elements = list(set([ion.element_name for ion in self]))            
+            # Calculate ionization equilibrium for each element and interpolate to each loop
             with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
-                for el_name in grouped_ions:
+                for el_name in unique_elements:
                     element = Element(el_name, temperature)
                     ioneq = element.equilibrium_ionization()
-                    for ion in grouped_ions[el_name]:
-                        f_ioneq = interp1d(temperature, ioneq[:, ion.charge_state], kind='linear', 
-                                           fill_value='extrapolate')
-                        for loop in field.loops:
-                            if loop.name not in hf:
-                                grp = hf.create_group(loop.name)
-                            else:
-                                grp = hf[loop.name]
-                            tmp = f_ioneq(loop.electron_temperature)
-                            data = u.Quantity(np.where(tmp < 0., 0., tmp), ioneq.unit)
-                            if ion.ion_name not in grp:
-                                dset = grp.create_dataset(ion.ion_name, data=data.value)
-                            else:
-                                dset = grp[ion.ion_name]
-                                dset[:, :] = data.value
-                            dset.attrs['units'] = data.unit.to_string()
-                            dset.attrs['description'] = 'equilibrium ionization fractions'
+                    f_ioneq = interp1d(temperature, ioneq, axis=0, kind='linear', fill_value='extrapolate')
+                    for loop in field.loops:
+                        grp = hf.create_group(loop.name) if loop.name not in hf else hf[loop.name]
+                        tmp = f_ioneq(loop.electron_temperature)
+                        data = u.Quantity(np.where(tmp < 0., 0., tmp), ioneq.unit)
+                        if element.element_name not in grp:
+                            dset = grp.create_dataset(element.element_name, data=data.value)
+                        else:
+                            dset = grp[element.element_name]
+                            dset[:, :, :] = data.value
+                        dset.attrs['units'] = data.unit.to_string()
+                        dset.attrs['description'] = 'equilibrium ionization fractions'
 
     def get_ionization_fraction(self, loop, ion):
         """
@@ -160,12 +151,12 @@ class EmissionModel(fiasco.IonCollection):
 
         Note
         ----
-        This can be either the equilibrium or the non-equilibrium ionization 
+        This can be either the equilibrium or the non-equilibrium ionization
         fraction, depending on which was calculated.
         """
         with h5py.File(self.ionization_fraction_savefile, 'r') as hf:
-            dset = hf['/'.join([loop.name, ion.ion_name])]
-            ionization_fraction = u.Quantity(dset, dset.attrs['units'])
+            dset = hf['/'.join([loop.name, ion.element_name])]
+            ionization_fraction = u.Quantity(dset[:, :, ion.charge_state], dset.attrs['units'])
 
         return ionization_fraction
 

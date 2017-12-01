@@ -90,14 +90,8 @@ class EbtelInterface(object):
         Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
         tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile), 'tmp_nei')
-        # Group ions by element
         unique_elements = list(set([ion.element_name for ion in emission_model]))
-        grouped_ions = {el: [ion for ion in emission_model if ion.element_name == el] for el in unique_elements}
-        # Create a sufficiently fine temperature grid
-        dex = kwargs.get('log_temperature_dex', 0.01)
-        logTmin = np.log10(emission_model.temperature.value.min())
-        logTmax = np.log10(emission_model.temperature.value.max())
-        temperature = u.Quantity(10.**(np.arange(logTmin, logTmax+dex, dex)), emission_model.temperature.unit)
+        temperature = kwargs.get('temperature', emission_model.temperature)
 
         # Task wrappers
         @dask.delayed
@@ -124,27 +118,26 @@ class EbtelInterface(object):
                     element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
                     grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
                     y_nei = np.load(fn)
-                    for ion in grouped_ions[element_name]:
-                        data = np.tile(y_nei[:, ion.charge_state], (n_s, 1)).T
-                        if ion.ion_name not in grp:
-                            dset = grp.create_dataset(ion.ion_name, data=data)
-                        else:
-                            dset = grp[ion.ion_name]
-                            dset[:, :] = data
-                        dset.attrs['units'] = ''
-                        dset.attrs['description'] = 'non-equilibrium ionization fractions'
+                    data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
+                    if element_name not in grp:
+                        dset = grp.create_dataset(element_name, data=data)
+                    else:
+                        dset = grp[element_name]
+                        dset[:, :, :] = data
+                    dset.attrs['units'] = ''
+                    dset.attrs['description'] = 'non-equilibrium ionization fractions'
                     os.remove(fn)
             os.rmdir(tmpdir)
         
         # Build task list
         tasks = []
-        for el_name in grouped_ions:
+        for el_name in unique_elements:
             element = Element(el_name, temperature)
             rate_matrix = compute_rate_matrix(element)
             initial_condition = compute_ionization_equilibrium(element, rate_matrix)
             for loop in field.loops:
                 tasks.append(compute_and_save_nei(loop, element, rate_matrix, initial_condition, tmpdir))
-                
+
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
