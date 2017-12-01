@@ -89,20 +89,21 @@ class EbtelInterface(object):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
+        tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile), 'tmp_nei')
         # Group ions by element
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         grouped_ions = {el: [ion for ion in emission_model if ion.element_name == el] for el in unique_elements}
-        
         # Create a sufficiently fine temperature grid
         dex = kwargs.get('log_temperature_dex', 0.01)
         logTmin = np.log10(emission_model.temperature.value.min())
         logTmax = np.log10(emission_model.temperature.value.max())
         temperature = u.Quantity(10.**(np.arange(logTmin, logTmax+dex, dex)), emission_model.temperature.unit)
 
+        # Task wrappers
         @dask.delayed
         def compute_rate_matrix(element):
             return element._rate_matrix()
-
+        
         @dask.delayed
         def compute_ionization_equilibrium(element, rate_matrix):
             return element.equilibrium_ionization(rate_matrix=rate_matrix)
@@ -115,7 +116,7 @@ class EbtelInterface(object):
             save_path = os.path.join(save_root_path, f'{element.element_name}_{loop.name}.npy')
             np.save(save_path, y_nei.value)
             return save_path, loop.field_aligned_coordinate.shape[0]
-
+        
         @dask.delayed
         def slice_and_store(nei_matrices):
             with h5py.File(emission_model.ionization_fraction_savefile, 'a') as hf:
@@ -133,9 +134,9 @@ class EbtelInterface(object):
                         dset.attrs['units'] = ''
                         dset.attrs['description'] = 'non-equilibrium ionization fractions'
                     os.remove(fn)
+            os.rmdir(tmpdir)
         
         # Build task list
-        tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile), 'tmp_nei')
         tasks = []
         for el_name in grouped_ions:
             element = Element(el_name, temperature)
@@ -143,7 +144,7 @@ class EbtelInterface(object):
             initial_condition = compute_ionization_equilibrium(element, rate_matrix)
             for loop in field.loops:
                 tasks.append(compute_and_save_nei(loop, element, rate_matrix, initial_condition, tmpdir))
-
+                
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
