@@ -58,18 +58,20 @@ class Element(fiasco.Element):
         return u.Quantity(ioneq)
     
     @u.quantity_input
-    def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3), rate_matrix=None):
+    def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3), rate_matrix=None,
+                                   initial_condition=None):
         """
         Compute the ionization fraction in non-equilibrium for a given temperature and density
         timeseries.
         """
         if rate_matrix is None:
             rate_matrix = self._rate_matrix()
+        if initial_condition is None:
+            initial_condition = self.equilibrium_ionization(rate_matrix=rate_matrix)
 
-        ioneq = self.equilibrium_ionization(rate_matrix=rate_matrix)
         interpolate_indices = [np.abs(self.temperature - t).argmin() for t in temperature]
         y = np.zeros(time.shape + (self.atomic_number+1,))
-        y[0, :] = ioneq[interpolate_indices[0], :]
+        y[0, :] = initial_condition[interpolate_indices[0], :]
 
         identity = u.Quantity(np.eye(self.atomic_number + 1))
         for i in range(1, time.shape[0]):

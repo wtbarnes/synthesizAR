@@ -102,11 +102,16 @@ class EbtelInterface(object):
         @dask.delayed
         def compute_rate_matrix(element):
             return element._rate_matrix()
+
+        @dask.delayed
+        def compute_ionization_equilibrium(element, rate_matrix):
+            return element.equilibrium_ionization(rate_matrix=rate_matrix)
         
         @dask.delayed
-        def compute_and_save_nei(loop, element, rate_matrix, save_root_path):
+        def compute_and_save_nei(loop, element, rate_matrix, initial_condition, save_root_path):
             y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
-                                                       loop.density[:, 0], rate_matrix=rate_matrix)
+                                                       loop.density[:, 0], rate_matrix=rate_matrix,
+                                                       initial_condition=initial_condition)
             save_path = os.path.join(save_root_path, f'{element.element_name}_{loop.name}.npy')
             np.save(save_path, y_nei.value)
             return save_path, loop.field_aligned_coordinate.shape[0]
@@ -115,8 +120,7 @@ class EbtelInterface(object):
         def slice_and_store(nei_matrices):
             with h5py.File(emission_model.ionization_fraction_savefile, 'a') as hf:
                 for fn, n_s in nei_matrices:
-                    element_name = fn.split('.')[0].split('_')[0]
-                    loop_name = fn.split('.')[0].split('_')[1]
+                    element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
                     grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
                     y_nei = np.load(fn)
                     for ion in grouped_ions[element_name]:
@@ -136,8 +140,9 @@ class EbtelInterface(object):
         for el_name in grouped_ions:
             element = Element(el_name, temperature)
             rate_matrix = compute_rate_matrix(element)
+            initial_condition = compute_ionization_equilibrium(element, rate_matrix)
             for loop in field.loops:
-                tasks.append(compute_and_save_nei(loop, element, rate_matrix, tmpdir))
+                tasks.append(compute_and_save_nei(loop, element, rate_matrix, initial_condition, tmpdir))
 
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):
