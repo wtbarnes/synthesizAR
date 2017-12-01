@@ -12,8 +12,8 @@ from .cube import EMCube
 __all__ = ['make_los_velocity_map','make_temperature_map','make_emission_measure_map']
 
 
-@u.quantity_input(time=u.s)
-def make_los_velocity_map(time, field, instr, **kwargs):
+@u.quantity_input
+def make_los_velocity_map(time: u.s, field, instr, **kwargs):
     """
     Return map of LOS velocity at a given time for a given instrument resolution.
     """
@@ -48,8 +48,8 @@ def make_los_velocity_map(time, field, instr, **kwargs):
     return tmp_map
 
 
-@u.quantity_input(time=u.s)
-def make_temperature_map(time, field, instr, **kwargs):
+@u.quantity_input
+def make_temperature_map(time: u.s, field, instr, **kwargs):
     """
     Return map of column-averaged electron temperature at a given time for a given instrument resolution.
     """
@@ -81,8 +81,8 @@ def make_temperature_map(time, field, instr, **kwargs):
     return tmp_map
 
 
-@u.quantity_input(time=u.s)
-def make_emission_measure_map(time, field, instr, temperature_bin_edges=None, **kwargs):
+@u.quantity_input
+def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None, **kwargs):
     """
     Return a cube of maps showing the true emission meausure in each pixel
     as a function of electron temperature.

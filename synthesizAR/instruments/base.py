@@ -20,8 +20,8 @@ class InstrumentBase(object):
     `Observer` class to get the detector counts.
     """
 
-    @u.quantity_input(observing_time=u.s)
-    def __init__(self, observing_time, observing_area=None):
+    @u.quantity_input
+    def __init__(self, observing_time: u.s, observing_area=None):
         self.logger = logging.getLogger(name=type(self).__name__)
         self.observing_time = np.arange(observing_time[0].to(u.s).value,
                                         observing_time[1].to(u.s).value,

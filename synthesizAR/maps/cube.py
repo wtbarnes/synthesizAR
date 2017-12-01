@@ -24,8 +24,8 @@ class EMCube(MapCube):
     --------
     """
 
-    @u.quantity_input(temperature_bin_edges=u.K)
-    def __init__(self, data, header, temperature_bin_edges, **kwargs):
+    @u.quantity_input
+    def __init__(self, data, header, temperature_bin_edges: u.K, **kwargs):
         self.temperature_bin_edges = temperature_bin_edges
         # sanitize header
         meta_base = header.copy()
@@ -66,8 +66,7 @@ class EMCube(MapCube):
 
         return self.temperature_bin_edges, u.Quantity(em_list, u.Unit(self[0].meta['bunit']))
 
-    @u.quantity_input(temperature_bounds=u.K)
-    def make_slope_map(self, temperature_bounds=u.Quantity((1e6,4e6),u.K), em_threshold=1e25*(u.cm**(-5)), rsquared_tolerance=0.5):
+    def make_slope_map(self, temperature_bounds=None, em_threshold=None, rsquared_tolerance=0.5):
         """
         Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a 
         given temperature range. Only those pixels for which the minimum :math:`\mathrm{EM}`
@@ -76,6 +75,10 @@ class EMCube(MapCube):
         .. warning:: This method provides no measure of the goodness of the fit. Some slope values
                      may not provide an accurate fit to the data.
         """
+        if temperature_bounds is None:
+            temperature_bounds = u.Quantity((1e6, 4e6), u.K)
+        if em_threshold is None:
+            em_threshold = u.Quantity(1e25, u.cm**(-5))
         # cut on temperature
         temperature_bin_centers = (self.temperature_bin_edges[:-1] + self.temperature_bin_edges[1:])/2.
         index_temperature_bounds = np.where(np.logical_and(temperature_bin_centers >= temperature_bounds[0],
