@@ -170,11 +170,8 @@ class Observer(object):
             # Add assemble procedure
             array_assembly[f'{instr.name}_parameters'] = dask.delayed(self.assemble_arrays)(delayed_procedures,
                                                                                             instr.counts_file, **kwargs)
-            for k in delayed_procedures_counts:
-                tasks = {k: delayed_procedures_counts[k]}
-                array_assembly[f'{instr.name}_counts_{k}'] = dask.delayed(self.assemble_arrays)(tasks,
-                                                                                                instr.counts_file,
-                                                                                                **kwargs)
+            array_assembly[f'{instr.name}_counts'] = dask.delayed(self.assemble_arrays)(delayed_procedures_counts,
+                                                                                        instr.counts_file, **kwargs)
 
         return array_assembly
 
