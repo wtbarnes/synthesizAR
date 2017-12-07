@@ -9,7 +9,7 @@ from sunpy.map import GenericMap
 
 from .cube import EMCube
 
-__all__ = ['make_los_velocity_map','make_temperature_map','make_emission_measure_map']
+__all__ = ['make_los_velocity_map', 'make_temperature_map', 'make_emission_measure_map']
 
 
 @u.quantity_input
@@ -17,12 +17,9 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
     """
     Return map of LOS velocity at a given time for a given instrument resolution.
     """
-    plot_settings = {
-        'cmap': cm.get_cmap('bwr'),
-        'norm': colors.SymLogNorm(10, vmin=-1e8, vmax=1e8)
-    }
-    if 'plot_settings' in kwargs:
-        plot_settings.update(kwargs.get('plot_settings'))
+    plot_settings = {'cmap': cm.get_cmap('bwr'),
+                     'norm': colors.SymLogNorm(10, vmin=-1e8, vmax=1e8)}
+    plot_settings.update(kwargs.get('plot_settings', {}))
 
     hist_coordinates, _ = np.histogramdd(instr.total_coordinates.value[:,:2],
                                          bins=instr.bins[:2], range=instr.bin_range[:2])
@@ -42,10 +39,7 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
     meta['bunit'] = units.to_string()
     meta['detector'] = 'LOS Velocity'
     meta['comment'] = 'LOS velocity calculated by synthesizAR'
-    tmp_map = GenericMap(hist.T, meta)
-    tmp_map.plot_settings.update(plot_settings)
-
-    return tmp_map
+    return GenericMap(hist.T, meta, plot_settings=plot_settings)
 
 
 @u.quantity_input
@@ -54,8 +48,7 @@ def make_temperature_map(time: u.s, field, instr, **kwargs):
     Return map of column-averaged electron temperature at a given time for a given instrument resolution.
     """
     plot_settings = {'cmap': cm.get_cmap('inferno')}
-    if 'plot_settings' in kwargs:
-        plot_settings.update(kwargs.get('plot_settings'))
+    plot_settings.update(kwargs.get('plot_settings', {}))
 
     hist_coordinates, _ = np.histogramdd(instr.total_coordinates.value[:,:2],
                                          bins=instr.bins[:2], range=instr.bin_range[:2])
@@ -75,10 +68,7 @@ def make_temperature_map(time: u.s, field, instr, **kwargs):
     meta['bunit'] = units.to_string()
     meta['detector'] = 'Electron Temperature'
     meta['comment'] = 'Column-averaged electron temperature calculated by synthesizAR'
-    tmp_map = GenericMap(hist.T, meta)
-    tmp_map.plot_settings.update(plot_settings)
-
-    return tmp_map
+    return GenericMap(hist.T, meta, plot_settings=plot_settings)
 
 
 @u.quantity_input
@@ -88,9 +78,8 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     as a function of electron temperature.
     """
     plot_settings = {'cmap': cm.get_cmap('magma'),
-                        'norm': colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}
-    if 'plot_settings' in kwargs:
-        plot_settings.update(kwargs.get('plot_settings'))
+                     'norm': colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}
+    plot_settings.update(kwargs.get('plot_settings', {}))
 
     # read unbinned temperature and density
     with h5py.File(instr.counts_file, 'r') as hf:

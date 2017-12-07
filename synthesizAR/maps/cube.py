@@ -37,7 +37,7 @@ class EMCube(MapCube):
             tmp = GenericMap(data[:,:,i], meta_base)
             tmp.meta['temp_a'] = self.temperature_bin_edges[i].value
             tmp.meta['temp_b'] = self.temperature_bin_edges[i+1].value
-            tmp.plot_settings.update(kwargs.get('plot_settings',{}))
+            tmp.plot_settings.update(kwargs.get('plot_settings', {}))
             map_list.append(tmp)
 
         # call super method
@@ -51,9 +51,7 @@ class EMCube(MapCube):
         tmp_meta = self[0].meta.copy()
         tmp_meta['temp_a'] = self.temperature_bin_edges[0]
         tmp_meta['temp_b'] = self.temperature_bin_edges[-1]
-        tmp = GenericMap(self.as_array().sum(axis=2), tmp_meta)
-        tmp.plot_settings.update(self[0].plot_settings)
-        return tmp
+        return GenericMap(self.as_array().sum(axis=2), tmp_meta, plot_settings=self[0].plot_settings)
 
     def get_1d_distribution(self, range_a, range_b):
         """
@@ -104,12 +102,10 @@ class EMCube(MapCube):
         base_meta['bunit'] = ''
         base_meta['detector'] = r'$\mathrm{EM}(T)$ slope'
         base_meta['comment'] = 'Linear fit to log-transformed LOS EM'
-        tmp_map = GenericMap(slopes_2d, base_meta)
         plot_settings = self[0].plot_settings.copy()
         plot_settings['norm'] = None
-        tmp_map.plot_settings.update(plot_settings)
 
-        return tmp_map
+        return GenericMap(slopes_2d, base_meta, plot_settings=plot_settings)
 
     def __getitem__(self, key):
         """
