@@ -9,12 +9,13 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 import matplotlib.animation
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from sunpy.map import Map
 
 __all__ = ['plot_aia_channels', 'make_aia_animation']
 
 
-def plot_aia_channels(aia, time: u.s, root_dir, figsize=None, norm=None, fontsize=14, **kwargs):
+def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm=None, fontsize=14, **kwargs):
     """
     Plot maps of the EUV channels of AIA for a given timestep
 
@@ -38,6 +39,10 @@ def plot_aia_channels(aia, time: u.s, root_dir, figsize=None, norm=None, fontsiz
     ims = {}
     for i, channel in enumerate(aia.channels):
         tmp = Map(fig_format.format(channel['name']))
+        if corners is not None:
+            blc = SkyCoord(*corners[0], frame=tmp.coordinate_frame)
+            trc = SkyCoord(*corners[1], frame=tmp.coordinate_frame)
+            tmp = tmp.submap(blc, trc)
         ax = fig.add_subplot(2, 3, i+1, projection=tmp)
         ims[channel['name']] = tmp.plot(annotate=False, title=False, norm=norm)
         lon, lat = ax.coords
