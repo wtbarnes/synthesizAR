@@ -160,7 +160,7 @@ Magnetogram Info:
         """
         return convert_angle_to_length(self.hmi_map, angle_or_length, working_units=working_units)
 
-    def _transform_to_yt(self, map_3d, zrange, boundary_clipping=(2, 2, 2)):
+    def _transform_to_yt(self, map_3d, zrange, boundary_clipping=(0, 0, 0)):
         """
         Reshape data structure to something yt can work with.
 
@@ -374,26 +374,3 @@ Magnetogram Info:
                     loop._velocity_xyz = velocity_xyz
 
                 progress.update()
-
-    def calculate_emission(self, emission_model, savefile=None, **kwargs):
-        """
-        Calculate emission (energy or photons per unit volume per unit time per unit solid angle)
-        as function of time and space for each loop
-        """
-        for loop in self.loops:
-            self.logger.info('Calculating emissivity for loop {}'.format(loop.name))
-            loop.resolved_wavelengths = emission_model.resolved_wavelengths
-            emiss, meta = emission_model.calculate_emission(loop, **kwargs)
-            if savefile is not None:
-                loop.emission_savefile = savefile
-                with h5py.File(savefile, 'a') as hf:
-                    if loop.name not in hf:
-                        hf.create_group(loop.name)
-                    for key in emiss:
-                        self.logger.debug('Saving emission for {}'.format(key))
-                        dset = hf[loop.name].create_dataset(key, data=emiss[key].value)
-                        dset.attrs['units'] = emiss[key].unit.to_string()
-                        for m in meta[key]:
-                            dset.attrs[m] = meta[key][m]
-            else:
-                loop._emission = emiss
