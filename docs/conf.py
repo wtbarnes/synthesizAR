@@ -29,12 +29,15 @@ import datetime
 import os
 import sys
 
+ON_RTD = os.environ.get('READTHEDOCS') == 'True'
+ON_TRAVIS = os.environ.get('TRAVIS') == 'true'
+
 try:
     import astropy_helpers
 except ImportError:
     # Building from inside the docs/ directory?
-    if os.path.basename(os.getcwd()) == 'source':
-        a_h_path = os.path.abspath(os.path.join('..','..', 'astropy_helpers'))
+    if os.path.basename(os.getcwd()) == 'docs':
+        a_h_path = os.path.abspath(os.path.join('..', 'astropy_helpers'))
         if os.path.isdir(a_h_path):
             sys.path.insert(1, a_h_path)
 
@@ -42,9 +45,9 @@ except ImportError:
 from astropy_helpers.sphinx.conf import *
 
 # Add some stuff to the intersphinx mapping
-intersphinx_mapping['sunpy'] = ('http://docs.sunpy.org/en/stable/',None)
-intersphinx_mapping['yt'] = ('http://yt-project.org/doc/',None)
-intersphinx_mapping['ChiantiPy'] = ('http://chiantipy.readthedocs.io/en/latest/',None)
+intersphinx_mapping['sunpy'] = ('http://docs.sunpy.org/en/stable/', None)
+intersphinx_mapping['yt'] = ('http://yt-project.org/doc/', None)
+intersphinx_mapping['fiasco'] = ('http://fiasco.readthedocs.io/en/latest/', None)
 
 # Get configuration information from setup.cfg
 try:
@@ -52,10 +55,14 @@ try:
 except ImportError:
     from configparser import ConfigParser
 conf = ConfigParser()
-conf.read([os.path.join(os.path.dirname(__file__), '..','..', 'setup.cfg')])
+
+conf.read([os.path.join(os.path.dirname(__file__), '..', 'setup.cfg')])
 setup_cfg = dict(conf.items('metadata'))
 
 # -- General configuration ----------------------------------------------------
+
+# By default, highlight as Python 3.
+highlight_language = 'python3'
 
 # If your documentation needs a minimal Sphinx version, state it here.
 #needs_sphinx = '1.2'
@@ -93,7 +100,6 @@ version = package.__version__.split('-', 1)[0]
 # The full version, including alpha/beta/rc tags.
 release = package.__version__
 
-
 # -- Options for HTML output ---------------------------------------------------
 
 # A NOTE ON HTML THEMES
@@ -103,19 +109,6 @@ release = package.__version__
 # variables set in the global configuration. The variables set in the
 # global configuration are listed below, commented out.
 
-try:
-    import sphinx_rtd_theme
-    html_theme='sphinx_rtd_theme'
-    html_theme_path=[sphinx_rtd_theme.get_html_theme_path()]
-except ImportError:
-    html_theme='classic'
-
-# Please update these texts to match the name of your package.
-#html_theme_options = {
-#    'logotext1': 'package',  # white,  semi-bold
-#    'logotext2': '-template',  # orange, light
-#    'logotext3': ':docs'   # white,  light
-#    }
 
 # Add any paths that contain custom themes here, relative to this directory.
 # To use a different custom theme, add the directory containing the theme.
@@ -126,13 +119,27 @@ except ImportError:
 # name of a builtin theme or the name of a custom theme in html_theme_path.
 #html_theme = None
 
+try:
+    html_theme = "sphinx_rtd_theme"
+    import sphinx_rtd_theme
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+    # from sunpy_sphinx_theme.conf import *
+    # html_sidebars = {'**': ['docsidebar.html']}
+except ImportError:
+    html_theme = 'default'
+
+
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
+
+# The name of an image file (relative to this directory) to place at the top
+# of the sidebar.
+#html_logo = ''
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-#html_favicon = ''
+html_favicon = ''
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
@@ -146,7 +153,7 @@ html_title = '{0} v{1}'.format(project, release)
 htmlhelp_basename = project + 'doc'
 
 
-# -- Options for LaTeX output --------------------------------------------------
+# -- Options for LaTeX output -------------------------------------------------
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
@@ -154,7 +161,7 @@ latex_documents = [('index', project + '.tex', project + u' Documentation',
                     author, 'manual')]
 
 
-# -- Options for manual page output --------------------------------------------
+# -- Options for manual page output -------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
@@ -162,7 +169,7 @@ man_pages = [('index', project.lower(), project + u' Documentation',
               [author], 1)]
 
 
-## -- Options for the edit_on_github extension ----------------------------------------
+# -- Options for the edit_on_github extension ---------------------------------
 
 if eval(setup_cfg.get('edit_on_github')):
     extensions += ['astropy_helpers.sphinx.ext.edit_on_github']
@@ -176,3 +183,6 @@ if eval(setup_cfg.get('edit_on_github')):
 
     edit_on_github_source_root = ""
     edit_on_github_doc_root = "docs"
+
+# -- Resolving issue number to links in changelog -----------------------------
+github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_project'])
