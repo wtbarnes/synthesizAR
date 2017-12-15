@@ -2,11 +2,7 @@
 Some basic tools/utilities needed for active region construction. These functions are generally
 peripheral to the actual physics.
 """
-
-import itertools
-
 import numpy as np
-import numba
 import dask.delayed
 import astropy.units as u
 import solarbextrapolation.utilities
@@ -54,13 +50,13 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
     resample_resolution = int(safety*np.sqrt(number_fieldlines/epsilon_area))
 
     # resample and mask the boundary map
-    boundary_map_resampled = boundary_map.resample([resample_resolution,resample_resolution]
-                                        *(u.Unit(boundary_map.meta['cunit1'])/boundary_map.scale.axis1.unit), 
-                                        method='linear')
+    boundary_map_resampled = boundary_map.resample([resample_resolution, resample_resolution]
+                                                   *(u.Unit(boundary_map.meta['cunit1'])/boundary_map.scale.axis1.unit),
+                                                   method='linear')
     masked_boundary_map_resampled = np.ma.masked_greater(boundary_map_resampled.data, mask_above)
 
     # find the unmasked indices
-    unmasked_indices = [(ix, iy) for iy, ix in zip(*np.where(masked_boundary_map_resampled.mask == False))]
+    unmasked_indices = [(ix, iy) for iy, ix in zip(*np.where(masked_boundary_map_resampled.mask is False))]
 
     if len(unmasked_indices) < number_fieldlines:
         raise ValueError('Requested number of seed points too large. Increase safety factor.')
