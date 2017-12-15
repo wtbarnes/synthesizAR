@@ -1,4 +1,5 @@
-synthesizAR Hydrodynamic Model Extensions
+Hydrodynamic Model Extensions
 ==========================================
 
 .. automodapi:: synthesizAR.model_ext
+   :no-heading:

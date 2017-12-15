@@ -15,7 +15,7 @@ synthesizAR is designed to be modular and extensible. Extensions for new hydrody
 .. toctree::
    :maxdepth: 2
 
-   install
    getting_started
    code_ref/index
+   examples
    develop

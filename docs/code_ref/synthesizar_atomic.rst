@@ -1,4 +1,5 @@
-synthesizAR CHIANTI Classes and Emission Models
+Atomic Physics and Emission Models
 ================================================
 
 .. automodapi:: synthesizAR.atomic
+   :no-heading:

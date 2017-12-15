@@ -1,4 +1,5 @@
-synthesizAR Instrument Classes
+Instruments
 ===============================
 
 .. automodapi:: synthesizAR.instruments
+   :no-heading:
