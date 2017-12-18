@@ -1,4 +1,4 @@
-name: synthesizar
+name: synthesizar-rtd
 channels:
 - defaults
 - conda-forge
@@ -6,11 +6,8 @@ dependencies:
 - python=3.6
 - astropy
 - dask
-- distributed
 - h5py
-- ipywidgets
 - matplotlib
-- numba
 - numpy
 - scipy
 - sunpy>=0.8
