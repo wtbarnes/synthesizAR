@@ -160,7 +160,7 @@ Magnetogram Info:
         """
         return convert_angle_to_length(self.hmi_map, angle_or_length, working_units=working_units)
 
-    def _transform_to_yt(self, map_3d, zrange, boundary_clipping=(0, 0, 0)):
+    def _transform_to_yt(self, map_3d, zrange, boundary_clipping=(2, 2, 2)):
         """
         Reshape data structure to something yt can work with.
 
