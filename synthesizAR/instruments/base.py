@@ -105,7 +105,8 @@ class InstrumentBase(object):
         fits_header['crpix2'] = (self.bins.y + 1.0)/2.0
         if 'instrume' not in fits_header:
             fits_header['instrume'] = channel['instrument_label']
-        fits_header['wavelnth'] = int(channel['wavelength'].value)
+        if 'wavelength' in channel:
+            fits_header['wavelnth'] = channel['wavelength'].value
 
         return fits_header
 
