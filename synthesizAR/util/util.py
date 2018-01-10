@@ -44,8 +44,8 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
         Number of seed points
     """
     # mask the boundary map and estimate resampled resolution
-    mask_above = mask_threshold*boundary_map.min()
-    masked_boundary_map = np.ma.masked_greater(boundary_map.data, mask_above)
+    mask_above = mask_threshold*np.nanmin(boundary_map.data)
+    masked_boundary_map = np.ma.masked_invalid(np.ma.masked_greater(boundary_map.data, mask_above))
     epsilon_area = float(masked_boundary_map.count())/float(boundary_map.data.shape[0]*boundary_map.data.shape[1])
     resample_resolution = int(safety*np.sqrt(number_fieldlines/epsilon_area))
 
@@ -53,10 +53,10 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
     boundary_map_resampled = boundary_map.resample([resample_resolution, resample_resolution]
                                                    *(u.Unit(boundary_map.meta['cunit1'])/boundary_map.scale.axis1.unit),
                                                    method='linear')
-    masked_boundary_map_resampled = np.ma.masked_greater(boundary_map_resampled.data, mask_above)
+    masked_boundary_map_resampled = np.ma.masked_invalid(np.ma.masked_greater(boundary_map_resampled.data, mask_above))
 
     # find the unmasked indices
-    unmasked_indices = [(ix, iy) for iy, ix in zip(*np.where(masked_boundary_map_resampled.mask is False))]
+    unmasked_indices = [(ix, iy) for iy, ix in zip(*np.where(masked_boundary_map_resampled.mask == 0))]
 
     if len(unmasked_indices) < number_fieldlines:
         raise ValueError('Requested number of seed points too large. Increase safety factor.')
@@ -73,7 +73,7 @@ def find_seed_points(volume, boundary_map, number_fieldlines, preexisting_seeds=
     while len(seed_points) < number_fieldlines and i_fail < max_failures:
         choice = np.random.randint(0, len(unmasked_indices))
         ix, iy = unmasked_indices[choice]
-        _tmp = [x_pos[ix],y_pos[iy],z_pos]
+        _tmp = [x_pos[ix], y_pos[iy], z_pos]
         if _tmp not in preexisting_seeds:
             seed_points.append(_tmp)
             i_fail = 0
