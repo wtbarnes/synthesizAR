@@ -243,6 +243,7 @@ Magnetogram Info:
         """
         Trace the fieldlines through extrapolated 3D volume
         """
+        get_seed_points = kwargs.get('get_seed_points', find_seed_points)
         # trace field and return list of field lines
         self.logger.info('Tracing fieldlines')
         # wrap the streamline filter method so we can pass a loop length range to it
@@ -254,11 +255,11 @@ Magnetogram Info:
             remaining_fieldlines = number_fieldlines - len(self.streamlines)
             self.logger.debug('Remaining number of streamlines is {}'.format(remaining_fieldlines))
             # calculate seed points
-            seed_points = find_seed_points(self.extrapolated_3d_field,
-                                           self.clipped_hmi_map, remaining_fieldlines,
-                                           preexisting_seeds=seed_points,
-                                           mask_threshold=kwargs.get('mask_threshold', 0.1),
-                                           safety=kwargs.get('safety', 2.))
+            seed_points = get_seed_points(self.extrapolated_3d_field,
+                                          self.clipped_hmi_map, remaining_fieldlines,
+                                          preexisting_seeds=seed_points,
+                                          mask_threshold=kwargs.get('mask_threshold', 0.1),
+                                          safety=kwargs.get('safety', 2.))
             # trace fieldlines
             streamlines = yt.visualization.api.Streamlines(self.extrapolated_3d_field, 
                                                            (seed_points
