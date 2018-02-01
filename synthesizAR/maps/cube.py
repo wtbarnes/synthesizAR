@@ -100,7 +100,7 @@ class EMCube(MapCube):
         base_meta['temp_a'] = temperature_fit[0]
         base_meta['temp_b'] = temperature_fit[-1]
         base_meta['bunit'] = ''
-        base_meta['detector'] = r'$\mathrm{EM}(T)$ slope'
+        base_meta['detector'] = 'EM slope'
         base_meta['comment'] = 'Linear fit to log-transformed LOS EM'
         plot_settings = self[0].plot_settings.copy()
         plot_settings['norm'] = None
