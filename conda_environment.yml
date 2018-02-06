@@ -17,6 +17,5 @@ dependencies:
 - yt
 - pip:
   - git+git://github.com/PlasmaPy/PlasmaPy.git
-  - git+git://github.com/wtbarnes/solarbextrapolation.git
   - git+git://github.com/wtbarnes/fiasco.git
   

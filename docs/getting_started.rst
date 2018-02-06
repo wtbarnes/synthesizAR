@@ -14,7 +14,6 @@ synthesizAR is compatible with Python 3.6+. The easiest and most convenient way 
 - numpy
 - numba (optional)
 - scipy
-- solarbextrapolation
 - sunpy
 - yt
 
