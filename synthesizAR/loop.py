@@ -22,13 +22,11 @@ class Loop(object):
     -----
     """
 
-    def __init__(self, name, coordinates, field_strength):
-        # set unique label for loop object
+    @u.quantity_input
+    def __init__(self, name, coordinates: u.cm, field_strength: u.gauss):
         self.name = name
-        # Load in cartesian coordinates, assign units as centimeters
-        self.coordinates = coordinates*u.cm
-        # Load in field strength along the field line; convert from Tesla to Gauss
-        self.field_strength = (np.array(field_strength)*u.T).to(u.Gauss)
+        self.coordinates = coordinates.to(u.cm)
+        self.field_strength = field_strength.to(u.gauss)
 
     def __repr__(self):
         return '''
