@@ -9,6 +9,7 @@ dependencies:
 - h5py
 - matplotlib
 - numpy
+- numba
 - scipy
 - sunpy>=0.8
 - yt
