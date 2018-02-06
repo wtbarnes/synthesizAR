@@ -9,15 +9,13 @@ import pickle
 import glob
 
 import numpy as np
-from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
 import sunpy.map
 import astropy.units as u
 from astropy.utils.console import ProgressBar
 import h5py
-import yt
 
 from synthesizAR import Loop
+from synthesizAR.extrapolate import peek_fieldlines
 
 
 class Field(object):
@@ -31,19 +29,14 @@ class Field(object):
 
     Examples
     --------
-
-    Notes
-    -----
-    Right now, this class just accepts an HMI fits file. Could be adjusted to do the actual query
-    as well.
     """
 
-    def __init__(self, magnetogram, streamlines=None):
+    def __init__(self, magnetogram, fieldlines=None):
         self.magnetogram = sunpy.map.Map(magnetogram)
-        if streamlines is not None:
-            self.loops = self.make_loops(streamlines)
+        if fieldlines is not None:
+            self.loops = self.make_loops(fieldlines)
         else:
-            warnings.warn('Streamlines not found. No loops will be created.')
+            warnings.warn('Fieldlines not found. No loops will be created.')
 
     def __repr__(self):
         num_loops = len(self.loops) if hasattr(self, 'loops') else 0
@@ -98,30 +91,20 @@ Magnetogram Info:
 
         return field
 
-    def peek(self, figsize=(10, 10), color='b', alpha=0.75, **kwargs):
+    def peek(self, **kwargs):
         """
         Show extracted fieldlines overlaid on HMI image.
         """
-        fig = plt.figure(figsize=figsize)
-        ax = fig.gca(projection=self.magnetogram)
-        self.magnetogram.plot()
-        ax.set_autoscale_on(False)
-        for stream, _ in self.streamlines:
-            ax.plot(self._convert_angle_to_length(stream[:, 0]*u.cm,
-                                                  working_units=u.arcsec).to(u.deg),
-                    self._convert_angle_to_length(stream[:, 1]*u.cm,
-                                                  working_units=u.arcsec).to(u.deg),
-                    alpha=alpha, color=color, transform=ax.get_transform('world'))
+        fieldlines = [loop.coordinates for loop in self.loops]
+        peek_fieldlines(self.magnetogram, fieldlines, **kwargs)
 
-        plt.show()
-
-    def make_loops(self, streamlines):
+    def make_loops(self, fieldlines):
         """
         Make list of `Loop` objects from the extracted streamlines
         """
         loops = []
-        for i, stream in enumerate(streamlines):
-            loops.append(Loop('loop{:06d}'.format(i), stream[0].value, stream[1].value))        
+        for i, (line, mag) in enumerate(fieldlines):
+            loops.append(Loop(f'loop{i:06d}', line, mag))
         return loops
 
     def configure_loop_simulations(self, interface, **kwargs):

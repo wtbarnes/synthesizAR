@@ -5,11 +5,16 @@ import warnings
 import functools
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 import yt
 from sunpy.image.rescale import resample
 
-__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines']
+from synthesizAR.util import heeq_to_hcc
+
+__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines']
 
 
 @u.quantity_input
@@ -151,3 +156,28 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, **kwargs):
 
     return fieldlines
 
+
+def peek_fieldlines(magnetogram, fieldlines, **kwargs):
+    """
+    Quick plot of streamlines overplotted on magnetogram
+    """
+    fig = plt.figure(figsize=kwargs.get('figsize', (8, 8)))
+    ax = fig.gca(projection=magnetogram)
+    # Plot map
+    norm = kwargs.get('norm', Normalize(vmin=-1.5e3, vmax=1.5e3))
+    magnetogram.plot(axes=ax, title=False, cmap=kwargs.get('cmap', 'hmimag'), norm=norm)
+    # Grid
+    ax.grid(alpha=0.)
+    magnetogram.draw_grid(axes=ax, grid_spacing=10*u.deg, alpha=0.75, color='k')
+    # Lines
+    line_frequency = kwargs.get('line_frequency', 5)
+    for line in fieldlines[::line_frequency]:
+        # Convert to proper coordinates
+        x, y, z = heeq_to_hcc(line[:, 0], line[:, 1], line[:, 2], magnetogram.observer_coordinate)
+        coord = (SkyCoord(x, y, z, frame='heliocentric', observer=magnetogram.observer_coordinate)
+                 .transform_to(magnetogram.coordinate_frame))
+        # Plot line
+        ax.plot_coord(coord, '-', color=kwargs.get('color', 'k'), lw=kwargs.get('lw', 1),
+                      alpha=kwargs.get('alpha', 0.5))
+
+    plt.show()

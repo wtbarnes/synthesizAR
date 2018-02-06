@@ -4,15 +4,13 @@ Field extrapolation methods for computing 3D vector magnetic fields from LOS mag
 import numpy as np
 from scipy.interpolate import griddata
 import astropy.units as u
-import yt
 import numba
 from sunpy.coordinates.frames import Heliocentric
-from sunpy.image.rescale import resample
 
 from synthesizAR.util import SpatialPair, to_heeq
 
 from .helpers import local_to_heeq, heeq_to_local, magnetic_field_to_yt_dataset
-from .fieldlines import trace_fieldlines
+from .fieldlines import trace_fieldlines, peek_fieldlines
 
 __all__ = ['ObliqueSchmidt']
 
@@ -187,6 +185,9 @@ class ObliqueSchmidt(object):
         phi = self.calculate_phi()
         bfield = self.calculate_field(phi)
         return bfield
+
+    def peek(self, fieldlines, **kwargs):
+        peek_fieldlines(self.magnetogram, fieldlines)
 
     
 @numba.jit(nopython=True)
