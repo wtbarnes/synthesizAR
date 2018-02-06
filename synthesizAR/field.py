@@ -3,32 +3,26 @@ Active region object definition. This object holds all the important information
 synthesized active region.
 """
 import os
-import sys
-import logging
+import warnings
 import datetime
 import pickle
 import glob
-import functools
 
 import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 import sunpy.map
 import astropy.units as u
-from astropy.coordinates import SkyCoord
 from astropy.utils.console import ProgressBar
 import h5py
 import yt
-import solarbextrapolation.map3dclasses
-import solarbextrapolation.extrapolators
 
-from synthesizAR.util import convert_angle_to_length, find_seed_points
 from synthesizAR import Loop
 
 
-class Skeleton(object):
+class Field(object):
     """
-    Construct magnetic field skeleton from HMI fits file
+    Construct magnetic field skeleton from magnetogram and fieldlines
 
     Parameters
     ----------
@@ -44,55 +38,23 @@ class Skeleton(object):
     as well.
     """
 
-    def __init__(self, hmi_fits_file=None, **kwargs):
-        self.logger = logging.getLogger(name=type(self).__name__)
-        if hmi_fits_file is not None:
-            tmp_map = sunpy.map.Map(hmi_fits_file)
-            self.hmi_map = self._process_map(tmp_map, **kwargs)
+    def __init__(self, magnetogram, streamlines=None):
+        self.magnetogram = sunpy.map.Map(magnetogram)
+        if streamlines is not None:
+            self.loops = self.make_loops(streamlines)
         else:
-            self.logger.warning('No HMI fits file supplied. A new HMI map object will not be created.')
+            warnings.warn('Streamlines not found. No loops will be created.')
 
     def __repr__(self):
-        num_loops = ''
-        sim_type = ''
-        if hasattr(self, 'loops'):
-            num_loops = len(self.loops)
-        if hasattr(self, 'simulation_type'):
-            sim_type = self.simulation_type
-        return '''synthesizAR Field Object
+        num_loops = len(self.loops) if hasattr(self, 'loops') else 0
+        sim_type = self.simulation_type if hasattr(self, 'simulation_type') else ''
+        return f'''synthesizAR Field Object
 ------------------------
 Number of loops: {num_loops}
 Simulation Type: {sim_type}
 Magnetogram Info:
 -----------------
-{hmi_map_info}
-
-        '''.format(num_loops=num_loops, sim_type=sim_type, hmi_map_info=self.hmi_map.__repr__())
-
-    def _process_map(self, tmp_map, crop=None, resample=None):
-        """
-        Rotate, crop and resample map if needed. Can do any other needed processing here too.
-
-        Parameters
-        ----------
-        map : `~sunpy.map.Map`
-            Original HMI map
-        crop : `tuple` `[bottom_left_corner,top_right_corner]`, optional
-            The lower left and upper right corners of the cropped map. Both should be of type 
-            `~astropy.units.Quantity` and have the same units as `map.xrange` and `map.yrange`
-        resample : `~astropy.units.Quantity`, `[new_xdim,new_ydim]`, optional
-            The new x- and y-dimensions of the resampled map, should have the same units as
-            `map.dimensions.x` and `map.dimensions.y`
-        """
-        tmp_map = tmp_map.rotate()
-        if crop is not None:
-            bottom_left = SkyCoord(*crop[0], frame=tmp_map.coordinate_frame)
-            top_right = SkyCoord(*crop[1], frame=tmp_map.coordinate_frame)
-            tmp_map = tmp_map.submap(bottom_left, top_right)
-        if resample is not None:
-            tmp_map = tmp_map.resample(resample, method='linear')
-
-        return tmp_map
+{self.magnetogram.__repr__()}'''
 
     def save(self, savedir=None):
         """
@@ -109,14 +71,8 @@ Magnetogram Info:
         for l in self.loops:
             with open(os.path.join(savedir, 'loops', l.name+'.pickle'), 'wb') as f:
                 pickle.dump(l, f)
-        with open(os.path.join(savedir, 'streamlines.pickle'), 'wb') as f:
-            pickle.dump(self.streamlines, f)
-        if not os.path.isfile(os.path.join(savedir, 'hmi_map.fits')):
-            self.hmi_map.save(os.path.join(savedir, 'hmi_map.fits'))
-        with h5py.File(os.path.join(savedir, 'map_3d.h5'), 'w') as hf:
-            hf.create_dataset('map_3d', data=self._map_3d)
-            zrange = hf.create_dataset('zrange', data=self._zrange.value)
-            zrange.attrs['units'] = self._zrange.unit.to_string()
+        if not os.path.isfile(os.path.join(savedir, 'magnetogram.fits')):
+            self.magnetogram.save(os.path.join(savedir, 'magnetogram.fits'))
 
     @classmethod
     def restore(cls, savedir):
@@ -126,7 +82,7 @@ Magnetogram Info:
         Examples
         --------
         >>> import synthesizAR
-        >>> restored_field = synthesizAR.Skeleton.restore_field('/path/to/restored/field/dir')
+        >>> restored_field = synthesizAR.Field.restore('/path/to/restored/field/dir')
         """
         # loops
         loop_files = glob.glob(os.path.join(savedir, 'loops', '*'))
@@ -136,163 +92,19 @@ Magnetogram Info:
         for lf in loop_files:
             with open(os.path.join(savedir, 'loops', lf), 'rb') as f:
                 loops.append(pickle.load(f))
-        # streamlines
-        with open(os.path.join(savedir, 'streamlines.pickle'), 'rb') as f:
-            streamlines = pickle.load(f)
-        # sunpy maps and 3D field
-        hmi_map = sunpy.map.Map(os.path.join(savedir, 'hmi_map.fits'))
-        with h5py.File(os.path.join(savedir, 'map_3d.h5'), 'r') as hf:
-            map_3d = np.array(hf['map_3d'])
-            zrange = u.Quantity(hf['zrange'], hf['zrange'].attrs['units'])
-        field = cls()
+        magnetogram = sunpy.map.Map(os.path.join(savedir, 'magnetogram.fits'))
+        field = cls(magnetogram)
         field.loops = loops
-        field.hmi_map = hmi_map
-        field.streamlines = streamlines
-        field.extrapolated_3d_field = field._transform_to_yt(map_3d, zrange)
-        field._map_3d = map_3d
-        field._zrange = zrange
 
         return field
 
-    def _convert_angle_to_length(self, angle_or_length, working_units=u.meter):
-        """
-        Recast the `synthesizAR.util.convert_angle_to_length` to automatically use the supplied HMI map.
-        """
-        return convert_angle_to_length(self.hmi_map, angle_or_length, working_units=working_units)
-
-    def _transform_to_yt(self, map_3d, zrange, boundary_clipping=(2, 2, 2)):
-        """
-        Reshape data structure to something yt can work with.
-
-        Parameters
-        ----------
-        map_3d : `np.array`
-            3D+x,y,z array holding the x,y,z components of the extrapolated field
-        zrange : `astropy.Quantity`
-            Spatial range of the extrapolated field
-        boundary_clipping : `tuple`, optional
-            The extrapolated volume has a layer of ghost cells in each dimension. This tuple of
-            (nx,ny,nz) tells how many cells to contract the volume and map in each direction.
-        """
-        # reshape the magnetic field data
-        _tmp = map_3d[boundary_clipping[0]:-boundary_clipping[0],
-                      boundary_clipping[1]:-boundary_clipping[1],
-                      boundary_clipping[2]:-boundary_clipping[2], :]
-        # some annoying and cryptic translation between yt and SunPy
-        data = dict(
-                    Bx=(np.swapaxes(_tmp[:, :, :, 1], 0, 1), 'T'),
-                    By=(np.swapaxes(_tmp[:, :, :, 0], 0, 1), 'T'),
-                    Bz=(np.swapaxes(_tmp[:, :, :, 2], 0, 1), 'T'))
-        # trim the boundary hmi map appropriately
-        lcx, rcx = self.hmi_map.xrange + self.hmi_map.scale.axis1*u.Quantity([boundary_clipping[0], -boundary_clipping[0]], u.pixel)
-        lcy, rcy = self.hmi_map.yrange + self.hmi_map.scale.axis2*u.Quantity([boundary_clipping[1], -boundary_clipping[1]], u.pixel)
-        bottom_left = SkyCoord(lcx, lcy, frame=self.hmi_map.coordinate_frame)
-        top_right = SkyCoord(rcx, rcy, frame=self.hmi_map.coordinate_frame)
-        self.clipped_hmi_map = self.hmi_map.submap(bottom_left, top_right)
-        # create the bounding box
-        zscale = np.diff(zrange)[0]/(map_3d.shape[2]*u.pixel)
-        clipped_zrange = zrange + zscale*u.Quantity([boundary_clipping[2]*u.pixel, -boundary_clipping[2]*u.pixel])
-        bbox = np.array([self._convert_angle_to_length(self.clipped_hmi_map.xrange).value,
-                         self._convert_angle_to_length(self.clipped_hmi_map.yrange).value,
-                         self._convert_angle_to_length(clipped_zrange).value])
-        # assemble the dataset
-        return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox, length_unit=yt.units.cm,
-                                    geometry=('cartesian', ('x', 'y', 'z')))
-
-    @u.quantity_input
-    def _filter_streamlines(self, streamline, close_threshold=0.05,
-                            loop_length_range: u.cm =[2.e+9, 5.e+10]*u.cm, **kwargs):
-        """
-        Check extracted loop to make sure it fits given criteria. Return True if it passes.
-
-        Parameters
-        ----------
-        streamline : yt streamline object
-        close_threshold : `float`
-            percentage of domain width allowed between loop endpoints
-        loop_length_range : `~astropy.Quantity`
-            minimum and maximum allowed loop lengths (in centimeters)
-        """
-        streamline = streamline[np.all(streamline != 0.0, axis=1)]
-        loop_length = np.sum(np.linalg.norm(np.diff(streamline, axis=0), axis=1))
-        if np.fabs(streamline[0, 2] - streamline[-1, 2]) > close_threshold*self.extrapolated_3d_field.domain_width[2]:
-            return False
-        elif loop_length > loop_length_range[1].to(u.cm).value or loop_length < loop_length_range[0].to(u.cm).value:
-            return False
-        else:
-            return True
-
-    @u.quantity_input
-    def extrapolate_field(self, zshape, zrange: u.arcsec, extrapolator=None, use_numba_for_extrapolation=True):
-        """
-        Extrapolate the 3D field and transform it into a yt data object.
-        """
-        # extrapolate field
-        self.logger.debug('Extrapolating field.')
-        if extrapolator is None:
-            extrapolator = solarbextrapolation.extrapolators.PotentialExtrapolator(self.hmi_map, zshape=zshape, zrange=zrange)
-        map_3d = extrapolator.extrapolate(enable_numba=use_numba_for_extrapolation)
-        # preserve the 3d numpy array for restoration purposes
-        self._map_3d = map_3d.data
-        self._zrange = zrange
-        # hand it to yt
-        self.logger.debug('Transforming to yt data object')
-        self.extrapolated_3d_field = self._transform_to_yt(map_3d.data, zrange)
-
-    def extract_streamlines(self, number_fieldlines, max_tries=100, **kwargs):
-        """
-        Trace the fieldlines through extrapolated 3D volume
-        """
-        get_seed_points = kwargs.get('get_seed_points', find_seed_points)
-        # trace field and return list of field lines
-        self.logger.info('Tracing fieldlines')
-        # wrap the streamline filter method so we can pass a loop length range to it
-        streamline_filter_wrapper = functools.partial(self._filter_streamlines, **kwargs)
-        self.streamlines = []
-        seed_points = []
-        i_tries = 0
-        while len(self.streamlines) < number_fieldlines and i_tries < max_tries:
-            remaining_fieldlines = number_fieldlines - len(self.streamlines)
-            self.logger.debug('Remaining number of streamlines is {}'.format(remaining_fieldlines))
-            # calculate seed points
-            seed_points = get_seed_points(self.extrapolated_3d_field,
-                                          self.clipped_hmi_map, remaining_fieldlines,
-                                          preexisting_seeds=seed_points,
-                                          mask_threshold=kwargs.get('mask_threshold', 0.1),
-                                          safety=kwargs.get('safety', 2.))
-            # trace fieldlines
-            streamlines = yt.visualization.api.Streamlines(self.extrapolated_3d_field, 
-                                                           (seed_points
-                                                            * self.extrapolated_3d_field.domain_width
-                                                            / self.extrapolated_3d_field.domain_width.value),
-                                                           xfield='Bx', yfield='By', zfield='Bz',
-                                                           get_magnitude=True, direction=kwargs.get('direction', -1))
-            streamlines.integrate_through_volume()
-            streamlines.clean_streamlines()
-            # filter
-            keep_streamline = list(map(streamline_filter_wrapper, streamlines.streamlines))
-            if True not in keep_streamline:
-                i_tries += 1
-                self.logger.debug('No acceptable streamlines found. # of tries left = {}'.format(max_tries-i_tries))
-                continue
-            else:
-                i_tries = 0
-            # save strealines
-            self.streamlines += [(stream[np.all(stream != 0.0, axis=1)], mag) for stream, mag, keep
-                                 in zip(streamlines.streamlines, streamlines.magnitudes, keep_streamline)
-                                 if keep is True]
-
-        if i_tries == max_tries:
-            self.logger.warning('Maxed out number of tries. Only found {} acceptable streamlines'.format(len(self.streamlines)))
-
-    def peek(self, figsize=(10, 10), color='b', alpha=0.75,
-             print_to_file=None, **kwargs):
+    def peek(self, figsize=(10, 10), color='b', alpha=0.75, **kwargs):
         """
         Show extracted fieldlines overlaid on HMI image.
         """
         fig = plt.figure(figsize=figsize)
-        ax = fig.gca(projection=self.hmi_map)
-        self.hmi_map.plot()
+        ax = fig.gca(projection=self.magnetogram)
+        self.magnetogram.plot()
         ax.set_autoscale_on(False)
         for stream, _ in self.streamlines:
             ax.plot(self._convert_angle_to_length(stream[:, 0]*u.cm,
@@ -301,18 +113,16 @@ Magnetogram Info:
                                                   working_units=u.arcsec).to(u.deg),
                     alpha=alpha, color=color, transform=ax.get_transform('world'))
 
-        if print_to_file is not None:
-            plt.savefig(print_to_file, **kwargs)
         plt.show()
 
-    def make_loops(self):
+    def make_loops(self, streamlines):
         """
         Make list of `Loop` objects from the extracted streamlines
         """
         loops = []
-        for i, stream in enumerate(self.streamlines):
-            loops.append(Loop('loop{:06d}'.format(i), stream[0].value, stream[1].value))
-        self.loops = loops
+        for i, stream in enumerate(streamlines):
+            loops.append(Loop('loop{:06d}'.format(i), stream[0].value, stream[1].value))        
+        return loops
 
     def configure_loop_simulations(self, interface, **kwargs):
         """

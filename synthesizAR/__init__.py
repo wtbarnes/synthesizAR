@@ -1,7 +1,8 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 """
-synthesizAR is a package for forward modeling emission from solar active regions using hydrodynamic simulations of coronal loops.
+synthesizAR is a package for forward modeling emission from solar active regions using
+hydrodynamic simulations of coronal loops.
 """
 
 # Affiliated packages may add whatever they like to this file, but
@@ -15,5 +16,5 @@ if not _ASTROPY_SETUP_:
     from . import version
     Version = version._last_generated_version
     from .loop import Loop
-    from .field import Skeleton
+    from .field import Field
     from .observe import Observer
