@@ -23,7 +23,8 @@ except ImportError:
     warnings.warn('Dask library not found. You will not be able to use the parallel option.')
 
 import synthesizAR
-from synthesizAR.instruments import InstrumentBase, Pair
+from synthesizAR.util import SpatialPair
+from synthesizAR.instruments import InstrumentBase
 
 
 class InstrumentSDOAIA(InstrumentBase):
@@ -69,7 +70,7 @@ class InstrumentSDOAIA(InstrumentBase):
          'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
 
     cadence = 10.0*u.s
-    resolution = Pair(0.600698*u.arcsec/u.pixel, 0.600698*u.arcsec/u.pixel, None)
+    resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel, y=0.600698*u.arcsec/u.pixel, z=None)
 
     def __init__(self, observing_time, observing_area=None,
                  use_temperature_response_functions=True, apply_psf=True):
@@ -213,8 +214,8 @@ class InstrumentSDOAIA(InstrumentBase):
         channel : `dict`
         i_time : `int`
         header : `~sunpy.util.metadata.MetaDict`
-        bins : `Pair`
-        bin_range : `Pair`
+        bins : `SpatialPair`
+        bin_range : `SpatialPair`
         apply_psf : `bool`
 
         Returns

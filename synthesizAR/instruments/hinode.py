@@ -19,7 +19,8 @@ import h5py
 import plasmapy
 import dask
 
-from synthesizAR.instruments import InstrumentBase, Pair
+from synthesizAR.util import SpatialPair
+from synthesizAR.instruments import InstrumentBase
 from synthesizAR.maps import EISCube
 
 
@@ -32,7 +33,7 @@ class InstrumentHinodeEIS(InstrumentBase):
 
     name = 'Hinode_EIS'
     cadence = 10.0*u.s
-    resolution = Pair(1.0*u.arcsec/u.pixel, 2.0*u.arcsec/u.pixel, None)
+    resolution = SpatialPair(x=1.0*u.arcsec/u.pixel, y=2.0*u.arcsec/u.pixel, z=None)
     fits_template = MetaDict()
     fits_template['telescop'] = 'Hinode'
     fits_template['instrume'] = 'EIS'
@@ -174,7 +175,7 @@ class InstrumentHinodeXRT(InstrumentBase):
 
     name = 'Hinode_XRT'
     cadence = 20*u.s
-    resolution = Pair(2.05719995499*u.arcsec/u.pixel, 2.05719995499*u.arcsec/u.pixel, None)
+    resolution = SpatialPair(x=2.05719995499*u.arcsec/u.pixel, y=2.05719995499*u.arcsec/u.pixel, z=None)
     fits_template = MetaDict()
     fits_template['telescop'] = 'Hinode'
     fits_template['instrume'] = 'XRT'
@@ -266,8 +267,8 @@ class InstrumentHinodeXRT(InstrumentBase):
         channel : `dict`
         i_time : `int`
         header : `~sunpy.util.metadata.MetaDict`
-        bins : `Pair`
-        bin_range : `Pair`
+        bins : `SpatialPair`
+        bin_range : `SpatialPair`
         apply_psf : `bool`
 
         Returns
