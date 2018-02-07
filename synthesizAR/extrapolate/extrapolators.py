@@ -1,11 +1,14 @@
 """
 Field extrapolation methods for computing 3D vector magnetic fields from LOS magnetograms
 """
+import logging
+
 import numpy as np
 from scipy.interpolate import griddata
 import astropy.units as u
 import numba
 from sunpy.coordinates.frames import Heliocentric
+from astropy.utils.console import ProgressBar
 
 from synthesizAR.util import SpatialPair, to_heeq
 
@@ -32,6 +35,8 @@ class ObliqueSchmidt(object):
     
     @u.quantity_input
     def __init__(self, magnetogram, width_z: u.cm, shape_z: u.pixel):
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.INFO)
         self.magnetogram = magnetogram
         self.shape = SpatialPair(x=magnetogram.dimensions.x, y=magnetogram.dimensions.y, z=shape_z)
         range_x, range_y = self._calculate_range(magnetogram)
@@ -55,25 +60,30 @@ class ObliqueSchmidt(object):
 
         See Also
         --------
-        `synthesizAR.extrapolator.trace_fieldlines`
+        synthesizAR.extrapolator.trace_fieldlines
         """
         ds = self.as_yt(B_field)
         lower_boundary = self.project_boundary(self.range.x, self.range.y).value
         lines = trace_fieldlines(ds, number_fieldlines, lower_boundary=lower_boundary, **kwargs)
         fieldlines = []
-        for l, b in lines:
-            l = u.Quantity(l, self.range.x.unit)
-            l_heeq = u.Quantity(local_to_heeq(*l.T, self.magnetogram.center)).T
-            m = u.Quantity(b, str(ds.r['Bz'].units))
-            fieldlines.append((l_heeq, m))
+        self.logger.info('Transforming streamlines to HEEQ...')
+        with ProgressBar(len(lines), ipython_widget=kwargs.get('notebook', True)) as progress:
+            for l, b in lines:
+                l = u.Quantity(l, self.range.x.unit)
+                l_heeq = u.Quantity(local_to_heeq(*l.T, self.magnetogram.center)).T
+                m = u.Quantity(b, str(ds.r['Bz'].units))
+                fieldlines.append((l_heeq, m))
+                progress.update()
 
         return fieldlines
         
     def _calculate_range(self, magnetogram):
-        left_corner = heeq_to_local(*u.Quantity(to_heeq(magnetogram.bottom_left_coord))[:, np.newaxis],
-                                    magnetogram.center)
-        right_corner = heeq_to_local(*u.Quantity(to_heeq(magnetogram.top_right_coord))[:, np.newaxis],
-                                     magnetogram.center)
+        left_corner = heeq_to_local(
+                        *u.Quantity(to_heeq(magnetogram.bottom_left_coord))[:, np.newaxis],
+                        magnetogram.center)
+        right_corner = heeq_to_local(
+                        *u.Quantity(to_heeq(magnetogram.top_right_coord))[:, np.newaxis],
+                        magnetogram.center)
         range_x = u.Quantity([left_corner[0][0], right_corner[0][0]])
         range_y = u.Quantity([left_corner[1][0], right_corner[1][0]])
         return range_x, range_y
@@ -86,7 +96,8 @@ class ObliqueSchmidt(object):
         p_y, p_x = np.indices((int(self.shape.x.value), int(self.shape.y.value)))
         pixels = u.Quantity([(i_x, i_y) for i_x, i_y in zip(p_x.flatten(), p_y.flatten())], 'pixel')
         world_coords = self.magnetogram.pixel_to_world(pixels[:, 0], pixels[:, 1])
-        local_x, local_y, _ = heeq_to_local(*u.Quantity(to_heeq(world_coords)), self.magnetogram.center)
+        local_x, local_y, _ = heeq_to_local(*u.Quantity(to_heeq(world_coords)),
+                                            self.magnetogram.center)
         # Flatten
         points = np.stack([local_x.to(u.cm).value, local_y.to(u.cm).value], axis=1)
         values = u.Quantity(self.magnetogram.data, self.magnetogram.meta['bunit']).value.flatten()

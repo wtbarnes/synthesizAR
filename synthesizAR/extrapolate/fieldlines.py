@@ -181,3 +181,4 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
                       alpha=kwargs.get('alpha', 0.5))
 
     plt.show()
+    
