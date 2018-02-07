@@ -78,8 +78,9 @@ class EbtelInterface(object):
         ion_temperature = np.outer(_tmp[:, 2], np.ones(N_s))*u.K
         density = np.outer(_tmp[:, 3], np.ones(N_s))*(u.cm**(-3))
         velocity = np.outer(_tmp[:, -2], np.ones(N_s))*u.cm/u.s
-        # flip sign of velocity at apex
-        i_mirror = np.where(np.diff(loop.coordinates.value[:, 2]) > 0)[0][-1] + 2
+        # flip sign of velocity where the radial distance from center is maximum
+        r = np.sqrt(np.sum(loop.coordinates.value**2, axis=1))
+        i_mirror = np.where(np.diff(np.sign(np.gradient(r))))[0][0] + 1
         velocity[:, i_mirror:] = -velocity[:, i_mirror:]
 
         return time, electron_temperature, ion_temperature, density, velocity
@@ -136,7 +137,8 @@ class EbtelInterface(object):
             rate_matrix = compute_rate_matrix(element)
             initial_condition = compute_ionization_equilibrium(element, rate_matrix)
             for loop in field.loops:
-                tasks.append(compute_and_save_nei(loop, element, rate_matrix, initial_condition, tmpdir))
+                tasks.append(compute_and_save_nei(loop, element, rate_matrix, initial_condition,
+                                                  tmpdir))
 
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):

@@ -7,6 +7,7 @@ API Reference
 
    synthesizar
    synthesizar_atomic
+   synthesizar_extrapolate
    synthesizar_instruments
-   synthesizar_model_ext
+   synthesizar_interfaces
    synthesizar_util
