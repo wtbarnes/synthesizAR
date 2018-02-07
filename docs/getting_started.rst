@@ -12,7 +12,8 @@ synthesizAR is compatible with Python 3.6+. The easiest and most convenient way 
 - fiasco
 - matplotlib
 - numpy
-- numba (optional)
+- numba
+- plasmapy
 - scipy
 - sunpy
 - yt
