@@ -1,5 +1,5 @@
 """
-Create data products loop simulations
+Create data products from loop simulations
 """
 
 import os
@@ -11,12 +11,16 @@ import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
 import scipy.ndimage
 import astropy.units as u
+from sunpy.sun import constants
+from sunpy.coordinates.frames import HeliographicStonyhurst
 import h5py
 try:
     import dask
     from synthesizAR.util import delay_property
 except ImportError:
     warnings.warn('Dask library not found. You will not be able to use the parallel option.')
+
+from synthesizAR.util import heeq_to_hcc
 
 
 class Observer(object):
@@ -25,9 +29,9 @@ class Observer(object):
 
     Parameters
     ----------
-    field
-    instruments
-    ds : optional
+    field : `~synthesizAR.Field`
+    instruments : `list`
+    parallel : `bool`
 
     Examples
     --------
@@ -35,13 +39,11 @@ class Observer(object):
     -----
     """
 
-    def __init__(self, field, instruments, line_of_sight=(0, 0, -1), parallel=False):
-        self.logger = logging.getLogger(name=type(self).__name__)
+    def __init__(self, field, instruments, parallel=False):
         self.parallel = parallel
         self.field = field
         self.instruments = instruments
         self._channels_setup()
-        self.line_of_sight = line_of_sight
         
     def _channels_setup(self):
         """
@@ -57,44 +59,57 @@ class Observer(object):
                     if channel['model_wavelengths']:
                         channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
 
-    def _interpolate_loops(self, ds):
+    @u.quantity_input
+    def _interpolate_loops(self, instrument, ds: u.arcsec):
         """
-        Interpolate all loops to a resolution (`ds`) below the minimum bin width of all of the
-        instruments. This ensures that the image isn't 'patchy' when it is binned.
+        Interpolate loops to common resolution
+        
+        Interpolate all loops to a resolution (`ds`) below the minimum bin width 
+        of all of the instruments. This ensures that the image isn't 'patchy' 
+        when it is binned.
         """
-        if ds is None:
-            ds = 0.1*np.min([min(instr.resolution.x.value, instr.resolution.y.value)
-                             for instr in self.instruments])*self.instruments[0].resolution.x.unit
-        ds = self.field._convert_angle_to_length(ds)
-        # FIXME: memory requirements for this list will grow with number of loops, consider saving 
-        # it to the instrument files, both the interpolated s and total_coordinates
+        # If no observer coordinate specified, use that of the magnetogram
+        if instrument.observer_coordinate is None:
+            # FIXME: Setting attributes of other classes like this is bad!
+            instrument.observer_coordinate = (self.field.magnetogram.observer_coordinate
+                                              .transform_to(HeliographicStonyhurst))
+        # Convert resolution to physical distance
+        ds = ds.to(u.radian).value * (instrument.observer_coordinate.radius - constants.radius)
+        # Interpolate all loops in HEEQ coordinates
         total_coordinates = []
         interpolated_loop_coordinates = []
         for loop in self.field.loops:
-            self.logger.debug('Interpolating loop {}'.format(loop.name))
-            n_interp = int(np.ceil(loop.full_length/ds))
+            n_interp = int(np.ceil((loop.full_length/ds).decompose()))
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
                                          loop.field_aligned_coordinate.value[-1], n_interp)
             interpolated_loop_coordinates.append(interpolated_s)
             nots, _ = splprep(loop.coordinates.value.T)
-            _tmp = splev(np.linspace(0, 1, n_interp), nots)
-            total_coordinates += [(x, y, z) for x, y, z in zip(_tmp[0], _tmp[1], _tmp[2])]
+            total_coordinates.append(np.array(splev(np.linspace(0, 1, n_interp), nots)).T)
 
-        total_coordinates = np.array(total_coordinates)*loop.coordinates.unit
+        total_coordinates = np.vstack(total_coordinates) * loop.coordinates.unit
 
         return total_coordinates, interpolated_loop_coordinates
 
     def build_detector_files(self, savedir, ds=None, **kwargs):
         """
         Create files to store interpolated counts before binning.
+
+        Note
+        ----
+        After creating the instrument objects and passing them to the observer,
+        it is always necessary to call this method.
         """
         file_template = os.path.join(savedir, '{}_counts.h5')
-        total_coordinates, self._interpolated_loop_coordinates = self._interpolate_loops(ds)
-        interp_s_shape = (int(np.median([s.shape for s in self._interpolated_loop_coordinates])),)
+        self._interpolated_loop_coordinates = {}
         for instr in self.instruments:
+            ds = 0.5 * min(instr.resolution.x, instr.resolution.y) if ds is None else ds
+            total_coordinates, _interpolated_loop_coordinates = self._interpolate_loops(instr, ds)
+            self._interpolated_loop_coordinates[instr.name] = _interpolated_loop_coordinates
+            interp_s_shape = (int(np.median([s.shape for s in _interpolated_loop_coordinates])),)
             chunks = kwargs.get('chunks', instr.observing_time.shape+interp_s_shape)
             dset_shape = instr.observing_time.shape+(len(total_coordinates),)
-            instr.build_detector_file(file_template, dset_shape, chunks, self.field, parallel=self.parallel, **kwargs)
+            instr.build_detector_file(file_template, dset_shape, chunks, self.field,
+                                      parallel=self.parallel, **kwargs)
             with h5py.File(instr.counts_file, 'a') as hf:
                 if 'coordinates' not in hf:
                     dset = hf.create_dataset('coordinates', data=total_coordinates.value)
@@ -111,22 +126,36 @@ class Observer(object):
         else:
             self._flatten_detector_counts_serial(**kwargs)
 
+    @staticmethod
+    def _get_los_velocity(velocity, observer_coordinate):
+        """
+        Calculate LOS velocity component for a given observer
+        """
+        _, _, v_los = heeq_to_hcc(velocity[:, :, 0], velocity[:, :, 1], velocity[:, :, 2],
+                                  observer_coordinate)
+        return -v_los
+
     def _flatten_detector_counts_serial(self, **kwargs):
         emission_model = kwargs.get('emission_model', None)
         for instr in self.instruments:
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
-                for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
+                for interp_s, loop in zip(self._interpolated_loop_coordinates[instr.name],
+                                          self.field.loops):
                     params = (loop, instr.observing_time, interp_s)
-                    los_velocity = np.dot(loop.velocity_xyz, self.line_of_sight)
-                    self.commit(instr.interpolate_and_store(los_velocity, *params), hf['los_velocity'], start_index)
+                    los_velocity = self._get_los_velocity(loop.velocity_xyz,
+                                                          instr.observer_coordinate)
+                    self.commit(instr.interpolate_and_store(los_velocity, *params),
+                                hf['los_velocity'], start_index)
                     self.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
                                 hf['electron_temperature'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.ion_temperature, *params), hf['ion_temperature'],
+                    self.commit(instr.interpolate_and_store(loop.ion_temperature, *params),
+                                hf['ion_temperature'], start_index)
+                    self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'],
                                 start_index)
-                    self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'], start_index)
                     start_index += interp_s.shape[0]
-                instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
+                instr.flatten_serial(self.field.loops,
+                                     self._interpolated_loop_coordinates[instr.name], hf,
                                      emission_model=emission_model)
 
     @staticmethod
@@ -147,31 +176,40 @@ class Observer(object):
             tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npy')
             delayed_interp = dask.delayed(instr.interpolate_and_store)
             # Tasks for interpolating needed quantities
-            for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-                los_velocity = dask.delayed(np.dot)(delay_property(loop, 'velocity_xyz'), self.line_of_sight)
+            for interp_s, loop in zip(self._interpolated_loop_coordinates[instr.name],
+                                      self.field.loops):
+                los_velocity = dask.delayed(self._get_los_velocity)(
+                                    delay_property(loop, 'velocity_xyz'), instr.observer_coordinate)
                 electron_temperature = delay_property(loop, 'electron_temperature')
                 density = delay_property(loop, 'density')
                 params = (loop, instr.observing_time, interp_s)
                 delayed_procedures += [
-                    ('los_velocity', delayed_interp(los_velocity, *params,
-                                                    tmp_file_path.format('los_velocity', loop.name))),
-                    ('electron_temperature', delayed_interp(electron_temperature, *params,
-                                                            tmp_file_path.format('electron_temperature', loop.name))),
-                    ('ion_temperature', delayed_interp(delay_property(loop, 'ion_temperature'), *params,
-                                                       tmp_file_path.format('ion_temperature', loop.name))),
-                    ('density', delayed_interp(density, *params, tmp_file_path.format('density', loop.name)))
+                    ('los_velocity',
+                     delayed_interp(los_velocity, *params,
+                                    tmp_file_path.format('los_velocity', loop.name))),
+                    ('electron_temperature',
+                     delayed_interp(electron_temperature, *params,
+                                    tmp_file_path.format('electron_temperature', loop.name))),
+                    ('ion_temperature',
+                     delayed_interp(delay_property(loop, 'ion_temperature'), *params,
+                                    tmp_file_path.format('ion_temperature', loop.name))),
+                    ('density', delayed_interp(density, *params, 
+                                               tmp_file_path.format('density', loop.name)))
                 ]
             # Reshape delayed procedures into dictionary
             delayed_procedures = sorted(delayed_procedures, key=lambda x: x[0])
-            delayed_procedures = {k: [i[1] for i in item] for k, item in groupby(delayed_procedures, lambda x: x[0])}
+            delayed_procedures = {k: [i[1] for i in item] for k, item
+                                  in groupby(delayed_procedures, lambda x: x[0])}
             # Another set for counts calculation
-            delayed_procedures_counts = instr.flatten_parallel(self.field.loops, self._interpolated_loop_coordinates, 
-                                                               tmp_file_path, emission_model=emission_model)
+            delayed_procedures_counts = instr.flatten_parallel(
+                                            self.field.loops,
+                                            self._interpolated_loop_coordinates[instr.name],
+                                            tmp_file_path, emission_model=emission_model)
             # Add assemble procedure
-            array_assembly[f'{instr.name}_parameters'] = dask.delayed(self.assemble_arrays)(delayed_procedures,
-                                                                                            instr.counts_file, **kwargs)
-            array_assembly[f'{instr.name}_counts'] = dask.delayed(self.assemble_arrays)(delayed_procedures_counts,
-                                                                                        instr.counts_file, **kwargs)
+            array_assembly[f'{instr.name}_parameters'] = dask.delayed(
+                    self.assemble_arrays)(delayed_procedures, instr.counts_file, **kwargs)
+            array_assembly[f'{instr.name}_counts'] = dask.delayed(
+                    self.assemble_arrays)(delayed_procedures_counts, instr.counts_file, **kwargs)
 
         return array_assembly
 
@@ -202,19 +240,20 @@ class Observer(object):
         for instr in self.instruments:
             with h5py.File(instr.counts_file, 'r') as hf:
                 reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
-            for time in instr.observing_time:
-                try:
-                    i_time = np.where(reference_time == time)[0][0]
-                except IndexError:
-                    self.logger.exception('{} {} is not a valid observing time for {}'
-                                          .format(time.value, time.unit.to_string(), instr.name))
-                for channel in instr.channels:
+            for channel in instr.channels:
+                header = instr.make_fits_header(self.field, channel)
+                for time in instr.observing_time:
+                    try:
+                        i_time = np.where(reference_time == time)[0][0]
+                    except IndexError as err:
+                        raise IndexError(f'{time} not a valid observing time for {instr.name}') from err
                     fn = fn_template.format(instr=instr.name, channel=channel['name'], i_time=i_time)
                     if not os.path.exists(os.path.dirname(fn)):
                         os.makedirs(os.path.dirname(fn))
-                    raw_map = instr.detect(channel, i_time, self.field, parallel=self.parallel)
+                    raw_map = instr.detect(channel, i_time, header, parallel=self.parallel)
                     if self.parallel:
-                        delayed_procedures[instr.name].append(dask.delayed(self.assemble_map)(raw_map, fn, time))
+                        delayed_procedures[instr.name].append(
+                                                dask.delayed(self.assemble_map)(raw_map, fn, time))
                     else:
                         self.assemble_map(raw_map, fn, time)
 
