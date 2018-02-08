@@ -40,12 +40,11 @@ class InstrumentHinodeEIS(InstrumentBase):
     fits_template['detector'] = 'EIS'
     fits_template['waveunit'] = 'angstrom'
 
-    @u.quantity_input(window=u.angstrom)
-    def __init__(self, observing_time, observing_area=None, window=0.5*u.angstrom, apply_psf=True):
-        super().__init__(observing_time, observing_area)
+    def __init__(self, observing_time, observer_coordinate=None, window=None, apply_psf=True):
+        super().__init__(observing_time, observer_coordinate)
         self._setup_channels()
         self.apply_psf = apply_psf
-        self.window = window
+        self.window = 0.5*u.angstrom if window is None else window
 
     def _setup_channels(self):
         """
@@ -256,7 +255,8 @@ class InstrumentHinodeXRT(InstrumentBase):
         return tasks
 
     @staticmethod
-    def _detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
+    def _detect(counts_filename, observer_coordinate, channel, i_time, header, bins, bin_range,
+                apply_psf):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
         return the XRT data product.
@@ -280,20 +280,30 @@ class InstrumentHinodeXRT(InstrumentBase):
             units = u.Unit(hf[channel['name']].attrs['units'])
             coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
-        hist, edges = np.histogramdd(coordinates.value, bins=bins, range=bin_range, weights=weights)
-        header['bunit'] = (units*coordinates.unit).to_string()
-        counts = np.dot(hist, np.diff(edges[2])).T
+        hpc_coordinates = (heeq_to_hcc_coord(total_coordinates[:, 0], total_coordinates[:, 1],
+                                             total_coordinates[:, 2], observer_coordinate)
+                           .transform_to(Helioprojective(observer=self.observer_coordinate)))
+        dz = np.diff(bin_range.z).to(coordinates.unit)[0] / bins.z * (1. * u.pixel)
+        visible = is_visible(hpc_coordinates, observer_coordinate)
+        hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
+                                    bins=(bins.x.value, bins.y.value),
+                                    range=(bin_range.x.value, bin_range.y.value),
+                                    weights=visible * weights * dz.value)
+        header['bunit'] = (units * coordinates.unit).to_string()
 
         if apply_psf:
-            counts = InstrumentHinodeXRT.psf_smooth(counts, header)
-        # FIXME: stopgap because SunPy XRT reader throws in Nan for wavelnth which is an invalid FITS keyword
+            counts = InstrumentHinodeXRT.psf_smooth(hist.T, header)
+        # FIXME: stopgap because SunPy XRT reader throws in Nan for wavelnth which is an invalid
+        # FITS keyword. This is fixed in the latest version.
         m = Map(counts, header)
-        m.meta['wavelnth'] = f"{m.meta['wavelnth']}"
+        if 'wavelnth' in m.meta:
+            m.meta['wavelnth'] = f"{m.meta['wavelnth']}"
         return m
 
     def detect(self, channel, i_time, field, parallel=False):
         header = self.make_fits_header(field, channel)
-        parameters = (self.counts_file, channel, i_time, header, self.bins, self.bin_range, self.apply_psf)
+        parameters = (self.counts_file, self.observer_coordinate, channel, i_time, header, 
+                      self.bins, self.bin_range, self.apply_psf)
         if parallel:
             return dask.delayed(self._detect)(*parameters)
         else:
@@ -330,7 +340,8 @@ class InstrumentHinodeXRT(InstrumentBase):
         lat = np.linspace(tmp.bottom_left_coord.Ty.value, tmp.top_right_coord.Ty.value, 250+1)
         lon_grid, lat_grid = np.meshgrid(lon, lat)
         # Make PSF kernel
-        psf_kernel = astropy.convolution.kernels.CustomKernel(np.vectorize(point_spread_function)(lon_grid, lat_grid))
+        psf_kernel = astropy.convolution.kernels.CustomKernel(
+                        np.vectorize(point_spread_function)(lon_grid, lat_grid))
         # Convolve with image
         counts_blurred = astropy.convolution.convolve_fft(counts, psf_kernel)
 

@@ -3,30 +3,38 @@ Base class for instrument objects.
 """
 
 import os
-import logging
-from collections import namedtuple
 
 import numpy as np
 from scipy.interpolate import interp1d
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 import h5py
+from sunpy.util.metadata import MetaDict
+from sunpy.sun import constants
+from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
 
-from synthesizAR.util import SpatialPair
+from synthesizAR.util import SpatialPair, heeq_to_hcc_coord
 
 
 class InstrumentBase(object):
     """
     Base class for instruments. Need to at least implement a detect() method that is used by the
     `Observer` class to get the detector counts.
+
+    Parameters
+    ----------
+    observing_time : `~astropy.units.Quantity`
+        Tuple of start and end observing times
+    observer_coordinate : `~astropy.coordinates.SkyCoord`, optional
+        Coordinate of the observing instrument
     """
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observing_area=None):
-        self.logger = logging.getLogger(name=type(self).__name__)
+    def __init__(self, observing_time: u.s, observer_coordinate=None):
         self.observing_time = np.arange(observing_time[0].to(u.s).value,
                                         observing_time[1].to(u.s).value,
                                         self.cadence.value)*u.s
-        self.observing_area = observing_area
+        self.observer_coordinate = observer_coordinate
 
     def detect(self, *args, **kwargs):
         """
@@ -39,11 +47,12 @@ class InstrumentBase(object):
         """
         Allocate space for counts data.
         """
+        parallel = kwargs.get('parallel', False)
         dset_names = ['density', 'electron_temperature', 'ion_temperature', 'los_velocity']
         dset_names += kwargs.get('additional_fields', [])
         self.counts_file = file_template.format(self.name)
-        self.tmp_file_template = os.path.join(os.path.dirname(self.counts_file), 'tmp_parallel_files', self.name, '{}')
-        self.logger.info('Creating instrument file {}'.format(self.counts_file))
+        self.tmp_file_template = os.path.join(os.path.dirname(self.counts_file),
+                                              'tmp_parallel_files', self.name, '{}')
         with h5py.File(self.counts_file, 'a') as hf:
             if 'time' not in hf:
                 dset = hf.create_dataset('time', data=self.observing_time.value)
@@ -51,15 +60,24 @@ class InstrumentBase(object):
             for dn in dset_names:
                 if dn not in hf:
                     hf.create_dataset(dn, dset_shape, chunks=chunks)
-                if not os.path.exists(self.tmp_file_template.format(dn)) and kwargs.get('parallel', False):
+                if not os.path.exists(self.tmp_file_template.format(dn)) and parallel:
                     os.makedirs(self.tmp_file_template.format(dn))
 
     @property
     def total_coordinates(self):
+        """
+        Helioprojective coordinates for all loops for the instrument observer
+        """
+        if not hasattr(self, 'counts_file'):
+            raise AttributeError(f'''No counts file found for {self.name}. Build it first
+                                     using Observer.build_detector_files''')
         with h5py.File(self.counts_file, 'r') as hf:
             total_coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
-        return total_coordinates
+        coords = heeq_to_hcc_coord(total_coordinates[:, 0], total_coordinates[:, 1],
+                                   total_coordinates[:, 2], self.observer_coordinate)
+
+        return coords.transform_to(Helioprojective(observer=self.observer_coordinate))
 
     @staticmethod
     def interpolate_and_store(y, loop, interp_t, interp_s, save_path=False):
@@ -73,7 +91,7 @@ class InstrumentBase(object):
             np.save(save_path, interpolated_y)
             return save_path, y.unit.to_string()
         else:
-            return interpolated_y*y.unit
+            return interpolated_y * y.unit
 
     @staticmethod
     def generic_2d_histogram(counts_filename, dset_name, i_time, bins, bin_range):
@@ -93,37 +111,68 @@ class InstrumentBase(object):
         """
         Build up FITS header with relevant instrument information.
         """
-        update_entries = ['crval1', 'crval2', 'cunit1',
-                          'cunit2', 'crlt_obs', 'ctype1', 'ctype2', 'date-obs',
-                          'dsun_obs', 'rsun_obs']
-        fits_header = self.fits_template.copy()
-        for entry in update_entries:
-            fits_header[entry] = field.clipped_hmi_map.meta[entry]
+        min_x, max_x, min_y, max_y = self._get_fov(field.magnetogram)
+        fits_header = MetaDict()
+        fits_header['crval1'] = (min_x + (max_x - min_x)/2).value
+        fits_header['crval2'] = (min_y + (max_y - min_y)/2).value
+        fits_header['cunit1'] = self.total_coordinates.Tx.unit.to_string()
+        fits_header['cunit2'] = self.total_coordinates.Ty.unit.to_string()
+        fits_header['hglt_obs'] = self.observer_coordinate.lat.to(u.deg).value
+        fits_header['hgln_obs'] = self.observer_coordinate.lon.to(u.deg).value
+        fits_header['ctype1'] = 'HPLN-TAN'
+        fits_header['ctype2'] = 'HPLT-TAN'
+        fits_header['date-obs'] = field.magnetogram.meta['date-obs']
+        fits_header['dsun_obs'] = self.observer_coordinate.radius.to(u.m).value
+        fits_header['rsun_obs'] = ((constants.radius
+                                    / (self.observer_coordinate.radius - constants.radius))
+                                   .decompose() * u.radian).to(u.arcsec).value
         fits_header['cdelt1'] = self.resolution.x.value
         fits_header['cdelt2'] = self.resolution.y.value
-        fits_header['crpix1'] = (self.bins.x + 1.0)/2.0
-        fits_header['crpix2'] = (self.bins.y + 1.0)/2.0
-        if 'instrume' not in fits_header:
+        fits_header['crpix1'] = (self.bins.x.value + 1.0)/2.0
+        fits_header['crpix2'] = (self.bins.y.value + 1.0)/2.0
+        if 'instrume' not in fits_header and 'instrument_label' in channel:
             fits_header['instrume'] = channel['instrument_label']
         if 'wavelength' in channel:
             fits_header['wavelnth'] = channel['wavelength'].value
+        # Anything that needs to be overridden in a subclass can be put in the fits template
+        fits_header.update(self.fits_template)
 
         return fits_header
 
+    def _get_fov(self, ar_map):
+        """
+        Find the field of view, taking into consideration the corners of the
+        original AR map and the loop coordinates in HPC.
+        """
+        # Check magnetogram FOV
+        left_corner = (ar_map.bottom_left_coord.transform_to(HeliographicStonyhurst)
+                       .transform_to(Helioprojective(observer=self.observer_coordinate)))
+        right_corner = (ar_map.top_right_coord.transform_to(HeliographicStonyhurst)
+                        .transform_to(Helioprojective(observer=self.observer_coordinate)))
+        # Set bounds to include all loops and original magnetogram FOV (with some padding)
+        loop_coords = self.total_coordinates
+        min_x = min(loop_coords.Tx.min(), left_corner.Tx) - 1.*u.arcsec
+        max_x = max(loop_coords.Tx.max(), right_corner.Tx) + 1.*u.arcsec
+        min_y = min(loop_coords.Ty.min(), left_corner.Ty) - 1.*u.arcsec
+        max_y = max(loop_coords.Ty.max(), right_corner.Ty) + 1.*u.arcsec
+
+        return min_x, max_x, min_y, max_y
+    
     def make_detector_array(self, field):
         """
         Construct bins based on desired observing area.
         """
-        delta_x = np.fabs(field.clipped_hmi_map.xrange[1] - field.clipped_hmi_map.xrange[0])
-        delta_y = np.fabs(field.clipped_hmi_map.yrange[1] - field.clipped_hmi_map.yrange[0])
-        min_z = min(field.extrapolated_3d_field.domain_left_edge[2].value,
-                    self.total_coordinates[:,2].min().value)
-        max_z = max(field.extrapolated_3d_field.domain_right_edge[2].value,
-                    self.total_coordinates[:,2].max().value)
-        delta_z = field._convert_angle_to_length(max(self.resolution.x, self.resolution.y)).value
-        self.bins = SpatialPair(x=int(np.ceil((delta_x/self.resolution.x).decompose()).value),
-                                y=int(np.ceil((delta_y/self.resolution.y).decompose()).value),
-                                z=int(np.ceil(np.fabs(max_z - min_z)/delta_z)))
-        self.bin_range = SpatialPair(x=field._convert_angle_to_length(field.clipped_hmi_map.xrange).value,
-                                     y=field._convert_angle_to_length(field.clipped_hmi_map.yrange).value,
-                                     z=np.array([min_z, max_z]))
+        # Get field of view
+        min_x, max_x, min_y, max_y = self._get_fov(field.magnetogram)
+        min_z = self.total_coordinates.distance.min()
+        max_z = self.total_coordinates.distance.max()
+        delta_x = max_x - min_x
+        delta_y = max_y - min_y
+        bins_x = np.ceil(delta_x / self.resolution.x)
+        bins_y = np.ceil(delta_y / self.resolution.y)
+        bins_z = max(bins_x, bins_y)
+
+        # NOTE: the z-quantities are used to determine the integration step along the LOS
+        self.bins = SpatialPair(x=bins_x, y=bins_y, z=bins_z)
+        self.bin_range = SpatialPair(x=u.Quantity([min_x, max_x]), y=u.Quantity([min_y, max_y]),
+                                     z=u.Quantity([min_z, max_z]))

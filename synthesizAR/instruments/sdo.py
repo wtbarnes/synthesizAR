@@ -16,6 +16,7 @@ from scipy.ndimage.filters import gaussian_filter
 import astropy.units as u
 from sunpy.map import Map
 from sunpy.util.metadata import MetaDict
+from sunpy.coordinates.frames import Helioprojective
 import h5py
 try:
     import dask
@@ -23,7 +24,7 @@ except ImportError:
     warnings.warn('Dask library not found. You will not be able to use the parallel option.')
 
 import synthesizAR
-from synthesizAR.util import SpatialPair
+from synthesizAR.util import SpatialPair, heeq_to_hcc_coord, is_visible
 from synthesizAR.instruments import InstrumentBase
 
 
@@ -36,8 +37,6 @@ class InstrumentSDOAIA(InstrumentBase):
     ----------
     observing_time : `tuple`
         start and end of observing time
-    observing_area : `tuple`
-        x and y range of observation
     use_temperature_response_functions : `bool`
         if True, do simple counts calculation
     response_function_file : `str`
@@ -72,9 +71,9 @@ class InstrumentSDOAIA(InstrumentBase):
     cadence = 10.0*u.s
     resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel, y=0.600698*u.arcsec/u.pixel, z=None)
 
-    def __init__(self, observing_time, observing_area=None,
+    def __init__(self, observing_time, observer_coordinate=None,
                  use_temperature_response_functions=True, apply_psf=True):
-        super().__init__(observing_time, observing_area)
+        super().__init__(observing_time, observer_coordinate=observer_coordinate)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
         self._setup_channels()
@@ -109,16 +108,17 @@ class InstrumentSDOAIA(InstrumentBase):
         Allocate space for counts data.
         """
         additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
-        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, 
-                                    parallel=parallel)
+        super().build_detector_file(file_template, dset_shape, chunks, *args,
+                                    additional_fields=additional_fields, parallel=parallel)
         
     @staticmethod
     def calculate_counts_simple(channel, loop, *args):
         """
         Calculate the AIA intensity using only the temperature response functions.
         """
-        response_function = (splev(np.ravel(loop.electron_temperature), channel['temperature_response_spline'])
-                             * u.count*u.cm**5/u.s/u.pixel)
+        response_function = (splev(np.ravel(loop.electron_temperature), 
+                                   channel['temperature_response_spline']) 
+                             * u.count * u.cm**5 / u.s / u.pixel)
         counts = np.reshape(np.ravel(loop.density**2)*response_function, loop.density.shape)
         return counts
 
@@ -133,7 +133,8 @@ class InstrumentSDOAIA(InstrumentBase):
             if wavelength is None or emissivity is None:
                 flattened_emissivities.append(None)
                 continue
-            interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'], ext=1)
+            interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'],
+                                          ext=1)
             em_summed = np.dot(emissivity.value, interpolated_response)
             unit = emissivity.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
             flattened_emissivities.append(u.Quantity(em_summed, unit))
@@ -175,10 +176,11 @@ class InstrumentSDOAIA(InstrumentBase):
         for channel in self.channels:
             start_index = 0
             dset = hf[channel['name']]
-            flattened_emissivities = [] if simple else self.flatten_emissivities(channel, emission_model)
+            flattened_emissivities = [] if simple else self.flatten_emissivities(channel,
+                                                                                 emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                y = self.interpolate_and_store(calculate_counts(channel, loop, emission_model, flattened_emissivities),
-                                               loop, self.observing_time, interp_s)
+                c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
+                y = self.interpolate_and_store(c, loop, self.observing_time, interp_s)
                 synthesizAR.Observer.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
@@ -193,17 +195,21 @@ class InstrumentSDOAIA(InstrumentBase):
         tasks = {}
         for channel in self.channels:
             tasks[channel['name']] = []
-            flattened_emissivities = [] if simple else dask.delayed(self.flatten_emissivities)(channel, emission_model)
+            flattened_emissivities = [] if simple else dask.delayed(self.flatten_emissivities)(
+                                                            channel, emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                y = dask.delayed(calculate_counts)(channel, loop, emission_model, flattened_emissivities)
+                y = dask.delayed(calculate_counts)(channel, loop, emission_model,
+                                                   flattened_emissivities)
                 tmp_path = save_path.format(channel['name'], loop.name)
-                task = dask.delayed(self.interpolate_and_store)(y, loop, self.observing_time, interp_s, tmp_path)
+                task = dask.delayed(self.interpolate_and_store)(y, loop, self.observing_time, 
+                                                                interp_s, tmp_path)
                 tasks[channel['name']].append(task)
 
         return tasks
 
     @staticmethod
-    def _detect(counts_filename, channel, i_time, header, bins, bin_range, apply_psf):
+    def _detect(counts_filename, observer_coordinate, channel, i_time, header, bins, bin_range,
+                apply_psf):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
         return the AIA data product.
@@ -211,6 +217,7 @@ class InstrumentSDOAIA(InstrumentBase):
         Parameters
         ----------
         counts_filename : `str`
+        observer_coordinate : `~astropy.coordinates.SkyCoord`
         channel : `dict`
         i_time : `int`
         header : `~sunpy.util.metadata.MetaDict`
@@ -220,25 +227,32 @@ class InstrumentSDOAIA(InstrumentBase):
 
         Returns
         -------
-        AIA data product : `~sunpy.Map`
+        AIA data product : `~sunpy.map.Map`
         """
         with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
             units = u.Unit(hf[channel['name']].attrs['units'])
             coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
-        hist, edges = np.histogramdd(coordinates.value, bins=bins, range=bin_range, weights=weights)
-        header['bunit'] = (units*coordinates.unit).to_string()
-        counts = np.dot(hist, np.diff(edges[2])).T
+        hpc_coordinates = (heeq_to_hcc_coord(coordinates[:, 0], coordinates[:, 1],
+                                             coordinates[:, 2], observer_coordinate)
+                           .transform_to(Helioprojective(observer=observer_coordinate)))
+        dz = np.diff(bin_range.z).to(coordinates.unit)[0] / bins.z * (1. * u.pixel)
+        visible = is_visible(hpc_coordinates, observer_coordinate)
+        hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
+                                    bins=(bins.x.value, bins.y.value),
+                                    range=(bin_range.x.value, bin_range.y.value),
+                                    weights=visible * weights * dz.value)
+        header['bunit'] = (units * dz.unit).to_string()
 
         if apply_psf:
-            counts = gaussian_filter(counts, (channel['gaussian_width']['y'].value,
+            counts = gaussian_filter(hist.T, (channel['gaussian_width']['y'].value,
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
 
-    def detect(self, channel, i_time, field, parallel=False):
-        header = self.make_fits_header(field, channel)
-        parameters = (self.counts_file, channel, i_time, header, self.bins, self.bin_range, self.apply_psf)
+    def detect(self, channel, i_time, header, parallel=False):
+        parameters = (self.counts_file, self.observer_coordinate, channel, i_time, header,
+                      self.bins, self.bin_range, self.apply_psf)
         if parallel:
             return dask.delayed(self._detect)(*parameters)
         else:
