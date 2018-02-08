@@ -12,7 +12,7 @@ from astropy.coordinates import SkyCoord
 import yt
 from sunpy.image.rescale import resample
 
-from synthesizAR.util import heeq_to_hcc
+from synthesizAR.util import heeq_to_hcc_coord
 
 __all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines']
 
@@ -173,8 +173,8 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
     line_frequency = kwargs.get('line_frequency', 5)
     for line in fieldlines[::line_frequency]:
         # Convert to proper coordinates
-        x, y, z = heeq_to_hcc(line[:, 0], line[:, 1], line[:, 2], magnetogram.observer_coordinate)
-        coord = (SkyCoord(x, y, z, frame='heliocentric', observer=magnetogram.observer_coordinate)
+        coord = (heeq_to_hcc_coord(line[:, 0], line[:, 1], line[:, 2],
+                                   magnetogram.observer_coordinate)
                  .transform_to(magnetogram.coordinate_frame))
         # Plot line
         ax.plot_coord(coord, '-', color=kwargs.get('color', 'k'), lw=kwargs.get('lw', 1),
