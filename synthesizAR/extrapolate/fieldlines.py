@@ -28,7 +28,7 @@ def filter_streamlines(streamline, domain_width, close_threshold=0.05,
     streamline : yt streamline object
     close_threshold : `float`
         percentage of domain width allowed between loop endpoints
-    loop_length_range : `~astropy.Quantity`
+    loop_length_range : `~astropy.units.Quantity`
         minimum and maximum allowed loop lengths (in centimeters)
     """
     streamline = streamline[np.all(streamline != 0.0, axis=1)]
@@ -188,6 +188,11 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None,
 def peek_fieldlines(magnetogram, fieldlines, **kwargs):
     """
     Quick plot of streamlines overplotted on magnetogram
+
+    Parameters
+    ----------
+    magnetogram : `~sunpy.map.Map`
+    fieldlines : `list`
     """
     fig = plt.figure(figsize=kwargs.get('figsize', (8, 8)))
     ax = fig.gca(projection=magnetogram)
