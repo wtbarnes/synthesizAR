@@ -152,25 +152,9 @@ class ObliqueSchmidt(object):
         delta = SpatialPair(x=self.delta.x.value, y=self.delta.y.value, z=self.delta.z.value)
         shape = SpatialPair(x=int(self.shape.x.value), y=int(self.shape.y.value),
                             z=int(self.shape.z.value))
-        phi = numba.decorators.jit(self._calculate_phi, nopython=True)(boundary, delta, shape,
-                                                                       z_depth, l_hat)
+        phi = calculate_phi(boundary, delta, shape, z_depth, l_hat)
                     
         return phi * u.Unit(self.magnetogram.meta['bunit']) * self.delta.x.unit * (1. * u.pixel)
-    
-    @staticmethod
-    def _calculate_phi(boundary, delta, shape, z_depth, l_hat):
-        phi = np.empty((shape.x, shape.y, shape.z))
-        for i in range(shape.x):
-            for j in range(shape.y):
-                for k in range(shape.z):
-                    x, y, z = i*delta.x, j*delta.y, k*delta.z
-                    for i_prime in range(shape.x):
-                        for j_prime in range(shape.y):
-                            x_prime, y_prime = i_prime*delta.x, j_prime*delta.y
-                            green = greens_function(x, y, z, x_prime, y_prime, z_depth, l_hat)
-                            phi[j, i, k] += boundary[j_prime, i_prime] * green * delta.x * delta.y
-                    
-        return phi
 
     @u.quantity_input
     def calculate_field(self, phi: u.G * u.cm):
@@ -228,7 +212,23 @@ class ObliqueSchmidt(object):
     def peek(self, fieldlines, **kwargs):
         peek_fieldlines(self.magnetogram, fieldlines)
 
-    
+
+@numba.jit(nopython=True)
+def calculate_phi(boundary, delta, shape, z_depth, l_hat):
+    phi = np.empty((shape.x, shape.y, shape.z))
+    for i in range(shape.x):
+        for j in range(shape.y):
+            for k in range(shape.z):
+                x, y, z = i*delta.x, j*delta.y, k*delta.z
+                for i_prime in range(shape.x):
+                    for j_prime in range(shape.y):
+                        x_prime, y_prime = i_prime*delta.x, j_prime*delta.y
+                        green = greens_function(x, y, z, x_prime, y_prime, z_depth, l_hat)
+                        phi[j, i, k] += boundary[j_prime, i_prime] * green * delta.x * delta.y
+                
+    return phi
+
+
 @numba.jit(nopython=True)
 def greens_function(x, y, z, x_grid, y_grid, z_depth, l_hat):
     Rx = x - x_grid
