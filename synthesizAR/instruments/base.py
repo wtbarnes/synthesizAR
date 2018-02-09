@@ -28,6 +28,7 @@ class InstrumentBase(object):
     observer_coordinate : `~astropy.coordinates.SkyCoord`, optional
         Coordinate of the observing instrument
     """
+    fits_template = MetaDict()
 
     @u.quantity_input
     def __init__(self, observing_time: u.s, observer_coordinate=None):

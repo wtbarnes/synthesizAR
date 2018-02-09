@@ -48,34 +48,30 @@ class InstrumentSDOAIA(InstrumentBase):
     -----
     """
 
-    fits_template = MetaDict()
-    fits_template['telescop'] = 'SDO/AIA'
-    fits_template['detector'] = 'AIA'
-    fits_template['waveunit'] = 'angstrom'
-
-    name = 'SDO_AIA'
-    channels = [
-        {'wavelength': 94*u.angstrom, 'telescope_number': 4,
-         'gaussian_width': {'x': 0.951*u.pixel, 'y': 0.951*u.pixel}},
-        {'wavelength': 131*u.angstrom, 'telescope_number': 1,
-         'gaussian_width': {'x': 1.033*u.pixel, 'y': 1.033*u.pixel}},
-        {'wavelength': 171*u.angstrom, 'telescope_number': 3,
-         'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}},
-        {'wavelength': 193*u.angstrom, 'telescope_number': 2,
-         'gaussian_width': {'x': 1.512*u.pixel, 'y': 1.512*u.pixel}},
-        {'wavelength': 211*u.angstrom, 'telescope_number': 2,
-         'gaussian_width': {'x': 1.199*u.pixel, 'y': 1.199*u.pixel}},
-        {'wavelength': 335*u.angstrom, 'telescope_number': 1,
-         'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
-
-    cadence = 10.0*u.s
-    resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel, y=0.600698*u.arcsec/u.pixel, z=None)
-
     def __init__(self, observing_time, observer_coordinate=None,
                  use_temperature_response_functions=True, apply_psf=True):
-        super().__init__(observing_time, observer_coordinate=observer_coordinate)
+        self.fits_template['telescop'] = 'SDO/AIA'
+        self.fits_template['detector'] = 'AIA'
+        self.fits_template['waveunit'] = 'angstrom'
+        self.name = 'SDO_AIA'
+        self.channels = [
+            {'wavelength': 94*u.angstrom, 'telescope_number': 4,
+             'gaussian_width': {'x': 0.951*u.pixel, 'y': 0.951*u.pixel}},
+            {'wavelength': 131*u.angstrom, 'telescope_number': 1,
+             'gaussian_width': {'x': 1.033*u.pixel, 'y': 1.033*u.pixel}},
+            {'wavelength': 171*u.angstrom, 'telescope_number': 3,
+             'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}},
+            {'wavelength': 193*u.angstrom, 'telescope_number': 2,
+             'gaussian_width': {'x': 1.512*u.pixel, 'y': 1.512*u.pixel}},
+            {'wavelength': 211*u.angstrom, 'telescope_number': 2,
+             'gaussian_width': {'x': 1.199*u.pixel, 'y': 1.199*u.pixel}},
+            {'wavelength': 335*u.angstrom, 'telescope_number': 1,
+             'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
+        self.cadence = 10.0*u.s
+        self.resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel, y=0.600698*u.arcsec/u.pixel, z=None)
         self.apply_psf = apply_psf
         self.use_temperature_response_functions = use_temperature_response_functions
+        super().__init__(observing_time, observer_coordinate=observer_coordinate)
         self._setup_channels()
 
     def _setup_channels(self):

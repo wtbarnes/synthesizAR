@@ -31,20 +31,18 @@ class InstrumentHinodeEIS(InstrumentBase):
     spatial, and temporal resolution along with the instrument response functions.
     """
 
-    name = 'Hinode_EIS'
-    cadence = 10.0*u.s
-    resolution = SpatialPair(x=1.0*u.arcsec/u.pixel, y=2.0*u.arcsec/u.pixel, z=None)
-    fits_template = MetaDict()
-    fits_template['telescop'] = 'Hinode'
-    fits_template['instrume'] = 'EIS'
-    fits_template['detector'] = 'EIS'
-    fits_template['waveunit'] = 'angstrom'
-
     def __init__(self, observing_time, observer_coordinate=None, window=None, apply_psf=True):
-        super().__init__(observing_time, observer_coordinate)
-        self._setup_channels()
+        self.name = 'Hinode_EIS'
+        self.cadence = 10.0*u.s
+        self.resolution = SpatialPair(x=1.0*u.arcsec/u.pixel, y=2.0*u.arcsec/u.pixel, z=None)
+        self.fits_template['telescop'] = 'Hinode'
+        self.fits_template['instrume'] = 'EIS'
+        self.fits_template['detector'] = 'EIS'
+        self.fits_template['waveunit'] = 'angstrom'
         self.apply_psf = apply_psf
         self.window = 0.5*u.angstrom if window is None else window
+        super().__init__(observing_time, observer_coordinate=observer_coordinate)
+        self._setup_channels()
 
     def _setup_channels(self):
         """
@@ -172,18 +170,16 @@ class InstrumentHinodeEIS(InstrumentBase):
 
 class InstrumentHinodeXRT(InstrumentBase):
 
-    name = 'Hinode_XRT'
-    cadence = 20*u.s
-    resolution = SpatialPair(x=2.05719995499*u.arcsec/u.pixel, y=2.05719995499*u.arcsec/u.pixel, z=None)
-    fits_template = MetaDict()
-    fits_template['telescop'] = 'Hinode'
-    fits_template['instrume'] = 'XRT'
-    fits_template['waveunit'] = 'keV'
-
-    def __init__(self, observing_time, apply_psf=True):
-        super().__init__(observing_time)
-        self._setup_channels()
+    def __init__(self, observing_time, observer_coordinate=None, apply_psf=True):
+        self.name = 'Hinode_XRT'
+        self.cadence = 20*u.s
+        self.resolution = SpatialPair(x=2.05719995499*u.arcsec/u.pixel, y=2.05719995499*u.arcsec/u.pixel, z=None)
+        self.fits_template['telescop'] = 'Hinode'
+        self.fits_template['instrume'] = 'XRT'
+        self.fits_template['waveunit'] = 'keV'
         self.apply_psf = apply_psf
+        super().__init__(observing_time, observer_coordinate=observer_coordinate)
+        self._setup_channels()
 
     def _setup_channels(self):
         """
