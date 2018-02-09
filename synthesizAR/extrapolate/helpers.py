@@ -12,16 +12,16 @@ __all__ = ['magnetic_field_to_yt_dataset', 'local_to_heeq', 'heeq_to_local']
 
 
 @u.quantity_input
-def magnetic_field_to_yt_dataset(Bx: u.gauss, By: u.gauss, Bz: u.gauss, range_x: u.cm, 
+def magnetic_field_to_yt_dataset(Bx: u.gauss, By: u.gauss, Bz: u.gauss, range_x: u.cm,
                                  range_y: u.cm, range_z: u.cm):
     """
     Reshape vector magnetic field data into a yt dataset
 
     Parameters
     ----------
-    Bx,By,Bz : `astropy.Quantity`
+    Bx,By,Bz : `~astropy.units.Quantity`
         3D arrays holding the x,y,z components of the extrapolated field
-    range_x, range_y, range_z : `astropy.Quantity`
+    range_x, range_y, range_z : `~astropy.units.Quantity`
         Spatial range in the x,y,z dimensions of the grid
     """
     Bx = Bx.to(u.gauss)
@@ -31,11 +31,12 @@ def magnetic_field_to_yt_dataset(Bx: u.gauss, By: u.gauss, Bz: u.gauss, range_x:
                 Bx=(np.swapaxes(Bx.value, 0, 1), Bx.unit.to_string()),
                 By=(np.swapaxes(By.value, 0, 1), By.unit.to_string()),
                 Bz=(np.swapaxes(Bz.value, 0, 1), Bz.unit.to_string()))
-    # Uniform, rectangular grid with symmetric bounds centered on 0
+    # Uniform, rectangular grid
     bbox = np.array([range_x.to(u.cm).value,
                      range_y.to(u.cm).value,
                      range_z.to(u.cm).value])
-    return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox, length_unit=yt.units.cm,
+    return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox,
+                                length_unit=yt.units.cm,
                                 geometry=('cartesian', ('x', 'y', 'z')))
 
 

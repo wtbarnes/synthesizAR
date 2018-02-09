@@ -43,19 +43,28 @@ def filter_streamlines(streamline, domain_width, close_threshold=0.05,
 
 
 def find_seed_points(ds, number_fieldlines, lower_boundary=None, preexisting_seeds=None,
-                     mask_threshold=0.05, safety=1.2, max_failures=1000):
+                     mask_threshold=0.1, safety=2, max_failures=1000):
     """
     Given a 3D extrapolated field and the corresponding magnetogram, estimate the locations of the
     seed points for the fieldline tracing through the extrapolated 3D volume.
 
     Parameters
     ----------
-    volume : `~yt.frontends.stream.data_structures.StreamDataset`
+    ds : `~yt.frontends.stream.data_structures.StreamDataset`
         Dataset containing the 3D extrapolated vector field
-    boundary_map : `~sunpy.map.Map`
-        HMI magnetogram
     number_fieldlines : `int`
         Number of seed points
+    lower_boundary : `numpy.ndarray`, optional
+        Array to search for seed points on
+    preexisting_seeds : `list`, optional
+        If a seed point is in this list, it is thrown out
+    mask_threshold : `float`, optional
+        Fraction of the field strength above which the field is masked. Should be between 0 and 1.
+        A value close to 1 means the seed points will be concentrated in areas of stronger (more
+        negative) field.
+    safety : `float`
+        Ensures the boundary is not resampled to impossibly small resolutions
+    max_failures : `int`
     """
     # Get lower boundary slice
     if lower_boundary is None:
@@ -110,11 +119,30 @@ def find_seed_points(ds, number_fieldlines, lower_boundary=None, preexisting_see
     return seed_points
 
 
-def trace_fieldlines(ds, number_fieldlines, max_tries=100, **kwargs):
+def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None, direction=-1,
+                     **kwargs):
     """
-    Trace the fieldlines through extrapolated 3D volume
+    Trace lines of constant potential through a 3D magnetic field volume.
+
+    Given a YT dataset containing a 3D vector magnetic field, trace a number of streamlines
+    through the volume. This function also accepts any of the keyword arguments that can
+    be passed to `~synthesizAR.extrapolate.find_seed_points` and
+    `~synthesizAR.extrapolate.filter_streamlines`.
+
+    Parameters
+    ----------
+    ds : `~yt.frontends.stream.data_structures.StreamDataset`
+        Dataset containing the 3D extrapolated vector field
+    number_fieldlines : `int`
+    max_tries : `int`, optional
+    get_seed_points : function, optional
+        Function that returns a list of seed points
+
+    Returns
+    -------
+    fieldlines : `list`
     """
-    get_seed_points = kwargs.get('get_seed_points', find_seed_points)
+    get_seed_points = find_seed_points if get_seed_points is None else get_seed_points
     # wrap the streamline filter method so we can pass a loop length range to it
     streamline_filter_wrapper = np.vectorize(filter_streamlines,
                                              excluded=[1]+list(kwargs.keys()))
@@ -133,7 +161,7 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, **kwargs):
         streamlines = yt.visualization.api.Streamlines(ds, seed_points * yt_unit,
                                                        xfield='Bx', yfield='By', zfield='Bz',
                                                        get_magnitude=True,
-                                                       direction=kwargs.get('direction', -1))
+                                                       direction=direction)
         streamlines.integrate_through_volume()
         streamlines.clean_streamlines()
         # filter

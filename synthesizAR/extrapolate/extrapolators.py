@@ -24,9 +24,9 @@ class ObliqueSchmidt(object):
 
     Parameters
     ----------
-    magnetogram : `sunpy.map.Map`
-    width_z : `astropy.Quantity`
-    shape_z : `astropy.Quantity`
+    magnetogram : `~sunpy.map.Map`
+    width_z : `~astropy.units.Quantity`
+    shape_z : `~astropy.units.Quantity`
 
     References
     ----------
@@ -50,17 +50,30 @@ class ObliqueSchmidt(object):
 
     @u.quantity_input
     def as_yt(self, B_field):
+        """
+        Wrapper around `~synthesizAR.extrapolate.magnetic_field_to_yt_dataset`
+        """
         return magnetic_field_to_yt_dataset(B_field.x, B_field.y, B_field.z, self.range.x,
                                             self.range.y, self.range.z)
 
     @u.quantity_input
     def trace_fieldlines(self, B_field, number_fieldlines, **kwargs):
         """
-        Convenience wrapper around the fieldline tracer
+        Trace fieldlines through vector magnetic field.
+        
+        This is a wrapper around `~synthesizAR.extrapolate.trace_fieldlines` and
+        accepts all of the same keyword arguments. Note that here the fieldlines are
+        automatically converted to the HEEQ coordinate system.
 
-        See Also
-        --------
-        synthesizAR.extrapolator.trace_fieldlines
+        Parameters
+        ----------
+        B_field : `~synthesizAR.util.SpatialPair`
+        number_fieldlines : `int`
+
+        Returns
+        -------
+        fieldlines : `list`
+            Fieldline coordinates transformed into HEEQ
         """
         ds = self.as_yt(B_field)
         lower_boundary = self.project_boundary(self.range.x, self.range.y).value
@@ -90,7 +103,8 @@ class ObliqueSchmidt(object):
     
     def project_boundary(self, range_x, range_y):
         """
-        Project the magnetogram onto a plane normal to the surface
+        Project the magnetogram onto a plane defined by the surface normal at the center of the
+        magnetogram.
         """
         # Get all points in local, rotated coordinate system
         p_y, p_x = np.indices((int(self.shape.x.value), int(self.shape.y.value)))
@@ -114,10 +128,10 @@ class ObliqueSchmidt(object):
         """
         LOS vector in the local coordinate system
         """
-        l_hat = self.magnetogram.observer_coordinate.transform_to(
+        los = self.magnetogram.observer_coordinate.transform_to(
                     Heliocentric(observer=self.magnetogram.observer_coordinate))
-        l_hat = heeq_to_local(*u.Quantity(to_heeq(l_hat))[:, np.newaxis], self.magnetogram.center)
-        return np.squeeze(u.Quantity(l_hat))
+        los = heeq_to_local(*u.Quantity(to_heeq(los))[:, np.newaxis], self.magnetogram.center)
+        return np.squeeze(u.Quantity(los))
         
     def calculate_phi(self):
         """
@@ -155,18 +169,30 @@ class ObliqueSchmidt(object):
                             phi[j, i, k] += boundary[j_prime, i_prime] * green * delta.x * delta.y
                     
         return phi
-                    
-    def calculate_field(self, phi):
+
+    @u.quantity_input
+    def calculate_field(self, phi: u.G * u.cm):
         """
         Compute vector magnetic field.
+
+        Parameters
+        ----------
+        phi : `~astropy.units.Quantity`
+
+        Returns
+        -------
+        B_field : `~synthesizAR.util.SpatialPair`
+            x, y, and z components of the vector magnetic field in 3D
 
         Calculate the vector magnetic field using the current-free approximation,
 
         .. math::
+            \\vec{B} = -\\nabla\phi
 
-           \\vec{B} = -\\nabla\phi
+        The gradient is computed numerically using a five-point stencil,
 
-        The gradient is computed numerically using a five-point stencil.
+        .. math::
+            \\frac{\partial B}{\partial x_i} \\approx -\left(\\frac{-B_{x_i}(x_i + 2\Delta x_i) + 8B_{x_i}(x_i + \Delta x_i) - 8B_{x_i}(x_i - \Delta x_i) + B_{x_i}(x_i - 2\Delta x_i)}{12\Delta x_i}\\right)
         """
         Bfield = u.Quantity(np.zeros(phi.shape + (3,)), self.magnetogram.meta['bunit'])
         # Take gradient--indexed as x,y,z in 4th dimension
