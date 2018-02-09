@@ -152,7 +152,8 @@ class ObliqueSchmidt(object):
         delta = SpatialPair(x=self.delta.x.value, y=self.delta.y.value, z=self.delta.z.value)
         shape = SpatialPair(x=int(self.shape.x.value), y=int(self.shape.y.value),
                             z=int(self.shape.z.value))
-        phi = calculate_phi(boundary, delta, shape, z_depth, l_hat)
+        phi = np.zeros((shape.x, shape.y, shape.z))
+        phi = calculate_phi(phi, boundary, delta, shape, z_depth, l_hat)
                     
         return phi * u.Unit(self.magnetogram.meta['bunit']) * self.delta.x.unit * (1. * u.pixel)
 
@@ -214,8 +215,7 @@ class ObliqueSchmidt(object):
 
 
 @numba.jit(nopython=True)
-def calculate_phi(boundary, delta, shape, z_depth, l_hat):
-    phi = np.empty((shape.x, shape.y, shape.z))
+def calculate_phi(phi, boundary, delta, shape, z_depth, l_hat):
     for i in range(shape.x):
         for j in range(shape.y):
             for k in range(shape.z):
