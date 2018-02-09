@@ -94,7 +94,7 @@ Magnetogram Info:
 
     def peek(self, **kwargs):
         """
-        Show extracted fieldlines overlaid on HMI image.
+        Show extracted fieldlines overlaid on magnetogram.
         """
         fieldlines = [loop.coordinates for loop in self.loops]
         peek_fieldlines(self.magnetogram, fieldlines, **kwargs)
@@ -131,8 +131,8 @@ Magnetogram Info:
                 grad_xyz = np.gradient(loop.coordinates.value, axis=0)
                 s_hat = grad_xyz / np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
                 velocity_xyz = np.stack([velocity.value*s_hat[:, 0],
-                                        velocity.value*s_hat[:, 1],
-                                        velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
+                                         velocity.value*s_hat[:, 1],
+                                         velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
                 loop.parameters_savefile = savefile
                 with h5py.File(savefile, 'a') as hf:
                     if loop.name not in hf:
