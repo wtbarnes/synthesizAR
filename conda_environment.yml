@@ -11,7 +11,7 @@ dependencies:
 - ipywidgets
 - matplotlib
 - numba
-- numpy
+- numpy<1.14
 - scipy
 - sunpy>=0.8
 - yt
