@@ -4,6 +4,8 @@ Field extrapolation methods for computing 3D vector magnetic fields from LOS mag
 import logging
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 from scipy.interpolate import griddata
 import astropy.units as u
 import numba
@@ -15,7 +17,7 @@ from synthesizAR.util import SpatialPair, to_heeq
 from .helpers import local_to_heeq, heeq_to_local, magnetic_field_to_yt_dataset
 from .fieldlines import trace_fieldlines, peek_fieldlines
 
-__all__ = ['ObliqueSchmidt']
+__all__ = ['ObliqueSchmidt', 'peek_projections']
 
 
 class ObliqueSchmidt(object):
@@ -238,3 +240,36 @@ def greens_function(x, y, z, x_grid, y_grid, z_depth, l_hat):
     term1 = l_hat[2] / R_mag
     term2 = mu_dot_R / (R_mag * (R_mag + l_dot_R))
     return 1. / (2. * np.pi) * (term1 + term2)
+
+
+def peek_projections(B_field, **kwargs):
+    """
+    Quick plot of projections of components of fields along different axes
+
+    .. warning:: These plots are just images and include no spatial information
+    """
+    labs = ('x', 'y', 'z')
+    labs_ax = ('y', 'x', 'z')
+    norm = kwargs.get('norm', Normalize(vmin=-2e3, vmax=2e3))
+    fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (9.75, 10)))
+    for i in range(3):
+        for j in range(3):
+            if j == 2:
+                b_sum = np.flipud(B_field[i].value.sum(axis=j))
+            else:
+                b_sum = np.flipud(B_field[i].value.sum(axis=j).T)
+            im = axes[i, j].imshow(b_sum, norm=norm, cmap=kwargs.get('cmap', 'hmimag'))
+            axes[i, j].get_xaxis().set_ticks([])
+            axes[i, j].get_yaxis().set_ticks([])
+            if j == 0:
+                axes[i, j].set_ylabel(r'$B_{}$'.format(labs[i]),
+                                      fontsize=kwargs.get('fontsize', 20))
+            if i == 2:
+                axes[i, j].set_xlabel(r'$\sum_{}$'.format(labs_ax[j]),
+                                      fontsize=kwargs.get('fontsize', 20))
+
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0, wspace=0, right=0.965)
+    cax = fig.add_axes([0.975, 0.08, 0.03, 0.9])
+    fig.colorbar(im, cax=cax)
+    plt.show()
