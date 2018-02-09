@@ -4,16 +4,16 @@ channels:
 - conda-forge
 dependencies:
 - python=3.6
+- numpy=1.13.3
+- numba
+- scipy
+- matplotlib
+- h5py
 - astropy
+- sunpy>=0.8
 - dask
 - distributed
-- h5py
 - ipywidgets
-- matplotlib
-- numba
-- numpy<1.14
-- scipy
-- sunpy>=0.8
 - yt
 - pip:
   - plasmapy
