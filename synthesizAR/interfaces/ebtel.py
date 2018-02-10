@@ -69,7 +69,7 @@ class EbtelInterface(object):
         loop : `synthesizAR.Loop` object
         """
         # load text
-        N_s = len(loop.field_aligned_coordinate)
+        N_s = loop.field_aligned_coordinate.shape[0]
         _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
 
         # reshape into a 1D loop structure with units
@@ -80,7 +80,12 @@ class EbtelInterface(object):
         velocity = np.outer(_tmp[:, -2], np.ones(N_s))*u.cm/u.s
         # flip sign of velocity where the radial distance from center is maximum
         r = np.sqrt(np.sum(loop.coordinates.value**2, axis=1))
-        i_mirror = np.where(np.diff(np.sign(np.gradient(r))))[0][0] + 1
+        i_mirror = np.where(np.diff(np.sign(np.gradient(r))))[0]
+        if i_mirror.shape[0] > 0:
+            i_mirror = i_mirror[0] + 1
+        else:
+            # If the first method fails, just set it at the midpoint
+            i_mirror = int(N_s / 2) if N_s % 2 == 0 else int((N_s - 1) / 2)
         velocity[:, i_mirror:] = -velocity[:, i_mirror:]
 
         return time, electron_temperature, ion_temperature, density, velocity
