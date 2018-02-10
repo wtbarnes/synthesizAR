@@ -211,7 +211,7 @@ class ObliqueSchmidt(object):
         return bfield
 
     def peek(self, fieldlines, **kwargs):
-        peek_fieldlines(self.magnetogram, fieldlines)
+        peek_fieldlines(self.magnetogram, [l for l, m in fieldlines], **kwargs)
 
 
 @numba.jit(nopython=True)
