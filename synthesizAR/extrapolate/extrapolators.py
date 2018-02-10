@@ -262,7 +262,8 @@ def peek_projections(B_field, **kwargs):
         {'field': 2, 'field_label': 'z', 'axis_label': 'z', 'axis_indices': (0, 1)},
     ]
     fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (10, 10)))
-    ax1_grid, ax2_grid = np.meshgrid(np.linspace(-1, 1, 100), np.linspace(-1, 1, 100))
+    ax1_grid, ax2_grid = np.meshgrid(np.linspace(-1, 1, B_field.x.shape[1]),
+                                     np.linspace(-1, 1, B_field.x.shape[0]))
     for i, (ax, f) in enumerate(zip(axes.flatten(), frames)):
         b_sum = B_field[f['field']].value.sum(axis=i % 3)
         b_stream_1 = B_field[f['axis_indices'][0]].sum(axis=i % 3).value
