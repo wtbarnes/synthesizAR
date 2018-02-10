@@ -248,25 +248,41 @@ def peek_projections(B_field, **kwargs):
 
     .. warning:: These plots are just images and include no spatial information
     """
-    labs = ('x', 'y', 'z')
-    labs_ax = ('y', 'x', 'z')
     norm = kwargs.get('norm', Normalize(vmin=-2e3, vmax=2e3))
-    fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (9.75, 10)))
-    for i in range(3):
-        for j in range(3):
-            if j == 2:
-                b_sum = np.flipud(B_field[i].value.sum(axis=j))
-            else:
-                b_sum = np.flipud(B_field[i].value.sum(axis=j).T)
-            im = axes[i, j].imshow(b_sum, norm=norm, cmap=kwargs.get('cmap', 'hmimag'))
-            axes[i, j].get_xaxis().set_ticks([])
-            axes[i, j].get_yaxis().set_ticks([])
-            if j == 0:
-                axes[i, j].set_ylabel(r'$B_{}$'.format(labs[i]),
-                                      fontsize=kwargs.get('fontsize', 20))
-            if i == 2:
-                axes[i, j].set_xlabel(r'$\sum_{}$'.format(labs_ax[j]),
-                                      fontsize=kwargs.get('fontsize', 20))
+    fontsize = kwargs.get('fontsize', 20)
+    frames = [
+        {'field': 0, 'field_label': 'x', 'axis_label': 'x', 'axis_indices': (2, 1)},
+        {'field': 0, 'field_label': 'x', 'axis_label': 'y', 'axis_indices': (0, 2)},
+        {'field': 0, 'field_label': 'x', 'axis_label': 'z', 'axis_indices': (0, 1)},
+        {'field': 1, 'field_label': 'y', 'axis_label': 'x', 'axis_indices': (2, 1)},
+        {'field': 1, 'field_label': 'y', 'axis_label': 'y', 'axis_indices': (0, 2)},
+        {'field': 1, 'field_label': 'y', 'axis_label': 'z', 'axis_indices': (0, 1)},
+        {'field': 2, 'field_label': 'z', 'axis_label': 'x', 'axis_indices': (2, 1)},
+        {'field': 2, 'field_label': 'z', 'axis_label': 'y', 'axis_indices': (0, 2)},
+        {'field': 2, 'field_label': 'z', 'axis_label': 'z', 'axis_indices': (0, 1)},
+    ]
+    fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (10, 10)))
+    ax1_grid, ax2_grid = np.meshgrid(np.linspace(-1, 1, 100), np.linspace(-1, 1, 100))
+    for i, (ax, f) in enumerate(zip(axes.flatten(), frames)):
+        b_sum = B_field[f['field']].value.sum(axis=i % 3)
+        b_stream_1 = B_field[f['axis_indices'][0]].sum(axis=i % 3).value
+        b_stream_2 = B_field[f['axis_indices'][1]].sum(axis=i % 3).value
+        if f['axis_label'] != 'z':
+            b_sum = b_sum.T
+            b_stream_1 = b_stream_1.T
+            b_stream_2 = b_stream_2.T
+        im = ax.pcolormesh(ax1_grid, ax2_grid, b_sum, norm=norm, cmap=kwargs.get('cmap', 'hmimag'))
+        ax.streamplot(ax1_grid[0, :], ax2_grid[:, 0], b_stream_1, b_stream_2,
+                      color=kwargs.get('color', 'w'), density=kwargs.get('density', 0.5),
+                      linewidth=kwargs.get('linewidth', 2))
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        if i % 3 == 0:
+            ax.set_ylabel(f'$B_{f["field_label"]}$', fontsize=fontsize)
+        if i > 5:
+            ax.set_xlabel(f'$\sum_{f["axis_label"]}$', fontsize=fontsize)
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
 
     fig.tight_layout()
     fig.subplots_adjust(hspace=0, wspace=0, right=0.965)
