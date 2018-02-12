@@ -114,7 +114,6 @@ class Observer(object):
                 if 'coordinates' not in hf:
                     dset = hf.create_dataset('coordinates', data=total_coordinates.value)
                     dset.attrs['units'] = total_coordinates.unit.to_string()
-            instr.make_detector_array(self.field)
 
     def flatten_detector_counts(self, **kwargs):
         """
@@ -238,6 +237,7 @@ class Observer(object):
         fn_template = os.path.join(savedir, '{instr}', '{channel}', 'map_t{i_time:06d}.fits')
         delayed_procedures = {instr.name: [] for instr in self.instruments} if self.parallel else None
         for instr in self.instruments:
+            instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
                 reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
             for channel in instr.channels:
