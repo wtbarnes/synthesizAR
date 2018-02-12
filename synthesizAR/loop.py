@@ -11,15 +11,18 @@ import h5py
 
 class Loop(object):
     """
-    Coronal loop object for easily handling all of the properties associated with a loop in
-    an active region.
+    Container for geometric and thermodynamic properties of a coronal loop
 
     Parameters
     ----------
     name : `str`
     coordinates : `astropy.Quantity`
+        HEEQ Cartesian coordinates of the loop
     field_strength : `astropy.Quantity`
+        Scalar magnetic field strength along the loop
 
+    Examples
+    --------
     Notes
     -----
     """
@@ -41,7 +44,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def field_aligned_coordinate(self):
         """
-        Field-aligned coordinate :math:`s`. This will have the same units the original coordinates.
+        Field-aligned coordinate :math:`s` such that :math:`0<s<L`
         """
         return np.append(0., np.linalg.norm(np.diff(self.coordinates.value, axis=0),
                                             axis=1).cumsum()) * self.coordinates.unit
@@ -49,7 +52,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def full_length(self):
         """
-        Loop full-length :math:`2L`. This will have the same units as the original coordinates.
+        Loop full-length :math:`2L`, from footpoint to footpoint
         """
         return np.sum(np.linalg.norm(np.diff(self.coordinates.value, axis=0),
                                      axis=1)) * self.coordinates.unit
@@ -57,8 +60,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def electron_temperature(self):
         """
-        Loop electron temperature as function of coordinate and time. Can be stored in memory or
-        pulled from an HDF5 file.
+        Loop electron temperature as function of coordinate and time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'electron_temperature'])]
@@ -68,8 +70,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def ion_temperature(self):
         """
-        Loop ion temperature as function of coordinate and time. Can be stored in memory or
-        pulled from an HDF5 file.
+        Loop ion temperature as function of coordinate and time. 
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'ion_temperature'])]
@@ -79,8 +80,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def density(self):
         """
-        Loop density as a function of coordinate and time. Can be stored in memory or pulled from an
-        HDF5 file.
+        Loop density as a function of coordinate and time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'density'])]
@@ -90,8 +90,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def velocity(self):
         """
-        Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
-        time. Can be stored in memory or pulled from an HDF5 file.
+        Velcoity in the field-aligned direction of the loop as a function of loop coordinate and time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity'])]
@@ -101,8 +100,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def velocity_xyz(self):
         """
-        Velocity in the Cartesian coordinate system as defined by the HMI map as a function of
-        loop coordinate and time. Can be stored in memory or pulled from an HDF5 file.
+        Velocity in the HEEQ Cartesian coordinate system as a function of time. 
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_xyz'])]
