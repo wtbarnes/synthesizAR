@@ -58,13 +58,23 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
                                      axis=1)) * self.coordinates.unit
 
     @property
+    def time(self):
+        """
+        Simulation time
+        """
+        with h5py.File(self.parameters_savefile, 'r') as hf:
+            dset = hf['/'.join([self.name, 'time'])]
+            time = u.Quantity(dset, dset.attrs['units'])
+        return time
+
+    @property
     def electron_temperature(self):
         """
         Loop electron temperature as function of coordinate and time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'electron_temperature'])]
-            temperature = np.array(dset) * u.Unit(dset.attrs['units'])
+            temperature = u.Quantity(dset, dset.attrs['units'])
         return temperature
 
     @property
@@ -74,7 +84,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'ion_temperature'])]
-            temperature = np.array(dset) * u.Unit(dset.attrs['units'])
+            temperature = u.Quantity(dset, dset.attrs['units'])
         return temperature
 
     @property
@@ -84,7 +94,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'density'])]
-            density = np.array(dset) * u.Unit(dset.attrs['units'])
+            density = u.Quantity(dset, dset.attrs['units'])
         return density
 
     @property
@@ -95,7 +105,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity'])]
-            velocity = np.array(dset) * u.Unit(dset.attrs['units'])
+            velocity = u.Quantity(dset, dset.attrs['units'])
         return velocity
 
     @property
@@ -105,5 +115,5 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_xyz'])]
-            velocity_xyz = np.array(dset) * u.Unit(dset.attrs['units'])
+            velocity_xyz = u.Quantity(dset, dset.attrs['units'])
         return velocity_xyz

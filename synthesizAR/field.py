@@ -135,7 +135,6 @@ Magnetogram Info:
             for loop in self.loops:
                 (time, electron_temperature, ion_temperature,
                  density, velocity) = interface.load_results(loop, **kwargs)
-                loop.time = time
                 # convert velocity to loop coordinate system
                 grad_xyz = np.gradient(loop.coordinates.value, axis=0)
                 s_hat = grad_xyz / np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
@@ -146,6 +145,9 @@ Magnetogram Info:
                 with h5py.File(savefile, 'a') as hf:
                     if loop.name not in hf:
                         hf.create_group(loop.name)
+                    # time
+                    dset_time = hf[loop.name].create_dataset('time', data=time.value)
+                    dset_time.attrs['units'] = time.unit.to_string()
                     # electron temperature
                     dset_electron_temperature = hf[loop.name].create_dataset(
                                             'electron_temperature', data=electron_temperature.value)
