@@ -70,7 +70,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def ion_temperature(self):
         """
-        Loop ion temperature as function of coordinate and time. 
+        Loop ion temperature as function of coordinate and time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'ion_temperature'])]
@@ -90,7 +90,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def velocity(self):
         """
-        Velcoity in the field-aligned direction of the loop as a function of loop coordinate and time.
+        Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
+        time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity'])]
@@ -100,7 +101,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
     @property
     def velocity_xyz(self):
         """
-        Velocity in the HEEQ Cartesian coordinate system as a function of time. 
+        Velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_xyz'])]
