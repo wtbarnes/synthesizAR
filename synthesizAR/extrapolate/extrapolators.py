@@ -17,12 +17,16 @@ from synthesizAR.util import SpatialPair, to_heeq
 from .helpers import local_to_heeq, heeq_to_local, magnetic_field_to_yt_dataset
 from .fieldlines import trace_fieldlines, peek_fieldlines
 
-__all__ = ['ObliqueSchmidt', 'peek_projections']
+__all__ = ['PotentialField', 'peek_projections']
 
 
-class ObliqueSchmidt(object):
+class PotentialField(object):
     """
-    Potential field extrapolation using the oblique Schmidt method as described in [1]_.
+    Local (~1 AR) potential field extrapolation class
+
+    Using the oblique Schmidt method as described in [1]_, compute a potential magnetic vector field
+    from an observed LOS magnetogram. Note that this method is only valid for spatial scales
+    :math:`\lesssim 1` active region.
 
     Parameters
     ----------
@@ -34,7 +38,7 @@ class ObliqueSchmidt(object):
     ----------
     .. [1] Sakurai, T., 1981, SoPh, `76, 301 <http://adsabs.harvard.edu/abs/1982SoPh...76..301S>`_
     """
-    
+
     @u.quantity_input
     def __init__(self, magnetogram, width_z: u.cm, shape_z: u.pixel):
         self.logger = logging.getLogger()
@@ -47,7 +51,7 @@ class ObliqueSchmidt(object):
         width_x = np.diff(range_x)[0]
         width_y = np.diff(range_y)[0]
         self.width = SpatialPair(x=width_x.to(u.cm), y=width_y.to(u.cm), z=width_z.to(u.cm))
-        self.delta = SpatialPair(x=self.width.x/self.shape.x, y=self.width.y/self.shape.y, 
+        self.delta = SpatialPair(x=self.width.x/self.shape.x, y=self.width.y/self.shape.y,
                                  z=self.width.z/self.shape.z)
 
     @u.quantity_input
@@ -162,15 +166,6 @@ class ObliqueSchmidt(object):
         """
         Compute vector magnetic field.
 
-        Parameters
-        ----------
-        phi : `~astropy.units.Quantity`
-
-        Returns
-        -------
-        B_field : `~synthesizAR.util.SpatialPair`
-            x, y, and z components of the vector magnetic field in 3D
-
         Calculate the vector magnetic field using the current-free approximation,
 
         .. math::
@@ -180,6 +175,15 @@ class ObliqueSchmidt(object):
 
         .. math::
             \\frac{\partial B}{\partial x_i} \\approx -\left(\\frac{-B_{x_i}(x_i + 2\Delta x_i) + 8B_{x_i}(x_i + \Delta x_i) - 8B_{x_i}(x_i - \Delta x_i) + B_{x_i}(x_i - 2\Delta x_i)}{12\Delta x_i}\\right)
+
+        Parameters
+        ----------
+        phi : `~astropy.units.Quantity`
+
+        Returns
+        -------
+        B_field : `~synthesizAR.util.SpatialPair`
+            x, y, and z components of the vector magnetic field in 3D
         """
         Bfield = u.Quantity(np.zeros(phi.shape + (3,)), self.magnetogram.meta['bunit'])
         # Take gradient--indexed as x,y,z in 4th dimension
