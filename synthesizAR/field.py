@@ -27,25 +27,30 @@ class Field(object):
     magnetogram : `sunpy.map.Map`
         Magnetogram map for the active region
     fieldlines : `list`
-        List of coordinates and field strengths for each loop
+        List of tuples, coordinates and field strengths for each loop
 
     Examples
     --------
     """
 
-    def __init__(self, magnetogram, fieldlines=None):
+    def __init__(self, magnetogram, fieldlines):
         self.magnetogram = sunpy.map.Map(magnetogram)
-        if fieldlines is not None:
-            self.loops = self.make_loops(fieldlines)
-        else:
-            warnings.warn('Fieldlines not found. No loops will be created.')
+        self.loops = self._make_loops(fieldlines)
+
+    def _make_loops(self, fieldlines):
+        """
+        Make list of `Loop` objects from the extracted streamlines
+        """
+        loops = []
+        for i, (line, mag) in enumerate(fieldlines):
+            loops.append(Loop(f'loop{i:06d}', line, mag))
+        return loops
 
     def __repr__(self):
-        num_loops = len(self.loops) if hasattr(self, 'loops') else 0
         sim_type = self.simulation_type if hasattr(self, 'simulation_type') else ''
         return f'''synthesizAR Active Region Object
 ------------------------
-Number of loops: {num_loops}
+Number of loops: {len(self.loops)}
 Simulation Type: {sim_type}
 Magnetogram Info:
 -----------------
@@ -60,13 +65,20 @@ Magnetogram Info:
             savedir = f'synthesizAR-{type(self).__name__}-save_{dt}'
         if not os.path.exists(savedir):
             os.makedirs(savedir)
-        if not os.path.exists(os.path.join(savedir, 'loops')):
-            os.makedirs(os.path.join(savedir, 'loops'))
-        for l in self.loops:
-            with open(os.path.join(savedir, 'loops', f'{l.name}.pickle'), 'wb') as f:
-                pickle.dump(l, f)
         if not os.path.isfile(os.path.join(savedir, 'magnetogram.fits')):
             self.magnetogram.save(os.path.join(savedir, 'magnetogram.fits'))
+        with h5py.File(os.path.join(savedir, 'loops.h5'), 'w') as hf:
+            for i, loop in enumerate(self.loops):
+                grp = hf.create_group(loop.name)
+                grp.attrs['index'] = i
+                if hasattr(loop, 'parameters_savefile'):
+                    grp.attrs['parameters_savefile'] = loop.parameters_savefile
+                else:
+                    grp.attrs['parameters_savefile'] = ''
+                ds = grp.create_dataset('coordinates', data=loop.coordinates.value)
+                ds.attrs['units'] = loop.coordinates.unit.to_string()
+                ds = grp.create_dataset('field_strength', data=loop.field_strength.value)
+                ds.attrs['units'] = loop.field_strength.unit.to_string()
 
     @classmethod
     def restore(cls, savedir):
@@ -78,17 +90,23 @@ Magnetogram Info:
         >>> import synthesizAR
         >>> restored_field = synthesizAR.Field.restore('/path/to/restored/field/dir')
         """
-        # loops
-        loop_files = glob.glob(os.path.join(savedir, 'loops', '*'))
-        loop_files = sorted([lf.split('/')[-1] for lf in loop_files],
-                            key=lambda l: int(l.split('.')[0][4:]))
-        loops = []
-        for lf in loop_files:
-            with open(os.path.join(savedir, 'loops', lf), 'rb') as f:
-                loops.append(pickle.load(f))
+        fieldlines = []
+        with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
+            for grp_name in hf:
+                grp = hf[grp_name]
+                coordinates = u.Quantity(grp['coordinates'], grp['coordinates'].attrs['units'])
+                field_strength = u.Quantity(grp['field_strength'],
+                                            grp['field_strength'].attrs['units'])
+                fieldlines.append({'index': grp.attrs['index'],
+                                   'parameters_savefile': grp.attrs['parameters_savefile'],
+                                   'coordinates': coordinates, 'field_strength': field_strength})
+
+        fieldlines = sorted(fieldlines, key=lambda x: x['index'])
         magnetogram = sunpy.map.Map(os.path.join(savedir, 'magnetogram.fits'))
-        field = cls(magnetogram)
-        field.loops = loops
+        field = cls(magnetogram, [(f['coordinates'], f['field_strength']) for f in fieldlines])
+        for f in fieldlines:
+            if f['parameters_savefile']:
+                field.loops[f['index']].parameters_savefile = f['parameters_savefile']
 
         return field
 
@@ -98,15 +116,6 @@ Magnetogram Info:
         """
         fieldlines = [loop.coordinates for loop in self.loops]
         peek_fieldlines(self.magnetogram, fieldlines, **kwargs)
-
-    def make_loops(self, fieldlines):
-        """
-        Make list of `Loop` objects from the extracted streamlines
-        """
-        loops = []
-        for i, (line, mag) in enumerate(fieldlines):
-            loops.append(Loop(f'loop{i:06d}', line, mag))
-        return loops
 
     def configure_loop_simulations(self, interface, **kwargs):
         """
