@@ -23,8 +23,16 @@ class Loop(object):
 
     Examples
     --------
-    Notes
-    -----
+    >>> import astropy.units as u
+    >>> import synthesizAR
+    >>> coordinate = u.Quantity([[1,2,3],[4,5,6]], 'Mm')
+    >>> field_strength = u.Quantity([100,200], 'gauss')
+    >>> loop = synthesizAR.Loop('coronal_loop', coordinate, field_strength)
+    >>> loop
+    Name : coronal_loop
+    Loop full-length, 2L : 5.196 Mm
+    Footpoints : (1e+08,2e+08,3e+08),(4e+08,5e+08,6e+08) cm
+    Maximum field strength : 200.00 G
     """
 
     @u.quantity_input
