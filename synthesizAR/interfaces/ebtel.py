@@ -5,11 +5,16 @@ Interface between loop object and ebtel++ simulation
 import os
 import logging
 import copy
+import warnings
 
 import numpy as np
 import h5py
 import astropy.units as u
-import dask
+try:
+    import dask
+except ImportError:
+    warnings.warn('''Dask library not found. You will not be able to compute nonequilibrium ion
+                     populations for EBTEL simulations''')
 
 from synthesizAR.util import InputHandler, OutputHandler
 from synthesizAR.atomic import Element
@@ -17,13 +22,21 @@ from synthesizAR.atomic import Element
 
 class EbtelInterface(object):
     """
-    Interface between field/loop model for the EBTEL model
+    Interface to the EBTEL model
+
+    Interface between synthesizAR and the Enthalpy-Based Thermal Evolution of Loops code for
+    computing time-dependent solutions of spatially-averaged loops.
 
     Parameters
     ----------
     base_config : `dict`
         Config dictionary with default parameters for all loops.
-    heating_model
+    heating_model : object
+        Heating model class for configuring event times and rates
+    parent_config_dir : `str`
+        Path to configuration file directory
+    parent_results_dir : `str`
+        Path to results file directory
     """
 
     def __init__(self, base_config, heating_model, parent_config_dir, parent_results_dir):
@@ -79,6 +92,7 @@ class EbtelInterface(object):
         density = np.outer(_tmp[:, 3], np.ones(N_s))*(u.cm**(-3))
         velocity = np.outer(_tmp[:, -2], np.ones(N_s))*u.cm/u.s
         # flip sign of velocity where the radial distance from center is maximum
+        # FIXME: this is probably not the best way to do this...
         r = np.sqrt(np.sum(loop.coordinates.value**2, axis=1))
         i_mirror = np.where(np.diff(np.sign(np.gradient(r))))[0]
         if i_mirror.shape[0] > 0:
@@ -95,7 +109,8 @@ class EbtelInterface(object):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
-        tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile), 'tmp_nei')
+        tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile),
+                              'tmp_nei')
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
 
@@ -103,7 +118,7 @@ class EbtelInterface(object):
         @dask.delayed
         def compute_rate_matrix(element):
             return element._rate_matrix()
-        
+ 
         @dask.delayed
         def compute_ionization_equilibrium(element, rate_matrix):
             return element.equilibrium_ionization(rate_matrix=rate_matrix)

@@ -91,5 +91,5 @@ def is_visible(coords, observer):
                 * u.radian).to(u.arcsec)
     off_disk = np.sqrt(theta_x**2 + theta_y**2) > rsun_obs
     in_front_of_disk = distance - observer.radius < 0.
-    
+
     return np.any(np.stack([off_disk, in_front_of_disk], axis=1), axis=1)
