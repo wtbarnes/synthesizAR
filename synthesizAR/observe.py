@@ -60,7 +60,7 @@ class Observer(object):
                         channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
 
     @u.quantity_input
-    def _interpolate_loops(self, instrument, ds: u.arcsec):
+    def _interpolate_loops(self, instrument, ds: u.cm):
         """
         Interpolate loops to common resolution
         
@@ -73,8 +73,6 @@ class Observer(object):
             # FIXME: Setting attributes of other classes like this is bad!
             instrument.observer_coordinate = (self.field.magnetogram.observer_coordinate
                                               .transform_to(HeliographicStonyhurst))
-        # Convert resolution to physical distance
-        ds = ds.to(u.radian).value * (instrument.observer_coordinate.radius - constants.radius)
         # Interpolate all loops in HEEQ coordinates
         total_coordinates = []
         interpolated_loop_coordinates = []
