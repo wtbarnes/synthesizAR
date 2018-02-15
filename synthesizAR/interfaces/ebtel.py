@@ -11,9 +11,9 @@ import numpy as np
 import h5py
 import astropy.units as u
 try:
-    import dask
+    import distributed
 except ImportError:
-    warnings.warn('''Dask library not found. You will not be able to compute nonequilibrium ion
+    warnings.warn('''dask.distributed library not found. You will not be able to compute nonequilibrium ion
                      populations for EBTEL simulations''')
 
 from synthesizAR.util import InputHandler, OutputHandler
@@ -109,34 +109,55 @@ class EbtelInterface(object):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
+        client = kwargs.get('client', None)
+        if client is None:
+            raise ValueError('Create a Dask client before running the NEI computation.')
         tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile),
                               'tmp_nei')
+        if not os.path.exists(tmpdir):
+            os.makedirs(tmpdir)
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
         
-        # Build task list
-        tasks = []
+        # Submit futures to client
+        futures = []
+        rm_futures = {}
+        ic_futures = {}
         for el_name in unique_elements:
-            element = Element(el_name, temperature)
-            rate_matrix = element._rate_matrix() #compute_rate_matrix(element)
-            initial_condition = element.equilibrium_ionization(rate_matrix=rate_matrix) #compute_ionization_equilibrium(element, rate_matrix)
+            el = Element(el_name, temperature)
+            rm_futures[el.element_name] = client.submit(el._rate_matrix)
+            ic_futures[el.element_name] = client.submit(el.equilibrium_ionization,
+                                                        rm_futures[el.element_name])
             for loop in field.loops:
-                tasks.append(compute_and_save_nei(loop, element, rate_matrix,
-                                                  initial_condition, tmpdir))
+                save_path = os.path.join(tmpdir, f'{element.element_name}_{loop.name}.npy')
+                futures.append(client.submit(EbtelInterface.compute_and_save_nei, loop,
+                                             rm_futures[el.element_name],
+                                             ic_futures[el.element_name], save_path))
 
-        # Execute tasks and compile to single file
-        if not os.path.exists(tmpdir):
-            os.makedirs(tmpdir)
-        return tasks
+        # Compile results to a single file
+        distributed.fire_and_forget(client.submit(EbtelInterface.slice_and_store, futures,
+                                                  emission_model.ionization_fraction_savefile))
+        
+        return futures
 
     @staticmethod
-    def slice_and_store(nei_matrices, savefile):
+    def compute_and_save_nei(loop, rate_matrix, initial_condition, save_path):
         """
-        Dask task for collecting, loading in, and storing all NEI populations in a single
-        HDF5 file
+        Compute and save NEI populations for a given element and loop
+        """
+        y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
+                                                   loop.density[:, 0], rate_matrix,
+                                                   initial_condition)
+        np.save(save_path, y_nei.value)
+        return save_path, loop.field_aligned_coordinate.shape[0]
+
+    @staticmethod
+    def slice_and_store(nei_results, savefile):
+        """
+        Collecting and storing all NEI populations in a single HDF5 file
         """
         with h5py.File(savefile, 'a') as hf:
-            for fn, n_s in nei_matrices:
+            for fn, n_s in nei_results:
                 element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
                 grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
                 y_nei = np.load(fn)
@@ -150,32 +171,3 @@ class EbtelInterface(object):
                 dset.attrs['description'] = 'non-equilibrium ionization fractions'
                 os.remove(fn)
         os.rmdir(os.path.dirname(fn))
-
-
-@dask.delayed
-def compute_rate_matrix(element):
-    """
-    Dask wrapper around `~synthesizAR.atomic.Element._rate_matrix`
-    """
-    return element._rate_matrix()
-
-
-@dask.delayed
-def compute_ionization_equilibrium(element, rate_matrix):
-    """
-    Dask wrapper around `~synthesizAR.atomic.Element.equilibrium_ionization`
-    """
-    return element.equilibrium_ionization(rate_matrix=rate_matrix)
-
-
-@dask.delayed
-def compute_and_save_nei(loop, element, rate_matrix, initial_condition, save_root_path):
-    """
-    Dask task for computing and saving NEI populations for a given element and loop
-    """
-    y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
-                                               loop.density[:, 0], rate_matrix, initial_condition)
-    save_path = os.path.join(save_root_path, f'{element.element_name}_{loop.name}.npy')
-    np.save(save_path, y_nei.value)
-    return save_path, loop.field_aligned_coordinate.shape[0]
-
