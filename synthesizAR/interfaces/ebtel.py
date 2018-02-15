@@ -127,7 +127,29 @@ class EbtelInterface(object):
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
-        return slice_and_store(tasks, emission_model.ionization_fraction_savefile)
+        return tasks
+
+    @staticmethod
+    def slice_and_store(nei_matrices, savefile):
+        """
+        Dask task for collecting, loading in, and storing all NEI populations in a single
+        HDF5 file
+        """
+        with h5py.File(savefile, 'a') as hf:
+            for fn, n_s in nei_matrices:
+                element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
+                grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
+                y_nei = np.load(fn)
+                data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
+                if element_name not in grp:
+                    dset = grp.create_dataset(element_name, data=data)
+                else:
+                    dset = grp[element_name]
+                    dset[:, :, :] = data
+                dset.attrs['units'] = ''
+                dset.attrs['description'] = 'non-equilibrium ionization fractions'
+                os.remove(fn)
+        os.rmdir(os.path.dirname(fn))
 
 
 @dask.delayed
@@ -157,25 +179,3 @@ def compute_and_save_nei(loop, element, rate_matrix, initial_condition, save_roo
     np.save(save_path, y_nei.value)
     return save_path, loop.field_aligned_coordinate.shape[0]
 
-
-@dask.delayed
-def slice_and_store(nei_matrices, savefile):
-    """
-    Dask task for collecting, loading in, and storing all NEI populations in a single
-    HDF5 file
-    """
-    with h5py.File(savefile, 'a') as hf:
-        for fn, n_s in nei_matrices:
-            element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
-            grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-            y_nei = np.load(fn)
-            data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
-            if element_name not in grp:
-                dset = grp.create_dataset(element_name, data=data)
-            else:
-                dset = grp[element_name]
-                dset[:, :, :] = data
-            dset.attrs['units'] = ''
-            dset.attrs['description'] = 'non-equilibrium ionization fractions'
-            os.remove(fn)
-    os.rmdir(os.path.dirname(fn))
