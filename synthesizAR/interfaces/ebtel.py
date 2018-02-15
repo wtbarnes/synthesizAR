@@ -129,7 +129,7 @@ class EbtelInterface(object):
             ic_futures[el.element_name] = client.submit(el.equilibrium_ionization,
                                                         rm_futures[el.element_name])
             for loop in field.loops:
-                save_path = os.path.join(tmpdir, f'{element.element_name}_{loop.name}.npy')
+                save_path = os.path.join(tmpdir, f'{el.element_name}_{loop.name}.npy')
                 futures.append(client.submit(EbtelInterface.compute_and_save_nei, loop,
                                              rm_futures[el.element_name],
                                              ic_futures[el.element_name], save_path))
