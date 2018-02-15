@@ -104,7 +104,6 @@ class EbtelInterface(object):
 
         return time, electron_temperature, ion_temperature, density, velocity
 
-    @staticmethod
     def calculate_ionization_fraction(field, emission_model, **kwargs):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
@@ -127,7 +126,7 @@ class EbtelInterface(object):
         # Execute tasks and compile to single file
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
-        return slice_and_store(tasks)
+        return slice_and_store(tasks, self.ionization_fraction_savefile)
 
 
 @dask.delayed
@@ -160,12 +159,12 @@ def compute_and_save_nei(loop, element, rate_matrix, initial_condition, save_roo
 
 
 @dask.delayed
-def slice_and_store(nei_matrices):
+def slice_and_store(nei_matrices, savefile):
     """
     Dask task for collecting, loading in, and storing all NEI populations in a single
     HDF5 file
     """
-    with h5py.File(emission_model.ionization_fraction_savefile, 'a') as hf:
+    with h5py.File(savefile, 'a') as hf:
         for fn, n_s in nei_matrices:
             element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
             grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
