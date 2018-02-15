@@ -48,23 +48,17 @@ class Element(fiasco.Element):
         """
         if rate_matrix is None:
             rate_matrix = self._rate_matrix()
-        ioneq = self._equilibrium_ionization(rate_matrix.value)
-
-        return u.Quantity(ioneq)
-
-    @staticmethod
-    def _equilibrium_ionization(rate_matrix):
         # Solve system of equations using SVD and normalize
-        _, _, V = np.linalg.svd(rate_matrix)
+        _, _, V = np.linalg.svd(rate_matrix.value)
         # Select columns of V with smallest eigenvalues (returned in descending order)
         ioneq = np.fabs(V[:, -1, :])
         ioneq /= np.sum(ioneq, axis=1)[:, np.newaxis]
 
-        return ioneq
+        return u.Quantity(ioneq)
         
     @u.quantity_input
-    def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3), rate_matrix=None,
-                                   initial_condition=None):
+    def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3),
+                                   rate_matrix=None, initial_condition=None):
         """
         Compute the ionization fraction in non-equilibrium for a given temperature and density
         timeseries.
@@ -73,20 +67,11 @@ class Element(fiasco.Element):
             rate_matrix = self._rate_matrix()
         if initial_condition is None:
             initial_condition = self.equilibrium_ionization(rate_matrix=rate_matrix)
-        y = self._non_equilibrium_ionization(time.to(u.s).value, temperature.to(u.K).value,
-                                             density.to(u.cm**(-3)).value, rate_matrix.value,
-                                             initial_conditions.value)
-
-        return u.Quantity(y)
-
-    @staticmethod
-    def _non_equilibrium_ionization(self, time, temperature, density, temperature_grid,
-                                    rate_matrix, initial_conditions):
-        interpolate_indices = [np.abs(temperature_grid - t).argmin() for t in temperature]
-        y = np.zeros(time.shape + (rate_matrix.shape[1],))
+        interpolate_indices = [np.abs(self.temperature - t).argmin() for t in temperature]
+        y = np.zeros(time.shape + (self.atomic_number + 1,))
         y[0, :] = initial_condition[interpolate_indices[0], :]
 
-        identity = u.Quantity(np.eye(rate_matrix.shape[1] + 1))
+        identity = u.Quantity(np.eye(self.atomic_number + 1))
         for i in range(1, time.shape[0]):
             dt = time[i] - time[i-1]
             term1 = identity - density[i] * dt/2. * rate_matrix[interpolate_indices[i], :, :]
@@ -95,7 +80,7 @@ class Element(fiasco.Element):
             y[i, :] = np.fabs(y[i, :])
             y[i, :] /= y[i, :].sum()
 
-        return y
+        return u.Quantity(y)
         
     def __getitem__(self, value):
         if type(value) is int:
