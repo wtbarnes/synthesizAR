@@ -104,7 +104,7 @@ class EbtelInterface(object):
 
         return time, electron_temperature, ion_temperature, density, velocity
 
-    def calculate_ionization_fraction(field, emission_model, **kwargs):
+    def calculate_ionization_fraction(self, field, emission_model, **kwargs):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
