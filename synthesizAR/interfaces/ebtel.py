@@ -178,4 +178,4 @@ def slice_and_store(nei_matrices, savefile):
             dset.attrs['units'] = ''
             dset.attrs['description'] = 'non-equilibrium ionization fractions'
             os.remove(fn)
-    os.rmdir(tmpdir)
+    os.rmdir(os.path.dirname(fn))
