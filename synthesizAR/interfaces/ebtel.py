@@ -129,10 +129,9 @@ class EbtelInterface(object):
             ic_futures[el.element_name] = client.submit(el.equilibrium_ionization,
                                                         rm_futures[el.element_name])
             for loop in field.loops:
-                save_path = os.path.join(tmpdir, f'{el.element_name}_{loop.name}.npy')
-                futures.append(client.submit(EbtelInterface.compute_and_save_nei, loop,
+                futures.append(client.submit(EbtelInterface.compute_and_save_nei, el, loop,
                                              rm_futures[el.element_name],
-                                             ic_futures[el.element_name], save_path))
+                                             ic_futures[el.element_name], tmpdir))
 
         # Compile results to a single file
         distributed.fire_and_forget(client.submit(EbtelInterface.slice_and_store, futures,
@@ -141,13 +140,14 @@ class EbtelInterface(object):
         return futures
 
     @staticmethod
-    def compute_and_save_nei(loop, rate_matrix, initial_condition, save_path):
+    def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_path_root):
         """
         Compute and save NEI populations for a given element and loop
         """
         y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
                                                    loop.density[:, 0], rate_matrix,
                                                    initial_condition)
+        save_path = os.path.join(save_path_root, f'{element.element_name}_{loop.name}.npy')
         np.save(save_path, y_nei.value)
         return save_path, loop.field_aligned_coordinate.shape[0]
 
