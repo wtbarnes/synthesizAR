@@ -118,8 +118,8 @@ class EbtelInterface(object):
         tasks = []
         for el_name in unique_elements:
             element = Element(el_name, temperature)
-            rate_matrix = compute_rate_matrix(element)
-            initial_condition = compute_ionization_equilibrium(element, rate_matrix)
+            rate_matrix = element._rate_matrix() #compute_rate_matrix(element)
+            initial_condition = element.equilibrium_ionization(rate_matrix=rate_matrix) #compute_ionization_equilibrium(element, rate_matrix)
             for loop in field.loops:
                 tasks.append(compute_and_save_nei(loop, element, rate_matrix,
                                                   initial_condition, tmpdir))
