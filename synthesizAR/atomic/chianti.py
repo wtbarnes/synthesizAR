@@ -48,15 +48,20 @@ class Element(fiasco.Element):
         """
         if rate_matrix is None:
             rate_matrix = self._rate_matrix()
-        
+        ioneq = self._equilibrium_ionization(rate_matrix.value)
+
+        return u.Quantity(ioneq)
+
+    @staticmethod
+    def _equilibrium_ionization(rate_matrix):
         # Solve system of equations using SVD and normalize
-        _, _, V = np.linalg.svd(rate_matrix.value)
+        _, _, V = np.linalg.svd(rate_matrix)
         # Select columns of V with smallest eigenvalues (returned in descending order)
         ioneq = np.fabs(V[:, -1, :])
         ioneq /= np.sum(ioneq, axis=1)[:, np.newaxis]
 
-        return u.Quantity(ioneq)
-    
+        return ioneq
+        
     @u.quantity_input
     def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3), rate_matrix=None,
                                    initial_condition=None):
@@ -68,22 +73,30 @@ class Element(fiasco.Element):
             rate_matrix = self._rate_matrix()
         if initial_condition is None:
             initial_condition = self.equilibrium_ionization(rate_matrix=rate_matrix)
+        y = self._non_equilibrium_ionization(time.to(u.s).value, temperature.to(u.K).value,
+                                             density.to(u.cm**(-3)).value, rate_matrix.value,
+                                             initial_conditions.value)
 
-        interpolate_indices = [np.abs(self.temperature - t).argmin() for t in temperature]
-        y = np.zeros(time.shape + (self.atomic_number+1,))
+        return u.Quantity(y)
+
+    @staticmethod
+    def _non_equilibrium_ionization(self, time, temperature, density, temperature_grid,
+                                    rate_matrix, initial_conditions):
+        interpolate_indices = [np.abs(temperature_grid - t).argmin() for t in temperature]
+        y = np.zeros(time.shape + (rate_matrix.shape[1],))
         y[0, :] = initial_condition[interpolate_indices[0], :]
 
-        identity = u.Quantity(np.eye(self.atomic_number + 1))
+        identity = u.Quantity(np.eye(rate_matrix.shape[1] + 1))
         for i in range(1, time.shape[0]):
             dt = time[i] - time[i-1]
-            term1 = identity - density[i]*dt/2.*rate_matrix[interpolate_indices[i], :, :]
-            term2 = identity + density[i-1]*dt/2.*rate_matrix[interpolate_indices[i-1], :, :]
+            term1 = identity - density[i] * dt/2. * rate_matrix[interpolate_indices[i], :, :]
+            term2 = identity + density[i-1] * dt/2. * rate_matrix[interpolate_indices[i-1], :, :]
             y[i, :] = np.linalg.inv(term1) @ term2 @ y[i-1, :]
             y[i, :] = np.fabs(y[i, :])
             y[i, :] /= y[i, :].sum()
 
-        return u.Quantity(y)
-
+        return y
+        
     def __getitem__(self, value):
         if type(value) is int:
             value = self.ions[value]
@@ -103,8 +116,8 @@ class Ion(fiasco.Ion):
         
         Note
         ----
-        Need a more efficient way of calculating upsilon for all transitions. Current method is slow ions with
-        many transitions, e.g. Fe IX and Fe XI
+        Need a more efficient way of calculating upsilon for all transitions. Current method is 
+        slow for ions with many transitions, e.g. Fe IX and Fe XI
         """
         energy_ratio = np.outer(const.k_B.cgs*self.temperature, 1.0/self._scups['delta_energy'].to(u.erg))
         upsilon = np.array(list(map(self.burgess_tully_descale, self._scups['bt_t'], self._scups['bt_upsilon'],
