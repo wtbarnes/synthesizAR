@@ -197,7 +197,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 y = dask.delayed(calculate_counts)(channel, loop, emission_model,
                                                    flattened_emissivities)
                 tmp_path = save_path.format(channel['name'], loop.name)
-                task = dask.delayed(self.interpolate_and_store)(y, loop, self.observing_time, 
+                task = dask.delayed(self.interpolate_and_store)(y, loop, self.observing_time,
                                                                 interp_s, tmp_path)
                 tasks[channel['name']].append(task)
 
