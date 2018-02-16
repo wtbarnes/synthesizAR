@@ -152,10 +152,18 @@ class InstrumentBase(object):
                         .transform_to(Helioprojective(observer=self.observer_coordinate)))
         # Set bounds to include all loops and original magnetogram FOV (with some padding)
         loop_coords = self.total_coordinates
-        min_x = min(loop_coords.Tx.min(), left_corner.Tx) - 1.*u.arcsec
-        max_x = max(loop_coords.Tx.max(), right_corner.Tx) + 1.*u.arcsec
-        min_y = min(loop_coords.Ty.min(), left_corner.Ty) - 1.*u.arcsec
-        max_y = max(loop_coords.Ty.max(), right_corner.Ty) + 1.*u.arcsec
+        if 'gaussian_width' in self.channels[0]:
+            width_max = np.max([c['gaussian_width']['x'] for c in self.channels])
+            pad_x = self.resolution.x * width_max
+            width_max = np.max([c['gaussian_width']['y'] for c in self.channels])
+            pad_y = self.resolution.y * width_max
+        else:
+            pad_x = self.resolution.x * 1 * u.pixel
+            pad_y = self.resolution.y * 1 * u.pixel
+        min_x = min(loop_coords.Tx.min(), left_corner.Tx) - pad_x
+        max_x = max(loop_coords.Tx.max(), right_corner.Tx) + pad_x
+        min_y = min(loop_coords.Ty.min(), left_corner.Ty) - pad_y
+        max_y = max(loop_coords.Ty.max(), right_corner.Ty) + pad_y
 
         return min_x, max_x, min_y, max_y
     
