@@ -14,6 +14,7 @@ import h5py
 from scipy.interpolate import interp1d
 import astropy.units as u
 import astropy.constants as const
+import plasmapy.atomic
 import fiasco
 
 __all__ = ['Element', 'Ion', 'list_elements']
@@ -266,5 +267,10 @@ def list_elements():
     List all available elements in the CHIANTI database.
     """
     with h5py.File(fiasco.defaults['hdf5_dbase_root']) as hf:
-        elements = [k.capitalize() for k in hf.keys()]
+        elements = []
+        for k in hf.keys():
+            try:
+                elements.append(plasmapy.atomic.atomic_symbol(k.capitalize()))
+            except plasmapy.atomic.names.InvalidParticleError:
+                continue
     return elements
