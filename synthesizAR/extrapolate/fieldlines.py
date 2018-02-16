@@ -12,7 +12,7 @@ from astropy.coordinates import SkyCoord
 import yt
 from sunpy.image.rescale import resample
 
-from synthesizAR.util import heeq_to_hcc_coord
+from synthesizAR.util import heeq_to_hcc_coord, is_visible
 
 __all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines']
 
@@ -209,8 +209,13 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
         coord = (heeq_to_hcc_coord(line[:, 0], line[:, 1], line[:, 2],
                                    magnetogram.observer_coordinate)
                  .transform_to(magnetogram.coordinate_frame))
+        # Mask lines behind the solar disk
+        i_visible = np.where(is_visible(coord, magnetogram.observer_coordinate))
+        coord_visible = SkyCoord(Tx=coord.Tx[i_visible], Ty=coord.Ty[i_visible],
+                                 distance=coord.distance[i_visible],
+                                 frame=magnetogram.coordinate_frame)
         # Plot line
-        ax.plot_coord(coord, '-', color=kwargs.get('color', 'k'), lw=kwargs.get('lw', 1),
+        ax.plot_coord(coord_visible, '-', color=kwargs.get('color', 'k'), lw=kwargs.get('lw', 1),
                       alpha=kwargs.get('alpha', 0.5))
 
     plt.show()
