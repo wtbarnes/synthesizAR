@@ -142,30 +142,28 @@ Magnetogram Info:
                                          velocity.value*s_hat[:, 1],
                                          velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
                 loop.parameters_savefile = savefile
-                with h5py.File(savefile, 'a') as hf:
-                    if loop.name not in hf:
-                        hf.create_group(loop.name)
+                with h5py.File(savefile, 'w') as hf:
+                    grp = hf.create_group(loop.name)
                     # time
-                    dset_time = hf[loop.name].create_dataset('time', data=time.value)
+                    dset_time = grp.create_dataset('time', data=time.value)
                     dset_time.attrs['units'] = time.unit.to_string()
                     # electron temperature
-                    dset_electron_temperature = hf[loop.name].create_dataset(
-                                            'electron_temperature', data=electron_temperature.value)
+                    dset_electron_temperature = grp.create_dataset('electron_temperature',
+                                                                   data=electron_temperature.value)
                     dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
                     # ion temperature
-                    dset_ion_temperature = hf[loop.name].create_dataset('ion_temperature',
-                                                                        data=ion_temperature.value)
+                    dset_ion_temperature = grp.create_dataset('ion_temperature',
+                                                              data=ion_temperature.value)
                     dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
                     # number density
-                    dset_density = hf[loop.name].create_dataset('density', data=density.value)
+                    dset_density = grp.create_dataset('density', data=density.value)
                     dset_density.attrs['units'] = density.unit.to_string()
                     # field-aligned velocity
-                    dset_velocity = hf[loop.name].create_dataset('velocity', data=velocity.value)
+                    dset_velocity = grp.create_dataset('velocity', data=velocity.value)
                     dset_velocity.attrs['units'] = velocity.unit.to_string()
                     dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
                     # Cartesian xyz velocity
-                    dset_velocity_xyz = hf[loop.name].create_dataset('velocity_xyz',
-                                                                     data=velocity_xyz.value)
+                    dset_velocity_xyz = grp.create_dataset('velocity_xyz', data=velocity_xyz.value)
                     dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
                     dset_velocity_xyz.attrs['note'] = 'velocity in HEEQ system'
 
