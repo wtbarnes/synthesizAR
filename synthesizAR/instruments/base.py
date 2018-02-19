@@ -153,9 +153,9 @@ class InstrumentBase(object):
         # Set bounds to include all loops and original magnetogram FOV (with some padding)
         loop_coords = self.total_coordinates
         if 'gaussian_width' in self.channels[0]:
-            width_max = np.max([c['gaussian_width']['x'] for c in self.channels])
+            width_max = u.Quantity([c['gaussian_width']['x'] for c in self.channels]).max()
             pad_x = self.resolution.x * width_max
-            width_max = np.max([c['gaussian_width']['y'] for c in self.channels])
+            width_max = u.Quantity([c['gaussian_width']['y'] for c in self.channels]).max()
             pad_y = self.resolution.y * width_max
         else:
             pad_x = self.resolution.x * 1 * u.pixel
