@@ -132,42 +132,42 @@ Magnetogram Info:
         Load in loop parameters from hydrodynamic results.
         """
         notebook = kwargs.get('notebook', True)
-        with (h5py.File(savefile, 'w') as hf,
-              ProgressBar(len(self.loops), ipython_widget=notebook) as progress):
-            for loop in self.loops:
-                # Load in parameters from interface
-                (time, electron_temperature, ion_temperature,
-                 density, velocity) = interface.load_results(loop, **kwargs)
-                # convert velocity to loop coordinate system
-                grad_xyz = np.gradient(loop.coordinates.value, axis=0)
-                s_hat = grad_xyz / np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
-                velocity_xyz = np.stack([velocity.value*s_hat[:, 0],
-                                         velocity.value*s_hat[:, 1],
-                                         velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
-                # Write to file
-                loop.parameters_savefile = savefile
-                grp = hf.create_group(loop.name)
-                # time
-                dset_time = grp.create_dataset('time', data=time.value)
-                dset_time.attrs['units'] = time.unit.to_string()
-                # electron temperature
-                dset_electron_temperature = grp.create_dataset('electron_temperature',
-                                                               data=electron_temperature.value)
-                dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
-                # ion temperature
-                dset_ion_temperature = grp.create_dataset('ion_temperature', 
-                                                          data=ion_temperature.value)
-                dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
-                # number density
-                dset_density = grp.create_dataset('density', data=density.value)
-                dset_density.attrs['units'] = density.unit.to_string()
-                # field-aligned velocity
-                dset_velocity = grp.create_dataset('velocity', data=velocity.value)
-                dset_velocity.attrs['units'] = velocity.unit.to_string()
-                dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
-                # Cartesian xyz velocity
-                dset_velocity_xyz = grp.create_dataset('velocity_xyz', data=velocity_xyz.value)
-                dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
-                dset_velocity_xyz.attrs['note'] = 'velocity in HEEQ system'
+        with h5py.File(savefile, 'w') as hf:
+            with ProgressBar(len(self.loops), ipython_widget=notebook) as progress:
+                for loop in self.loops:
+                    # Load in parameters from interface
+                    (time, electron_temperature, ion_temperature,
+                     density, velocity) = interface.load_results(loop, **kwargs)
+                    # convert velocity to loop coordinate system
+                    grad_xyz = np.gradient(loop.coordinates.value, axis=0)
+                    s_hat = grad_xyz / np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
+                    velocity_xyz = np.stack([velocity.value*s_hat[:, 0],
+                                             velocity.value*s_hat[:, 1],
+                                             velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
+                    # Write to file
+                    loop.parameters_savefile = savefile
+                    grp = hf.create_group(loop.name)
+                    # time
+                    dset_time = grp.create_dataset('time', data=time.value)
+                    dset_time.attrs['units'] = time.unit.to_string()
+                    # electron temperature
+                    dset_electron_temperature = grp.create_dataset('electron_temperature',
+                                                                   data=electron_temperature.value)
+                    dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
+                    # ion temperature
+                    dset_ion_temperature = grp.create_dataset('ion_temperature', 
+                                                              data=ion_temperature.value)
+                    dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
+                    # number density
+                    dset_density = grp.create_dataset('density', data=density.value)
+                    dset_density.attrs['units'] = density.unit.to_string()
+                    # field-aligned velocity
+                    dset_velocity = grp.create_dataset('velocity', data=velocity.value)
+                    dset_velocity.attrs['units'] = velocity.unit.to_string()
+                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
+                    # Cartesian xyz velocity
+                    dset_velocity_xyz = grp.create_dataset('velocity_xyz', data=velocity_xyz.value)
+                    dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
+                    dset_velocity_xyz.attrs['note'] = 'velocity in HEEQ system'
 
-                progress.update()
+                    progress.update()

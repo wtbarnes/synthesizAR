@@ -85,9 +85,10 @@ class EmissionModel(fiasco.IonCollection):
         """
         Calculate and store emissivity for every ion in the model
         """
+        notebook = kwargs.get('notebook', True)
         self.emissivity_savefile = savefile
         with h5py.File(savefile, 'w') as hf:
-            with ProgressBar(len(self._ion_list), ipython_widget=kwargs.get('notebook', True)) as progress:
+            with ProgressBar(len(self._ion_list), ipython_widget=notebook) as progress:
                 for ion in self:
                     wavelength, emissivity = ion.emissivity(self.density, include_energy=False)
                     if wavelength is None or emissivity is None:
@@ -146,26 +147,26 @@ class EmissionModel(fiasco.IonCollection):
                                                            **kwargs)
         unique_elements = list(set([ion.element_name for ion in self]))
         # Calculate ionization equilibrium for each element and interpolate to each loop
-        with (h5py.File(self.ionization_fraction_savefile, 'a') as hf,
-              ProgressBar(len(unique_elements) * len(field.loops),
-                          ipython_widget=kwargs.get('notebook', True)) as progress):
-            for el_name in unique_elements:
-                element = Element(el_name, temperature)
-                ioneq = element.equilibrium_ionization()
-                f_ioneq = interp1d(temperature, ioneq, axis=0, kind='linear', 
-                                    fill_value='extrapolate')
-                for loop in field.loops:
-                    grp = hf.create_group(loop.name) if loop.name not in hf else hf[loop.name]
-                    tmp = f_ioneq(loop.electron_temperature)
-                    data = u.Quantity(np.where(tmp < 0., 0., tmp), ioneq.unit)
-                    if element.element_name not in grp:
-                        dset = grp.create_dataset(element.element_name, data=data.value)
-                    else:
-                        dset = grp[element.element_name]
-                        dset[:, :, :] = data.value
-                    dset.attrs['units'] = data.unit.to_string()
-                    dset.attrs['description'] = 'equilibrium ionization fractions'
-                    progress.update()
+        notebook = kwargs.get('notebook', True)
+        with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
+            with ProgressBar(len(unique_elements) * len(field.loops), ipython_widget=notebook) as progress:
+                for el_name in unique_elements:
+                    element = Element(el_name, temperature)
+                    ioneq = element.equilibrium_ionization()
+                    f_ioneq = interp1d(temperature, ioneq, axis=0, kind='linear',
+                                       fill_value='extrapolate')
+                    for loop in field.loops:
+                        grp = hf.create_group(loop.name) if loop.name not in hf else hf[loop.name]
+                        tmp = f_ioneq(loop.electron_temperature)
+                        data = u.Quantity(np.where(tmp < 0., 0., tmp), ioneq.unit)
+                        if element.element_name not in grp:
+                            dset = grp.create_dataset(element.element_name, data=data.value)
+                        else:
+                            dset = grp[element.element_name]
+                            dset[:, :, :] = data.value
+                        dset.attrs['units'] = data.unit.to_string()
+                        dset.attrs['description'] = 'equilibrium ionization fractions'
+                        progress.update()
 
     def get_ionization_fraction(self, loop, ion):
         """
