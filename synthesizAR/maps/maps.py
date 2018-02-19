@@ -22,11 +22,12 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
                      'norm': colors.SymLogNorm(10, vmin=-1e8, vmax=1e8)}
     plot_settings.update(kwargs.get('plot_settings', {}))
     
+    bins, bin_range = instr.make_detector_array(field)
     visible = is_visible(instr.total_coordinates, instr.observer_coordinate)
     hist_coordinates, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
                                             instr.total_coordinates.Ty.value,
-                                            bins=(instr.bins.x.value, instr.bins.y.value),
-                                            range=(instr.bin_range.x.value, instr.bin_range.y.value),
+                                            bins=(bins.x.value, bins.y.value),
+                                            range=(bin_range.x.value, bin_range.y.value),
                                             weights=visible)
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
@@ -38,8 +39,8 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
 
     hist, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
                                 instr.total_coordinates.Ty.value,
-                                bins=(instr.bins.x.value, instr.bins.y.value),
-                                range=(instr.bin_range.x.value, instr.bin_range.y.value),
+                                bins=(bins.x.value, bins.y.value),
+                                range=(bin_range.x.value, bin_range.y.value),
                                 weights=weights * visible)
     hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
     meta = instr.make_fits_header(field, instr.channels[0])
@@ -59,12 +60,12 @@ def make_temperature_map(time: u.s, field, instr, **kwargs):
     """
     plot_settings = {'cmap': cm.get_cmap('inferno')}
     plot_settings.update(kwargs.get('plot_settings', {}))
-
+    bins, bin_range = instr.make_detector_array(field)
     visible = is_visible(instr.total_coordinates, instr.observer_coordinate)
     hist_coordinates, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
                                             instr.total_coordinates.Ty.value,
-                                            bins=(instr.bins.x.value, instr.bins.y.value),
-                                            range=(instr.bin_range.x.value, instr.bin_range.y.value),
+                                            bins=(bins.x.value, bins.y.value),
+                                            range=(bin_range.x.value, bin_range.y.value),
                                             weights=visible)
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
@@ -75,8 +76,8 @@ def make_temperature_map(time: u.s, field, instr, **kwargs):
         units = u.Unit(hf['electron_temperature'].attrs['units'])
     hist, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
                                 instr.total_coordinates.Ty.value,
-                                bins=(instr.bins.x.value, instr.bins.y.value),
-                                range=(instr.bin_range.x.value, instr.bin_range.y.value),
+                                bins=(bins.x.value, bins.y.value),
+                                range=(bin_range.x.value, bin_range.y.value),
                                 weights=weights * visible)
     hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
     meta = instr.make_fits_header(field, instr.channels[0])
@@ -112,11 +113,12 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     # setup bin edges and weights
     if temperature_bin_edges is None:
         temperature_bin_edges = 10.**(np.arange(5.5, 7.5, 0.1))*u.K
-    x_bin_edges = (np.diff(instr.bin_range.x) / instr.bins.x.value
-                   * np.arange(instr.bins.x.value + 1) + instr.bin_range.x[0])
-    y_bin_edges = (np.diff(instr.bin_range.y) / instr.bins.y.value
-                   * np.arange(instr.bins.y.value + 1) + instr.bin_range.y[0])
-    dh = np.diff(instr.bin_range.z).cgs[0] / instr.bins.z * (1. * u.pixel)
+    bins, bin_range = instr.make_detector_array(field)
+    x_bin_edges = (np.diff(bin_range.x) / bins.x.value
+                   * np.arange(bins.x.value + 1) + bin_range.x[0])
+    y_bin_edges = (np.diff(bin_range.y) / bins.y.value
+                   * np.arange(bins.y.value + 1) + bin_range.y[0])
+    dh = np.diff(bin_range.z).cgs[0] / bins.z * (1. * u.pixel)
     visible = is_visible(instr.total_coordinates, instr.observer_coordinate)
     emission_measure_weights = (unbinned_density**2) * dh * visible
     # bin in x,y,T space with emission measure weights

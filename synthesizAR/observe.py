@@ -235,7 +235,7 @@ class Observer(object):
         fn_template = os.path.join(savedir, '{instr}', '{channel}', 'map_t{i_time:06d}.fits')
         delayed_procedures = {instr.name: [] for instr in self.instruments} if self.parallel else None
         for instr in self.instruments:
-            instr.make_detector_array(self.field)
+            bins, bin_range = instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
                 reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
             for channel in instr.channels:
@@ -248,7 +248,8 @@ class Observer(object):
                     fn = fn_template.format(instr=instr.name, channel=channel['name'], i_time=i_time)
                     if not os.path.exists(os.path.dirname(fn)):
                         os.makedirs(os.path.dirname(fn))
-                    raw_map = instr.detect(channel, i_time, header, parallel=self.parallel)
+                    raw_map = instr.detect(channel, i_time, header, bins, bin_range,
+                                           parallel=self.parallel)
                     if self.parallel:
                         delayed_procedures[instr.name].append(
                                                 dask.delayed(self.assemble_map)(raw_map, fn, time))

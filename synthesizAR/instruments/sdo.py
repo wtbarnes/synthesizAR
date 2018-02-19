@@ -246,9 +246,9 @@ class InstrumentSDOAIA(InstrumentBase):
                                               channel['gaussian_width']['x'].value))
         return Map(counts, header)
 
-    def detect(self, channel, i_time, header, parallel=False):
+    def detect(self, channel, i_time, header, bins, bin_range, parallel=False):
         parameters = (self.counts_file, self.observer_coordinate, channel, i_time, header,
-                      self.bins, self.bin_range, self.apply_psf)
+                      bins, bin_range, self.apply_psf)
         if parallel:
             return dask.delayed(self._detect)(*parameters)
         else:

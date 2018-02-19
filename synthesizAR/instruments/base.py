@@ -182,6 +182,8 @@ class InstrumentBase(object):
         bins_z = max(bins_x, bins_y)
 
         # NOTE: the z-quantities are used to determine the integration step along the LOS
-        self.bins = SpatialPair(x=bins_x, y=bins_y, z=bins_z)
-        self.bin_range = SpatialPair(x=u.Quantity([min_x, max_x]), y=u.Quantity([min_y, max_y]),
-                                     z=u.Quantity([min_z, max_z]))
+        bins = SpatialPair(x=bins_x, y=bins_y, z=bins_z)
+        bin_range = SpatialPair(x=u.Quantity([min_x, max_x]), y=u.Quantity([min_y, max_y]),
+                                z=u.Quantity([min_z, max_z]))
+
+        return bins, bin_range
