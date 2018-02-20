@@ -21,41 +21,6 @@ __all__ = ['Element', 'Ion', 'list_elements']
 
 
 class Element(fiasco.Element):
-
-    def _rate_matrix(self):
-        """
-        Compute matrix of ionization and recombination states for calculating
-        equilibrium and non-equilibrium ionization fractions.
-        """
-        rate_matrix = np.zeros(self.temperature.shape + (self.atomic_number+1, self.atomic_number+1))
-        rate_unit = self[0].ionization_rate().unit
-        rate_matrix = rate_matrix*rate_unit
-        for i in range(1, self.atomic_number):
-            rate_matrix[:, i, i] = -(self[i].ionization_rate() + self[i].recombination_rate())
-            rate_matrix[:, i, i-1] = self[i-1].ionization_rate()
-            rate_matrix[:, i, i+1] = self[i+1].recombination_rate()
-        rate_matrix[:, 0, 0] = -(self[0].ionization_rate() + self[0].recombination_rate())
-        rate_matrix[:, 0, 1] = self[1].recombination_rate()
-        rate_matrix[:, -1, -1] = -(self[-1].ionization_rate() + self[-1].recombination_rate())
-        rate_matrix[:, -1, -2] = self[-2].ionization_rate()
-
-        return rate_matrix
-
-    def equilibrium_ionization(self, rate_matrix=None):
-        """
-        Calculate the ionization equilibrium for all ions of the element.
-
-        Brief explanation and equations about how these equations are solved.
-        """
-        if rate_matrix is None:
-            rate_matrix = self._rate_matrix()
-        # Solve system of equations using SVD and normalize
-        _, _, V = np.linalg.svd(rate_matrix.value)
-        # Select columns of V with smallest eigenvalues (returned in descending order)
-        ioneq = np.fabs(V[:, -1, :])
-        ioneq /= np.sum(ioneq, axis=1)[:, np.newaxis]
-
-        return u.Quantity(ioneq)
         
     @u.quantity_input
     def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3),
