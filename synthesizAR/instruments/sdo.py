@@ -212,7 +212,7 @@ class InstrumentSDOAIA(InstrumentBase):
         -------
         AIA data product : `~sunpy.map.Map`
         """
-        with h5py.File(self.counts_filename, 'r') as hf:
+        with h5py.File(self.counts_file, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
             units = u.Unit(hf[channel['name']].attrs['units'])
 
