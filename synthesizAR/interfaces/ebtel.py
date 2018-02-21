@@ -13,8 +13,8 @@ import astropy.units as u
 try:
     import distributed
 except ImportError:
-    warnings.warn('''dask.distributed library not found. You will not be able to compute nonequilibrium ion
-                     populations for EBTEL simulations''')
+    warnings.warn(''''Dask distributed scheduler required to compute nonequilibrium ion
+                      populations for EBTEL simulations''')
 
 from synthesizAR.util import InputHandler, OutputHandler
 from synthesizAR.atomic import Element
