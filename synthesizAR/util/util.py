@@ -11,8 +11,8 @@ from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst, Heliocentric
 from sunpy.sun import constants
 
-__all__ = ['SpatialPair', 'delay_property', 'heeq_to_hcc', 'heeq_to_hcc_coord', 'to_heeq',
-           'is_visible']
+__all__ = ['SpatialPair', 'future_property', 'delay_property', 'heeq_to_hcc', 'heeq_to_hcc_coord',
+           'to_heeq', 'is_visible']
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
