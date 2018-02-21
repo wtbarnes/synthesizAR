@@ -189,15 +189,18 @@ class Observer(object):
                                             tmp_file_path.format('los_velocity', loop.name)))
                 instr_futures['electron_temperature'].append(client.submit(
                                             instr.interpolate_and_store,
-                                            loop.electron_temperature, *params,
+                                            client.submit(*future_property(loop, 'electron_temperature')),
+                                            *params,
                                             tmp_file_path.format('electron_temperature', loop.name)))
                 instr_futures['ion_temperature'].append(client.submit(
                                             instr.interpolate_and_store,
-                                            loop.ion_temperature, *params,
-                                            tmp_file_path.format('electron_temperature', loop.name)))
+                                            client.submit(*future_property(loop, 'ion_temperature')),
+                                            *params,
+                                            tmp_file_path.format('ion_temperature', loop.name)))
                 instr_futures['density'].append(client.submit(
                                             instr.interpolate_and_store,
-                                            loop.density, *params,
+                                            client.submit(*future_property(loop, 'density')),
+                                            *params,
                                             tmp_file_path.format('density', loop.name)))
 
             # Get futures for counts calculation
