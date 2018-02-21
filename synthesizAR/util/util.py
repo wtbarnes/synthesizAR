@@ -18,6 +18,17 @@ __all__ = ['SpatialPair', 'delay_property', 'heeq_to_hcc', 'heeq_to_hcc_coord', 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
 
 
+def future_property(instance, attr):
+    """
+    Return function and args to be submitted as a future
+    """
+    for obj in [instance] + instance.__class__.mro():
+        if attr in obj.__dict__:
+            prop = obj.__dict__[attr]
+            return prop.fget, instance
+    raise AttributeError
+
+
 def delay_property(instance, attr):
     """
     Lazily evaluate a class property using Dask delayed

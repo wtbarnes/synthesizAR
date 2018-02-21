@@ -19,7 +19,7 @@ try:
 except ImportError:
     warnings.warn('Dask distributed scheduler required for parallel execution')
 
-from synthesizAR.util import heeq_to_hcc
+from synthesizAR.util import heeq_to_hcc, future_property
 
 
 class Observer(object):
@@ -180,7 +180,8 @@ class Observer(object):
             for interp_s, loop in zip(self._interpolated_loop_coordinates[instr.name],
                                       self.field.loops):
                 params = (loop, instr.observing_time, interp_s)
-                los_velocity = client.submit(self._get_los_velocity, loop.velocity_xyz,
+                los_velocity = client.submit(self._get_los_velocity,
+                                             client.submit(*future_property(loop, 'velocity_xyz')),
                                              instr.observer_coordinate)
                 instr_futures['los_velocity'].append(client.submit(
                                             instr.interpolate_and_store,
