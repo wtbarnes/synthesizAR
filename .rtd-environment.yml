@@ -11,7 +11,7 @@ dependencies:
 - numpy
 - numba
 - scipy
-- sunpy>=0.8
+- sunpy
 - yt
 - pip:
   - plasmapy
