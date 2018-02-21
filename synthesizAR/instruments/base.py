@@ -113,6 +113,7 @@ class InstrumentBase(object):
         Build up FITS header with relevant instrument information.
         """
         min_x, max_x, min_y, max_y = self._get_fov(field.magnetogram)
+        bins, _ = self.make_detector_array(field)
         fits_header = MetaDict()
         fits_header['crval1'] = (min_x + (max_x - min_x)/2).value
         fits_header['crval2'] = (min_y + (max_y - min_y)/2).value
@@ -129,8 +130,8 @@ class InstrumentBase(object):
                                    .decompose() * u.radian).to(u.arcsec).value
         fits_header['cdelt1'] = self.resolution.x.value
         fits_header['cdelt2'] = self.resolution.y.value
-        fits_header['crpix1'] = (self.bins.x.value + 1.0)/2.0
-        fits_header['crpix2'] = (self.bins.y.value + 1.0)/2.0
+        fits_header['crpix1'] = (bins.x.value + 1.0)/2.0
+        fits_header['crpix2'] = (bins.y.value + 1.0)/2.0
         if 'instrument_label' in channel:
             fits_header['instrume'] = channel['instrument_label']
         if 'wavelength' in channel:
