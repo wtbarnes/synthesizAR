@@ -118,7 +118,11 @@ class Observer(object):
         resolution, and store it. This is done either in serial or parallel.
         """
         if self.parallel:
-            client = kwargs.get('client', None)
+            if 'client' not in kwargs:
+                raise ValueError('Dask scheduler client required for parallel execution.')
+            else:
+                client = kwargs['client']
+                del kwargs['client']
             return self._flatten_detector_counts_parallel(client, **kwargs)
         else:
             self._flatten_detector_counts_serial(**kwargs)
@@ -165,11 +169,7 @@ class Observer(object):
         """
         Build Dask Futures for interpolating quantities for each in loop in time and space.
         """
-        if client is None:
-            raise ValueError('Dask scheduler client required for parallel execution.')
-        
         emission_model = kwargs.get('emission_model', None)
-        
         # Build futures for each instrument
         futures = {}
         for instr in self.instruments:
