@@ -59,19 +59,14 @@ class Observer(object):
                         channel['model_wavelengths'] = u.Quantity(channel['model_wavelengths'])
 
     @u.quantity_input
-    def _interpolate_loops(self, instrument, ds: u.cm):
+    def _interpolate_loops(self, ds: u.cm):
         """
         Interpolate loops to common resolution
         
-        Interpolate all loops to a resolution (`ds`) below the minimum bin width 
-        of all of the instruments. This ensures that the image isn't 'patchy' 
+        Interpolate all loops to a resolution (`ds`) below the minimum bin width
+        of all of the instruments. This ensures that the image isn't 'patchy'
         when it is binned.
         """
-        # If no observer coordinate specified, use that of the magnetogram
-        if instrument.observer_coordinate is None:
-            # FIXME: Setting attributes of other classes like this is bad!
-            instrument.observer_coordinate = (self.field.magnetogram.observer_coordinate
-                                              .transform_to(HeliographicStonyhurst))
         # Interpolate all loops in HEEQ coordinates
         total_coordinates = []
         interpolated_loop_coordinates = []
@@ -87,7 +82,7 @@ class Observer(object):
 
         return total_coordinates, interpolated_loop_coordinates
 
-    def build_detector_files(self, savedir, ds=None, **kwargs):
+    def build_detector_files(self, savedir, ds, **kwargs):
         """
         Create files to store interpolated counts before binning.
 
@@ -97,14 +92,16 @@ class Observer(object):
         it is always necessary to call this method.
         """
         file_template = os.path.join(savedir, '{}_counts.h5')
-        self._interpolated_loop_coordinates = {}
+        total_coordinates, self._interpolated_loop_coordinates = self._interpolate_loops(ds)
+        interp_s_shape = (int(np.median([s.shape for s in self._interpolated_loop_coordinates])),)
         for instr in self.instruments:
-            ds = 0.5 * min(instr.resolution.x, instr.resolution.y) if ds is None else ds
-            total_coordinates, _interpolated_loop_coordinates = self._interpolate_loops(instr, ds)
-            self._interpolated_loop_coordinates[instr.name] = _interpolated_loop_coordinates
-            interp_s_shape = (int(np.median([s.shape for s in _interpolated_loop_coordinates])),)
-            chunks = kwargs.get('chunks', instr.observing_time.shape+interp_s_shape)
-            dset_shape = instr.observing_time.shape+(len(total_coordinates),)
+            # If no observer coordinate specified, use that of the magnetogram
+            if instr.observer_coordinate is None:
+                # FIXME: Setting attributes of other classes like this is bad!
+                instr.observer_coordinate = (self.field.magnetogram.observer_coordinate
+                                             .transform_to(HeliographicStonyhurst))
+            chunks = kwargs.get('chunks', instr.observing_time.shape + interp_s_shape)
+            dset_shape = instr.observing_time.shape + (len(total_coordinates),)
             instr.build_detector_file(file_template, dset_shape, chunks, self.field,
                                       parallel=self.parallel, **kwargs)
             with h5py.File(instr.counts_file, 'a') as hf:
@@ -118,36 +115,23 @@ class Observer(object):
         resolution, and store it. This is done either in serial or parallel.
         """
         if self.parallel:
-            if 'client' not in kwargs:
-                raise ValueError('Dask scheduler client required for parallel execution.')
-            else:
-                client = kwargs['client']
-                del kwargs['client']
             return self._flatten_detector_counts_parallel(client, **kwargs)
         else:
             self._flatten_detector_counts_serial(**kwargs)
-
-    @staticmethod
-    def _get_los_velocity(velocity, observer_coordinate):
-        """
-        Calculate LOS velocity component for a given observer
-        """
-        _, _, v_los = heeq_to_hcc(velocity[:, :, 0], velocity[:, :, 1], velocity[:, :, 2],
-                                  observer_coordinate)
-        return -v_los
 
     def _flatten_detector_counts_serial(self, **kwargs):
         emission_model = kwargs.get('emission_model', None)
         for instr in self.instruments:
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
-                for interp_s, loop in zip(self._interpolated_loop_coordinates[instr.name],
-                                          self.field.loops):
-                    params = (loop, instr.observing_time, interp_s)
-                    los_velocity = self._get_los_velocity(loop.velocity_xyz,
-                                                          instr.observer_coordinate)
+                for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
+                    params = (loop, interp_s)
                     self.commit(instr.interpolate_and_store(los_velocity, *params),
-                                hf['los_velocity'], start_index)
+                                hf['velocity_x'], start_index)
+                    self.commit(instr.interpolate_and_store(los_velocity, *params),
+                                hf['velocity_y'], start_index)
+                    self.commit(instr.interpolate_and_store(los_velocity, *params),
+                                hf['velocity_z'], start_index)
                     self.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
                                 hf['electron_temperature'], start_index)
                     self.commit(instr.interpolate_and_store(loop.ion_temperature, *params),
@@ -155,8 +139,7 @@ class Observer(object):
                     self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'],
                                 start_index)
                     start_index += interp_s.shape[0]
-                instr.flatten_serial(self.field.loops,
-                                     self._interpolated_loop_coordinates[instr.name], hf,
+                instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
 
     @staticmethod
@@ -167,65 +150,68 @@ class Observer(object):
 
     def _flatten_detector_counts_parallel(self, client, **kwargs):
         """
-        Build Dask Futures for interpolating quantities for each in loop in time and space.
+        Build custom Dask graph interpolating quantities for each in loop in time and space.
         """
         emission_model = kwargs.get('emission_model', None)
-        # Build futures for each instrument
-        futures = {}
+        start_index = 0
+        tasks = {}
+        for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
+            params = (loop, interp_s, start_index)
+            # Tasks for retrieving loop quantities
+            tasks[f'electron_temperature {loop.name}'] = (
+                *future_property(loop, 'electron_temperature'))
+            tasks[f'ion_temperature {loop.name}'] = (*future_property(loop, 'ion_temperature'))
+            tasks[f'density {loop.name}'] = (*future_property(loop, 'density'))
+            tasks[f'velocity_x {loop.name}'] = (*future_property(loop, 'velocity_x'))
+            tasks[f'velocity_y {loop.name}'] = (*future_property(loop, 'velocity_y'))
+            tasks[f'velocity_z {loop.name}'] = (*future_property(loop, 'velocity_z'))
+            for instr in self.instruments:
+                tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npz')
+                task_name = f'{{}} {loop.name} {instr.name}'
+                # Tasks for interpolating loop quantities
+                # Velocity components
+                tasks[task_name.format('interp velocity_x')] = (
+                    instr.interpolate_and_store, task_name.format('velocity_x'), *params,
+                    'velocity_x', tmp_file_path.format('velocity_x', loop.name))
+                tasks[task_name.format('interp velocity_y')] = (
+                    instr.interpolate_and_store, task_name.format('velocity_y'), *params,
+                    'velocity_y', tmp_file_path.format('velocity_y', loop.name))
+                tasks[task_name.format('interp velocity_z')] = (
+                    instr.interpolate_and_store, task_name.format('velocity_z'), *params,
+                    'velocity_z', tmp_file_path.format('velocity_z', loop.name))
+                # Ion and electron temperature
+                tasks[task_name.format('interp electron_temperature')] = (
+                    instr.interpolate_and_store, f'electron_temperature {loop.name}', *params,
+                    'electron_temperature', tmp_file_path.format('electron_temperature', loop.name))
+                tasks[task_name.format('interp ion_temperature')] = (
+                    instr.interpolate_and_store, f'ion_temperature {loop.name}', *params,
+                    'ion_temperature', tmp_file_path.format('ion_temperature', loop.name))
+                # Density
+                tasks[task_name.format('interp density')] = (
+                    instr.interpolate_and_store, f'density {loop.name}', *params,
+                    'density', tmp_file_path.format('density', loop.name))
+            start_index += interp_s.shape[0]
+
         for instr in self.instruments:
-            instr_futures = {'los_velocity': [], 'electron_temperature': [], 'density': [],
-                             'ion_temperature': []}
-            tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npy')
-            # Build futures for each loop
-            for interp_s, loop in zip(self._interpolated_loop_coordinates[instr.name],
-                                      self.field.loops):
-                params = (loop, instr.observing_time, interp_s)
-                los_velocity = client.submit(self._get_los_velocity,
-                                             client.submit(*future_property(loop, 'velocity_xyz')),
-                                             instr.observer_coordinate)
-                instr_futures['los_velocity'].append(client.submit(
-                                            instr.interpolate_and_store,
-                                            los_velocity, *params,
-                                            tmp_file_path.format('los_velocity', loop.name)))
-                instr_futures['electron_temperature'].append(client.submit(
-                                            instr.interpolate_and_store,
-                                            client.submit(*future_property(loop, 'electron_temperature')),
-                                            *params,
-                                            tmp_file_path.format('electron_temperature', loop.name)))
-                instr_futures['ion_temperature'].append(client.submit(
-                                            instr.interpolate_and_store,
-                                            client.submit(*future_property(loop, 'ion_temperature')),
-                                            *params,
-                                            tmp_file_path.format('ion_temperature', loop.name)))
-                instr_futures['density'].append(client.submit(
-                                            instr.interpolate_and_store,
-                                            client.submit(*future_property(loop, 'density')),
-                                            *params,
-                                            tmp_file_path.format('density', loop.name)))
-
             # Get futures for counts calculation
-            counts_futures = instr.flatten_parallel(
-                                            self.field.loops,
-                                            self._interpolated_loop_coordinates[instr.name],
-                                            tmp_file_path, client, emission_model=emission_model)
+            counts_tasks = instr.flatten_parallel(self.field.loops,
+                                                  self._interpolated_loop_coordinates,
+                                                  tmp_file_path, emission_model=emission_model)
             # Combine with other futures and add assemble future
-            instr_futures.update(counts_futures)
-            futures[f'{instr.name}'] = client.submit(self.assemble_arrays, instr_futures,
-                                                     instr.counts_file, **kwargs)
+            tasks.update(counts_tasks)
+            interp_tasks = [k for k in tasks if 'interp' in k and instr.name in k]
+            tasks[f'{instr.name}'] = (self.assemble_arrays, interp_tasks, instr.counts_file)
 
-        return futures
+        return tasks
 
     @staticmethod
-    def assemble_arrays(futures, h5py_filename, **kwargs):
-        with h5py.File(h5py_filename, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
-            for key in futures:
-                dset = hf[key]
-                start_index = 0
-                for filename, units in futures[key]:
-                    tmp = u.Quantity(np.load(filename), units)
-                    Observer.commit(tmp, dset, start_index)
-                    os.remove(filename)
-                    start_index += tmp.shape[1]
+    def assemble_arrays(interp_files, h5py_filename):
+        with h5py.File(h5py_filename, 'a', driver='hdf5_driver') as hf:
+            for filename in interp_files:
+                f = np.load(filename)
+                tmp = u.Quantity(f['array'], str(f['units']))
+                Observer.commit(tmp, hf[str(f['dset_name'])], int(f['start_index']))
+                os.remove(filename)
 
     @staticmethod
     def assemble_map(observed_map, filename, time):

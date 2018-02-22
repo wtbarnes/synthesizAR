@@ -169,7 +169,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 synthesizAR.Observer.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, save_path, client,
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, save_path,
                          emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
@@ -177,23 +177,26 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         if emission_model is None:
             calculate_counts = self.calculate_counts_simple
-            flattened_emissivities = None
+            emiss_task_name = None
         else:
             calculate_counts = self.calculate_counts_full
 
-        futures = {c['name']: [] for c in self.channels}
+        tasks = {}
         for channel in self.channels:
             if emission_model is not None:
-                flattened_emissivities = client.submit(self.flatten_emissivities, channel,
-                                                       emission_model)
+                emiss_task_name = f"emiss {channel['name']} {self.name}"
+                tasks[emiss_task_name] = (self.flatten_emissivities, channel, emission_model)
+            start_index = 0
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                y = client.submit(calculate_counts, channel, loop, emission_model,
-                                  flattened_emissivities)
-                futures[channel['name']].append(client.submit(
-                    self.interpolate_and_store, y, loop, self.observing_time, interp_s, 
-                    save_path.format(channel['name'], loop.name)))
+                tasks[f"counts {channel['name']} {loop.name} {self.name}"] = (
+                    calculate_counts, channel, loop, emission_model, emiss_task_name)
+                tasks[f"interp {channel['name']} {loop.name} {self.name}"] = (
+                    self.interpolate_and_store, f"counts {channel['name']} {loop.name} {self.name}",
+                    loop, interp_s, start_index, channel['name'],
+                    save_path.format(channel['name'], loop.name))
+                start_index += interp_s.shape[0]
 
-        return futures
+        return tasks
 
     def detect(self, channel, i_time, header, bins, bin_range):
         """

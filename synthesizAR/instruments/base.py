@@ -49,7 +49,8 @@ class InstrumentBase(object):
         Allocate space for counts data.
         """
         parallel = kwargs.get('parallel', False)
-        dset_names = ['density', 'electron_temperature', 'ion_temperature', 'los_velocity']
+        dset_names = ['density', 'electron_temperature', 'ion_temperature', 'velocity_x',
+                      'velocity_y', 'velocity_z']
         dset_names += kwargs.get('additional_fields', [])
         self.counts_file = file_template.format(self.name)
         self.tmp_file_template = os.path.join(os.path.dirname(self.counts_file),
@@ -80,17 +81,25 @@ class InstrumentBase(object):
 
         return coords.transform_to(Helioprojective(observer=self.observer_coordinate))
 
-    @staticmethod
-    def interpolate_and_store(y, loop, interp_t, interp_s, save_path=False):
+    def los_velocity(self, v_x, v_y, v_z):
+        """
+        Compute the LOS velocity for the instrument observer
+        """
+        _, _, v_los = heeq_to_hcc(v_x, v_y, v_z, self.observer_coordinate)
+        return -v_los
+
+    def interpolate_and_store(self, y, loop, interp_s, start_index=None, dset_name=None,
+                              save_path=False):
         """
         Interpolate in time and space and write to HDF5 file.
         """
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
-                                  fill_value='extrapolate')(interp_t.value)
+                                  fill_value='extrapolate')(self.observing_time.value)
         if save_path:
-            np.save(save_path, interpolated_y)
-            return save_path, y.unit.to_string()
+            np.savez(save_path, array=interpolated_y, units=y.unit.to_string(), dset_name=dset_name,
+                     start_index=start_index)
+            return save_path
         else:
             return interpolated_y * y.unit
 
