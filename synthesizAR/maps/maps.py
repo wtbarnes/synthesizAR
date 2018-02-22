@@ -34,19 +34,21 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
             i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
-        weights = np.array(hf['los_velocity'][i_time, :])
-        units = u.Unit(hf['los_velocity'].attrs['units'])
+        v_x = u.Quantity(hf['velocity_x'][i_time, :], hf['velocity_x'].attrs['units'])
+        v_y = u.Quantity(hf['velocity_y'][i_time, :], hf['velocity_y'].attrs['units'])
+        v_z = u.Quantity(hf['velocity_z'][i_time, :], hf['velocity_z'].attrs['units'])
+        v_los = instr.los_velocity(v_x, v_y, v_z)
 
     hist, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
                                 instr.total_coordinates.Ty.value,
                                 bins=(bins.x.value, bins.y.value),
                                 range=(bin_range.x.value, bin_range.y.value),
-                                weights=weights * visible)
+                                weights=v_los.value * visible)
     hist /= np.where(hist_coordinates == 0, 1, hist_coordinates)
     meta = instr.make_fits_header(field, instr.channels[0])
     del meta['wavelnth']
     del meta['waveunit']
-    meta['bunit'] = units.to_string()
+    meta['bunit'] = v_los.unit.to_string()
     meta['detector'] = 'LOS Velocity'
     meta['comment'] = 'LOS velocity calculated by synthesizAR'
     return GenericMap(hist.T, meta, plot_settings=plot_settings)
