@@ -141,9 +141,9 @@ Magnetogram Info:
                     # convert velocity to loop coordinate system
                     grad_xyz = np.gradient(loop.coordinates.value, axis=0)
                     s_hat = grad_xyz / np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
-                    velocity_xyz = np.stack([velocity.value*s_hat[:, 0],
-                                             velocity.value*s_hat[:, 1],
-                                             velocity.value*s_hat[:, 2]], axis=2)*velocity.unit
+                    velocity_x = velocity * s_hat[:, 0]
+                    velocity_y = velocity * s_hat[:, 1]
+                    velocity_z = velocity * s_hat[:, 2]
                     # Write to file
                     loop.parameters_savefile = savefile
                     grp = hf.create_group(loop.name)
@@ -155,7 +155,7 @@ Magnetogram Info:
                                                                    data=electron_temperature.value)
                     dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
                     # ion temperature
-                    dset_ion_temperature = grp.create_dataset('ion_temperature', 
+                    dset_ion_temperature = grp.create_dataset('ion_temperature',
                                                               data=ion_temperature.value)
                     dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
                     # number density
@@ -166,8 +166,14 @@ Magnetogram Info:
                     dset_velocity.attrs['units'] = velocity.unit.to_string()
                     dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
                     # Cartesian xyz velocity
-                    dset_velocity_xyz = grp.create_dataset('velocity_xyz', data=velocity_xyz.value)
-                    dset_velocity_xyz.attrs['units'] = velocity_xyz.unit.to_string()
-                    dset_velocity_xyz.attrs['note'] = 'velocity in HEEQ system'
+                    dset_velocity_x = grp.create_dataset('velocity_x', data=velocity_x.value)
+                    dset_velocity_x.attrs['units'] = velocity_x.unit.to_string()
+                    dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
+                    dset_velocity_y = grp.create_dataset('velocity_y', data=velocity_y.value)
+                    dset_velocity_y.attrs['units'] = velocity_y.unit.to_string()
+                    dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
+                    dset_velocity_z = grp.create_dataset('velocity_z', data=velocity_z.value)
+                    dset_velocity_z.attrs['units'] = velocity_z.unit.to_string()
+                    dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
 
                     progress.update()
