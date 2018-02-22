@@ -10,11 +10,6 @@ import warnings
 import numpy as np
 import h5py
 import astropy.units as u
-try:
-    import distributed
-except ImportError:
-    warnings.warn(''''Dask distributed scheduler required to compute nonequilibrium ion
-                      populations for EBTEL simulations''')
 
 from synthesizAR.util import InputHandler, OutputHandler
 from synthesizAR.atomic import Element
@@ -109,9 +104,6 @@ class EbtelInterface(object):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
         """
-        client = kwargs.get('client', None)
-        if client is None:
-            raise ValueError('Create a Dask client before running the NEI computation.')
         tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile),
                               'tmp_nei')
         if not os.path.exists(tmpdir):
@@ -120,24 +112,23 @@ class EbtelInterface(object):
         temperature = kwargs.get('temperature', emission_model.temperature)
         
         # Submit futures to client
-        futures = []
-        rm_futures = {}
-        ic_futures = {}
+        tasks = {}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
-            rm_futures[el.element_name] = client.submit(el._rate_matrix)
-            ic_futures[el.element_name] = client.submit(el.equilibrium_ionization,
-                                                        rm_futures[el.element_name])
+            tasks[f'rate_matrix {el.element_name}'] = (el._rate_matrix)
+            tasks[f'ioneq {el.element_name}'] = (el.equilibrium_ionization,
+                                                 f'rate_matrix {el.element_name}')
             for loop in field.loops:
-                futures.append(client.submit(EbtelInterface.compute_and_save_nei, el, loop,
-                                             rm_futures[el.element_name],
-                                             ic_futures[el.element_name], tmpdir))
+                tasks[f'nei {loop.name} {el.element_name}'] = (
+                    EbtelInterface.compute_and_save_nei, el, loop, f'rate_matrix {el.element_name}',
+                    f'ioneq {el.element_name}', tmpdir)
 
         # Compile results to a single file
-        distributed.fire_and_forget(client.submit(EbtelInterface.slice_and_store, futures,
-                                                  emission_model.ionization_fraction_savefile))
+        nei_tasks = [k for k in tasks if 'nei' in k]
+        tasks['nei'] = (EbtelInterface.slice_and_store, nei_tasks, 
+                        emission_model.ionization_fraction_savefile)
         
-        return futures
+        return tasks
 
     @staticmethod
     def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_path_root):
@@ -147,9 +138,10 @@ class EbtelInterface(object):
         y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
                                                    loop.density[:, 0], rate_matrix,
                                                    initial_condition)
-        save_path = os.path.join(save_path_root, f'{element.element_name}_{loop.name}.npy')
-        np.save(save_path, y_nei.value)
-        return save_path, loop.field_aligned_coordinate.shape[0]
+        save_path = os.path.join(save_path_root, f'{element.element_name}_{loop.name}.npz')
+        np.savez(save_path, array=y_nei.value, n_s=loop.field_aligned_coordinate.shape[0],
+                 element=element.element_name, loop=loop.name)
+        return save_path
 
     @staticmethod
     def slice_and_store(nei_results, savefile):
@@ -157,10 +149,11 @@ class EbtelInterface(object):
         Collecting and storing all NEI populations in a single HDF5 file
         """
         with h5py.File(savefile, 'a') as hf:
-            for fn, n_s in nei_results:
-                element_name, loop_name = os.path.splitext(os.path.basename(fn))[0].split('_')
+            for fn in nei_results:
+                tmp = np.load(fn)
+                element_name, loop_name = tmp['element'], tmp['loop']
                 grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-                y_nei = np.load(fn)
+                y_nei, n_s = tmp['array'], tmp['n_s']
                 data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
                 if element_name not in grp:
                     dset = grp.create_dataset(element_name, data=data)
