@@ -158,13 +158,13 @@ class Observer(object):
         for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
             params = (loop, interp_s, start_index)
             # Tasks for retrieving loop quantities
-            tasks[f'electron_temperature {loop.name}'] = (
-                *future_property(loop, 'electron_temperature'))
-            tasks[f'ion_temperature {loop.name}'] = (*future_property(loop, 'ion_temperature'))
-            tasks[f'density {loop.name}'] = (*future_property(loop, 'density'))
-            tasks[f'velocity_x {loop.name}'] = (*future_property(loop, 'velocity_x'))
-            tasks[f'velocity_y {loop.name}'] = (*future_property(loop, 'velocity_y'))
-            tasks[f'velocity_z {loop.name}'] = (*future_property(loop, 'velocity_z'))
+            tasks[f'electron_temperature {loop.name}'] = future_property(loop,
+                                                                         'electron_temperature')
+            tasks[f'ion_temperature {loop.name}'] = future_property(loop, 'ion_temperature')
+            tasks[f'density {loop.name}'] = future_property(loop, 'density')
+            tasks[f'velocity_x {loop.name}'] = future_property(loop, 'velocity_x')
+            tasks[f'velocity_y {loop.name}'] = future_property(loop, 'velocity_y')
+            tasks[f'velocity_z {loop.name}'] = future_property(loop, 'velocity_z')
             for instr in self.instruments:
                 tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npz')
                 task_name = f'{{}} {loop.name} {instr.name}'

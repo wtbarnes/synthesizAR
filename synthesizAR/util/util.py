@@ -25,7 +25,7 @@ def future_property(instance, attr):
     for obj in [instance] + instance.__class__.mro():
         if attr in obj.__dict__:
             prop = obj.__dict__[attr]
-            return prop.fget, instance
+            return (prop.fget, instance)
     raise AttributeError
 
 
