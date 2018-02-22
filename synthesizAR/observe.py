@@ -250,10 +250,7 @@ class Observer(object):
         ----------------
         client : `~distributed.Client`
         """
-        if self.parallel:
-            client = kwargs.get('client', None)
-            if client is None:
-                raise ValueError('Dask scheduler client required for parallel execution.')
+        tasks = {}
         file_path_template = os.path.join(savedir, '{}', '{}', 'map_t{:06d}.fits')
         for instr in self.instruments:
             bins, bin_range = instr.make_detector_array(self.field)
@@ -270,10 +267,13 @@ class Observer(object):
                     if not os.path.exists(os.path.dirname(file_path)):
                         os.makedirs(os.path.dirname(file_path))
                     if self.parallel:
-                        raw_map = client.submit(instr.detect, channel, i_time, header, bins,
-                                                bin_range)
-                        distributed.fire_and_forget(client.submit(
-                            self.assemble_map, raw_map, file_path, time))
+                        tasks[f"map_channel{channel['name']}_time{i_time:06d}"] = (
+                            instr.detect, channel, i_time, header, bins, bin_range)
+                        tasks[f"channel{channel['name']}_time{i_time:06d}"] = (
+                            self.assemble_map, f"map_channel{channel['name']}_time{i_time:06d}",
+                            file_path, time)
                     else:
                         raw_map = instr.detect(channel, i_time, header, bins, bin_range)
                         self.assemble_map(raw_map, file_path, time)
+
+        return tasks if self.parallel else None
