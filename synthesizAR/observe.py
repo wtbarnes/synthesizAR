@@ -126,11 +126,11 @@ class Observer(object):
                 start_index = 0
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                     params = (loop, interp_s)
-                    self.commit(instr.interpolate_and_store(los_velocity, *params),
+                    self.commit(instr.interpolate_and_store(loop.velocity_x, *params),
                                 hf['velocity_x'], start_index)
-                    self.commit(instr.interpolate_and_store(los_velocity, *params),
+                    self.commit(instr.interpolate_and_store(loop.velocity_y, *params),
                                 hf['velocity_y'], start_index)
-                    self.commit(instr.interpolate_and_store(los_velocity, *params),
+                    self.commit(instr.interpolate_and_store(loop.velocity_z, *params),
                                 hf['velocity_z'], start_index)
                     self.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
                                 hf['electron_temperature'], start_index)
