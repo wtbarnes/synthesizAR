@@ -115,7 +115,7 @@ class EbtelInterface(object):
         tasks = {}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
-            tasks[f'rate_matrix {el.element_name}'] = (el._rate_matrix)
+            tasks[f'rate_matrix {el.element_name}'] = (el._rate_matrix,)
             tasks[f'ioneq {el.element_name}'] = (el.equilibrium_ionization,
                                                  f'rate_matrix {el.element_name}')
             for loop in field.loops:
