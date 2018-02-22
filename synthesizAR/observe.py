@@ -267,11 +267,10 @@ class Observer(object):
                     if not os.path.exists(os.path.dirname(file_path)):
                         os.makedirs(os.path.dirname(file_path))
                     if self.parallel:
-                        tasks[f"map_channel{channel['name']}_time{i_time:06d}"] = (
+                        tasks[f"map {channel['name']} {time}"] = (
                             instr.detect, channel, i_time, header, bins, bin_range)
-                        tasks[f"channel{channel['name']}_time{i_time:06d}"] = (
-                            self.assemble_map, f"map_channel{channel['name']}_time{i_time:06d}",
-                            file_path, time)
+                        tasks[f"{channel['name']} {time}"] = (
+                            self.assemble_map, f"map {channel['name']} {time}", file_path, time)
                     else:
                         raw_map = instr.detect(channel, i_time, header, bins, bin_range)
                         self.assemble_map(raw_map, file_path, time)
