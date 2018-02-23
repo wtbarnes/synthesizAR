@@ -153,25 +153,26 @@ class Observer(object):
         Build custom Dask graph interpolating quantities for each in loop in time and space.
         """
         emission_model = kwargs.get('emission_model', None)
-        start_index = 0
         tasks = {}
-        for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-            for instr in self.instruments:
-                tmp_file_path = os.path.join(instr._tmp_file_dir,
-                                             f'{loop.name}_{instr.name}_{{}}.npz')
+        for instr in self.instruments:
+            tmp_file_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
+            if not os.path.exists(tmp_file_dir):
+                os.makedirs(tmp_file_dir)
+            # Create interpolate tasks for each quantity and each loop
+            start_index = 0
+            for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                 for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                           'ion_temperature', 'density']:
                     tasks[f'interp {q} {loop.name} {instr.name}'] = (
                         instr.interpolate_and_store, q, loop, interp_s, start_index, q,
-                        tmp_file_path.format(q))
-            start_index += interp_s.shape[0]
+                        os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz'))
+                start_index += interp_s.shape[0]
 
-        for instr in self.instruments:
-            # Get futures for counts calculation
-            counts_tasks = instr.flatten_parallel(self.field.loops, 
-                                                  self._interpolated_loop_coordinates,
+            # Get tasks for instrument-specific calculations
+            counts_tasks = instr.flatten_parallel(self.field.loops,
+                                                  self._interpolated_loop_coordinates, tmp_file_dir,
                                                   emission_model=emission_model)
-            # Combine with other futures and add assemble future
+            # Combine tasks
             tasks.update(counts_tasks)
             interp_tasks = [k for k in tasks if 'interp' in k and instr.name in k]
             tasks[f'{instr.name}'] = (self.assemble_arrays, interp_tasks, instr.counts_file)

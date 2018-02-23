@@ -169,7 +169,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 synthesizAR.Observer.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, emission_model=None):
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale. Returns a dask task.
@@ -192,8 +192,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 tasks[f"interp {channel['name']} {loop.name} {self.name}"] = (
                     self.interpolate_and_store, f"counts {channel['name']} {loop.name} {self.name}",
                     loop, interp_s, start_index, channel['name'],
-                    os.path.join(self._tmp_file_dir,
-                                 f"{loop.name}_{self.name}_{channel['name']}.npz"))
+                    os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz"))
                 start_index += interp_s.shape[0]
 
         return tasks

@@ -48,14 +48,10 @@ class InstrumentBase(object):
         """
         Allocate space for counts data.
         """
-        parallel = kwargs.get('parallel', False)
         dset_names = ['density', 'electron_temperature', 'ion_temperature', 'velocity_x',
                       'velocity_y', 'velocity_z']
         dset_names += kwargs.get('additional_fields', [])
         self.counts_file = file_template.format(self.name)
-        self._tmp_file_dir = os.path.join(os.path.dirname(self.counts_file), 'tmp_parallel_files')
-        if not os.path.exists(self._tmp_file_dir) and parallel:
-            os.makedirs(os.path.dirname(self._tmp_file_dir))
 
         with h5py.File(self.counts_file, 'a') as hf:
             if 'time' not in hf:
