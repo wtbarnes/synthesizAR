@@ -186,6 +186,7 @@ class Observer(object):
                 tmp = u.Quantity(f['array'], str(f['units']))
                 Observer.commit(tmp, hf[str(f['dset_name'])], int(f['start_index']))
                 os.remove(filename)
+        os.rmdir(os.path.dirname(filename))
 
     @staticmethod
     def assemble_map(observed_map, filename, time):
