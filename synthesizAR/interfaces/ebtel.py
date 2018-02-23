@@ -151,9 +151,9 @@ class EbtelInterface(object):
         with h5py.File(savefile, 'a') as hf:
             for fn in nei_results:
                 tmp = np.load(fn)
-                element_name, loop_name = tmp['element'], tmp['loop']
+                element_name, loop_name = str(tmp['element']), str(tmp['loop'])
                 grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-                y_nei, n_s = tmp['array'], tmp['n_s']
+                y_nei, n_s = tmp['array'], int(tmp['n_s'])
                 data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
                 if element_name not in grp:
                     dset = grp.create_dataset(element_name, data=data)
