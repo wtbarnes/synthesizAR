@@ -157,38 +157,30 @@ class Observer(object):
         tasks = {}
         for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
             params = (loop, interp_s, start_index)
-            # Tasks for retrieving loop quantities
-            tasks[f'electron_temperature {loop.name}'] = future_property(loop,
-                                                                         'electron_temperature')
-            tasks[f'ion_temperature {loop.name}'] = future_property(loop, 'ion_temperature')
-            tasks[f'density {loop.name}'] = future_property(loop, 'density')
-            tasks[f'velocity_x {loop.name}'] = future_property(loop, 'velocity_x')
-            tasks[f'velocity_y {loop.name}'] = future_property(loop, 'velocity_y')
-            tasks[f'velocity_z {loop.name}'] = future_property(loop, 'velocity_z')
             for instr in self.instruments:
                 tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npz')
                 task_name = f'{{}} {loop.name} {instr.name}'
                 # Tasks for interpolating loop quantities
                 # Velocity components
                 tasks[task_name.format('interp velocity_x')] = (
-                    instr.interpolate_and_store, task_name.format('velocity_x'), *params,
+                    instr.interpolate_and_store, 'velocity_x', *params,
                     'velocity_x', tmp_file_path.format('velocity_x', loop.name))
                 tasks[task_name.format('interp velocity_y')] = (
-                    instr.interpolate_and_store, task_name.format('velocity_y'), *params,
+                    instr.interpolate_and_store, 'velocity_y', *params,
                     'velocity_y', tmp_file_path.format('velocity_y', loop.name))
                 tasks[task_name.format('interp velocity_z')] = (
-                    instr.interpolate_and_store, task_name.format('velocity_z'), *params,
+                    instr.interpolate_and_store, 'velocity_z', *params,
                     'velocity_z', tmp_file_path.format('velocity_z', loop.name))
                 # Ion and electron temperature
                 tasks[task_name.format('interp electron_temperature')] = (
-                    instr.interpolate_and_store, f'electron_temperature {loop.name}', *params,
+                    instr.interpolate_and_store, 'electron_temperature', *params,
                     'electron_temperature', tmp_file_path.format('electron_temperature', loop.name))
                 tasks[task_name.format('interp ion_temperature')] = (
-                    instr.interpolate_and_store, f'ion_temperature {loop.name}', *params,
+                    instr.interpolate_and_store, 'ion_temperature', *params,
                     'ion_temperature', tmp_file_path.format('ion_temperature', loop.name))
                 # Density
                 tasks[task_name.format('interp density')] = (
-                    instr.interpolate_and_store, f'density {loop.name}', *params,
+                    instr.interpolate_and_store, 'density', *params,
                     'density', tmp_file_path.format('density', loop.name))
             start_index += interp_s.shape[0]
 

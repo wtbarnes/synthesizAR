@@ -93,6 +93,8 @@ class InstrumentBase(object):
         """
         Interpolate in time and space and write to HDF5 file.
         """
+        if type(y) is str:
+            y = getattr(loop, y)
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
                                   fill_value='extrapolate')(self.observing_time.value)
