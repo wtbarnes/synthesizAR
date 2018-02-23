@@ -148,7 +148,7 @@ class Observer(object):
             dset.attrs['units'] = y.unit.to_string()
         dset[:, start_index:(start_index + y.shape[1])] = y.value
 
-    def _flatten_detector_counts_parallel(self, client, **kwargs):
+    def _flatten_detector_counts_parallel(self, **kwargs):
         """
         Build custom Dask graph interpolating quantities for each in loop in time and space.
         """
