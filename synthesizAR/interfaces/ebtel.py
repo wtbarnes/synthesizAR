@@ -6,6 +6,7 @@ import os
 import logging
 import copy
 import warnings
+import itertools
 
 import numpy as np
 import h5py
@@ -149,7 +150,7 @@ class EbtelInterface(object):
         Collecting and storing all NEI populations in a single HDF5 file
         """
         with h5py.File(savefile, 'a') as hf:
-            for fn in nei_results:
+            for fn in itertools.chain.from_iterable(nei_results):
                 tmp = np.load(fn)
                 element_name, loop_name = str(tmp['element']), str(tmp['loop'])
                 grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
