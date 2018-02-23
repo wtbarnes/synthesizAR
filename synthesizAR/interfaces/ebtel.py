@@ -113,19 +113,19 @@ class EbtelInterface(object):
         
         # Submit futures to client
         tasks = {}
+        nei_tasks = []
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             tasks[f'rate_matrix {el.element_name}'] = (el._rate_matrix,)
             tasks[f'ioneq {el.element_name}'] = (el.equilibrium_ionization,
                                                  f'rate_matrix {el.element_name}')
             for loop in field.loops:
-                tasks[f'nei {loop.name} {el.element_name}'] = (
+                nei_tasks.append((
                     EbtelInterface.compute_and_save_nei, el, loop, f'rate_matrix {el.element_name}',
-                    f'ioneq {el.element_name}', tmpdir)
+                    f'ioneq {el.element_name}', tmpdir))
 
         # Compile results to a single file
-        nei_tasks = [k for k in tasks if 'nei' in k]
-        tasks['nei'] = (EbtelInterface.slice_and_store, nei_tasks, 
+        tasks['nei'] = (EbtelInterface.slice_and_store, nei_tasks,
                         emission_model.ionization_fraction_savefile)
         
         return tasks
