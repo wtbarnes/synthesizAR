@@ -115,7 +115,7 @@ class Observer(object):
         resolution, and store it. This is done either in serial or parallel.
         """
         if self.parallel:
-            return self._flatten_detector_counts_parallel(client, **kwargs)
+            return self._flatten_detector_counts_parallel(**kwargs)
         else:
             self._flatten_detector_counts_serial(**kwargs)
 
@@ -156,39 +156,21 @@ class Observer(object):
         start_index = 0
         tasks = {}
         for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-            params = (loop, interp_s, start_index)
             for instr in self.instruments:
-                tmp_file_path = os.path.join(instr.tmp_file_template, '{}.npz')
-                task_name = f'{{}} {loop.name} {instr.name}'
-                # Tasks for interpolating loop quantities
-                # Velocity components
-                tasks[task_name.format('interp velocity_x')] = (
-                    instr.interpolate_and_store, 'velocity_x', *params,
-                    'velocity_x', tmp_file_path.format('velocity_x', loop.name))
-                tasks[task_name.format('interp velocity_y')] = (
-                    instr.interpolate_and_store, 'velocity_y', *params,
-                    'velocity_y', tmp_file_path.format('velocity_y', loop.name))
-                tasks[task_name.format('interp velocity_z')] = (
-                    instr.interpolate_and_store, 'velocity_z', *params,
-                    'velocity_z', tmp_file_path.format('velocity_z', loop.name))
-                # Ion and electron temperature
-                tasks[task_name.format('interp electron_temperature')] = (
-                    instr.interpolate_and_store, 'electron_temperature', *params,
-                    'electron_temperature', tmp_file_path.format('electron_temperature', loop.name))
-                tasks[task_name.format('interp ion_temperature')] = (
-                    instr.interpolate_and_store, 'ion_temperature', *params,
-                    'ion_temperature', tmp_file_path.format('ion_temperature', loop.name))
-                # Density
-                tasks[task_name.format('interp density')] = (
-                    instr.interpolate_and_store, 'density', *params,
-                    'density', tmp_file_path.format('density', loop.name))
+                tmp_file_path = os.path.join(instr._tmp_file_dir,
+                                             f'{loop.name}_{instr.name}_{{}}.npz')
+                for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
+                          'ion_temperature', 'density']:
+                    tasks[f'interp {q} {loop.name} {instr.name}'] = (
+                        instr.interpolate_and_store, q, loop, interp_s, start_index, q,
+                        tmp_file_path.format(q))
             start_index += interp_s.shape[0]
 
         for instr in self.instruments:
             # Get futures for counts calculation
-            counts_tasks = instr.flatten_parallel(self.field.loops,
+            counts_tasks = instr.flatten_parallel(self.field.loops, 
                                                   self._interpolated_loop_coordinates,
-                                                  tmp_file_path, emission_model=emission_model)
+                                                  emission_model=emission_model)
             # Combine with other futures and add assemble future
             tasks.update(counts_tasks)
             interp_tasks = [k for k in tasks if 'interp' in k and instr.name in k]

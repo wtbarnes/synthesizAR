@@ -53,8 +53,10 @@ class InstrumentBase(object):
                       'velocity_y', 'velocity_z']
         dset_names += kwargs.get('additional_fields', [])
         self.counts_file = file_template.format(self.name)
-        self.tmp_file_template = os.path.join(os.path.dirname(self.counts_file),
-                                              'tmp_parallel_files', self.name, '{}')
+        self._tmp_file_dir = os.path.join(os.path.dirname(self.counts_file), 'tmp_parallel_files')
+        if not os.path.exists(self._tmp_file_dir) and parallel:
+            os.makedirs(os.path.dirname(self._tmp_file_dir))
+
         with h5py.File(self.counts_file, 'a') as hf:
             if 'time' not in hf:
                 dset = hf.create_dataset('time', data=self.observing_time.value)
@@ -62,8 +64,6 @@ class InstrumentBase(object):
             for dn in dset_names:
                 if dn not in hf:
                     hf.create_dataset(dn, dset_shape, chunks=chunks)
-                if not os.path.exists(self.tmp_file_template.format(dn)) and parallel:
-                    os.makedirs(self.tmp_file_template.format(dn))
 
     @property
     def total_coordinates(self):
