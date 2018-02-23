@@ -104,6 +104,9 @@ class EbtelInterface(object):
     def calculate_ionization_fraction(field, emission_model, **kwargs):
         """
         Solve the time-dependent ionization balance equation for a particular loop and ion.
+
+        Build a Dask task graph to solve the time-dependent ion population equations for all
+        loops in the field and all elements in our emission model.
         """
         tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile),
                               'tmp_nei')
@@ -111,24 +114,22 @@ class EbtelInterface(object):
             os.makedirs(tmpdir)
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
-        
-        # Submit futures to client
-        tasks = {}
-        nei_tasks = []
+   
+        tasks = {f'nei {loop.name}': [] for loop in field.loops}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             tasks[f'rate_matrix {el.element_name}'] = (el._rate_matrix,)
             tasks[f'ioneq {el.element_name}'] = (el.equilibrium_ionization,
                                                  f'rate_matrix {el.element_name}')
             for loop in field.loops:
-                nei_tasks.append((
+                tasks[f'nei {loop.name}'].append((
                     EbtelInterface.compute_and_save_nei, el, loop, f'rate_matrix {el.element_name}',
                     f'ioneq {el.element_name}', tmpdir))
 
-        # Compile results to a single file
-        tasks['nei'] = (EbtelInterface.slice_and_store, nei_tasks,
+        tasks['nei'] = (EbtelInterface.slice_and_store,
+                        [f'nei {loop.name}' for loop in field.loops],
                         emission_model.ionization_fraction_savefile)
-        
+
         return tasks
 
     @staticmethod
