@@ -15,9 +15,9 @@ from sunpy.sun import constants
 from sunpy.coordinates.frames import HeliographicStonyhurst
 import h5py
 try:
-    import distributed
+    import dask
 except ImportError:
-    warnings.warn('Dask distributed scheduler required for parallel execution')
+    warnings.warn('Dask library required for parallel execution')
 
 from synthesizAR.util import heeq_to_hcc, future_property
 
@@ -160,13 +160,14 @@ class Observer(object):
                 os.makedirs(tmp_file_dir)
             # Create interpolate tasks for each quantity and each loop
             start_index = 0
+            delayed_interp = dask.delayed(instr.interpolate_and_store)
+            interp_tasks = []
             for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                 for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                           'ion_temperature', 'density']:
-                    tasks[f'interp {q} {loop.name} {instr.name}'] = (
-                        instr.interpolate_and_store, q, loop, interp_s, instr.observing_time,
-                        start_index, q,
-                        os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz'))
+                    interp_tasks.append(delayed_interp(
+                        q, loop, interp_s, instr.observing_time, start_index, q,
+                        os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz')))
                 start_index += interp_s.shape[0]
 
             # Get tasks for instrument-specific calculations
@@ -174,9 +175,9 @@ class Observer(object):
                                                   self._interpolated_loop_coordinates, tmp_file_dir,
                                                   emission_model=emission_model)
             # Combine tasks
-            tasks.update(counts_tasks)
-            interp_tasks = [k for k in tasks if 'interp' in k and instr.name in k]
-            tasks[f'{instr.name}'] = (self.assemble_arrays, interp_tasks, instr.counts_file)
+            interp_tasks += counts_tasks
+            tasks[f'{instr.name}'] = dask.delayed(self.assemble_arrays)(interp_tasks,
+                                                                        instr.counts_file)
 
         return tasks
 

@@ -176,26 +176,25 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         if emission_model is None:
             calculate_counts = self.calculate_counts_simple
-            emiss_task_name = None
+            flat_emiss = None
         else:
             calculate_counts = self.calculate_counts_full
 
-        tasks = {}
+        interp_tasks = []
+        delayed_interp = dask.delayed(self.interpolate_and_store)
         for channel in self.channels:
             if emission_model is not None:
-                emiss_task_name = f"emiss {channel['name']} {self.name}"
-                tasks[emiss_task_name] = (self.flatten_emissivities, channel, emission_model)
+                flat_emiss = dask.delayed(self.flatten_emissivities)(channel, emission_model)
             start_index = 0
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                tasks[f"counts {channel['name']} {loop.name} {self.name}"] = (
-                    calculate_counts, channel, loop, emission_model, emiss_task_name)
-                tasks[f"interp {channel['name']} {loop.name} {self.name}"] = (
-                    self.interpolate_and_store, f"counts {channel['name']} {loop.name} {self.name}",
-                    loop, interp_s, self.observing_time, start_index, channel['name'],
-                    os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz"))
+                y = dask.delayed(calculate_counts)(channel, loop, emission_model, flat_emiss)
+                interp_tasks.append(delayed_interp(
+                    y, loop, interp_s, self.observing_time, start_index, channel['name'],
+                    os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
+
                 start_index += interp_s.shape[0]
 
-        return tasks
+        return interp_tasks
 
     def detect(self, channel, i_time, header, bins, bin_range):
         """
