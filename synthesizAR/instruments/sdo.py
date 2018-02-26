@@ -17,6 +17,10 @@ from sunpy.map import Map
 from sunpy.util.metadata import MetaDict
 from sunpy.coordinates.frames import Helioprojective
 import h5py
+try:
+    import dask
+except ImportError:
+    warnings.warn('Dask library required for parallel execution')
 
 import synthesizAR
 from synthesizAR.util import SpatialPair, is_visible
