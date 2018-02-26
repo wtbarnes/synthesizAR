@@ -187,7 +187,7 @@ class Observer(object):
     def assemble_arrays(interp_files, h5py_filename):
         with h5py.File(h5py_filename, 'a', driver=None) as hf:
             for dset_name in interp_files:
-                for filename in interp_files:
+                for filename in interp_files[dset_name]:
                     f = np.load(filename)
                     tmp = u.Quantity(f['array'], str(f['units']))
                     Observer.commit(tmp, hf[dset_name], int(f['start_index']))
