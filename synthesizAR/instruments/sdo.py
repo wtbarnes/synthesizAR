@@ -184,16 +184,17 @@ class InstrumentSDOAIA(InstrumentBase):
         else:
             calculate_counts = self.calculate_counts_full
 
-        interp_tasks = []
+        interp_tasks = {}
         delayed_interp = dask.delayed(self.interpolate_and_store)
         for channel in self.channels:
             if emission_model is not None:
                 flat_emiss = dask.delayed(self.flatten_emissivities)(channel, emission_model)
             start_index = 0
+            interp_tasks[channel['name']] = []
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 y = dask.delayed(calculate_counts)(channel, loop, emission_model, flat_emiss)
-                interp_tasks.append(delayed_interp(
-                    y, loop, interp_s, self.observing_time, start_index, channel['name'],
+                interp_tasks[channel['name']].append(delayed_interp(
+                    y, loop, interp_s, self.observing_time, start_index,
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
 
                 start_index += interp_s.shape[0]

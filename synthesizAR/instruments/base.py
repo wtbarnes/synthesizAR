@@ -85,8 +85,7 @@ class InstrumentBase(object):
         return -v_los
 
     @staticmethod
-    def interpolate_and_store(y, loop, interp_s, interp_t, start_index=None, dset_name=None,
-                              save_path=False):
+    def interpolate_and_store(y, loop, interp_s, interp_t, start_index=None, save_path=False):
         """
         Interpolate in time and space and write to HDF5 file.
         """
@@ -96,7 +95,7 @@ class InstrumentBase(object):
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
                                   fill_value='extrapolate')(interp_t.value)
         if save_path:
-            np.savez(save_path, array=interpolated_y, units=y.unit.to_string(), dset_name=dset_name,
+            np.savez(save_path, array=interpolated_y, units=y.unit.to_string(),
                      start_index=start_index)
             return save_path
         else:

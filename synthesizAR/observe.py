@@ -161,12 +161,14 @@ class Observer(object):
             # Create interpolate tasks for each quantity and each loop
             start_index = 0
             delayed_interp = dask.delayed(instr.interpolate_and_store)
-            interp_tasks = []
+            interp_tasks = {}
             for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                 for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                           'ion_temperature', 'density']:
-                    interp_tasks.append(delayed_interp(
-                        q, loop, interp_s, instr.observing_time, start_index, q,
+                    if q not in interp_tasks:
+                        interp_tasks[q] = []
+                    interp_tasks[q].append(delayed_interp(
+                        q, loop, interp_s, instr.observing_time, start_index,
                         os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz')))
                 start_index += interp_s.shape[0]
 
@@ -175,7 +177,7 @@ class Observer(object):
                                                   self._interpolated_loop_coordinates, tmp_file_dir,
                                                   emission_model=emission_model)
             # Combine tasks
-            interp_tasks += counts_tasks
+            interp_tasks.update(counts_tasks)
             tasks[f'{instr.name}'] = dask.delayed(self.assemble_arrays)(interp_tasks,
                                                                         instr.counts_file)
 
@@ -184,11 +186,12 @@ class Observer(object):
     @staticmethod
     def assemble_arrays(interp_files, h5py_filename):
         with h5py.File(h5py_filename, 'a', driver=None) as hf:
-            for filename in interp_files:
-                f = np.load(filename)
-                tmp = u.Quantity(f['array'], str(f['units']))
-                Observer.commit(tmp, hf[str(f['dset_name'])], int(f['start_index']))
-                os.remove(filename)
+            for dset_name in interp_files:
+                for filename in interp_files:
+                    f = np.load(filename)
+                    tmp = u.Quantity(f['array'], str(f['units']))
+                    Observer.commit(tmp, hf[dset_name], int(f['start_index']))
+                    os.remove(filename)
         os.rmdir(os.path.dirname(filename))
 
     @staticmethod
