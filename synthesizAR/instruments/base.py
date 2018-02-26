@@ -84,7 +84,8 @@ class InstrumentBase(object):
         _, _, v_los = heeq_to_hcc(v_x, v_y, v_z, self.observer_coordinate)
         return -v_los
 
-    def interpolate_and_store(self, y, loop, interp_s, start_index=None, dset_name=None,
+    @staticmethod
+    def interpolate_and_store(y, loop, interp_s, interp_t, start_index=None, dset_name=None,
                               save_path=False):
         """
         Interpolate in time and space and write to HDF5 file.
@@ -93,7 +94,7 @@ class InstrumentBase(object):
             y = getattr(loop, y)
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
-                                  fill_value='extrapolate')(self.observing_time.value)
+                                  fill_value='extrapolate')(interp_t.value)
         if save_path:
             np.savez(save_path, array=interpolated_y, units=y.unit.to_string(), dset_name=dset_name,
                      start_index=start_index)

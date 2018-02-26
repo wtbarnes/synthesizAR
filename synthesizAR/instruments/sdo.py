@@ -165,7 +165,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 flattened_emissivities = self.flatten_emissivities(channel, emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
-                y = self.interpolate_and_store(c, loop, self.observing_time, interp_s)
+                y = self.interpolate_and_store(c, loop, interp_s, self.observing_time)
                 synthesizAR.Observer.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
@@ -191,7 +191,7 @@ class InstrumentSDOAIA(InstrumentBase):
                     calculate_counts, channel, loop, emission_model, emiss_task_name)
                 tasks[f"interp {channel['name']} {loop.name} {self.name}"] = (
                     self.interpolate_and_store, f"counts {channel['name']} {loop.name} {self.name}",
-                    loop, interp_s, start_index, channel['name'],
+                    loop, interp_s, self.observing_time, start_index, channel['name'],
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz"))
                 start_index += interp_s.shape[0]
 
