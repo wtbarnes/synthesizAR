@@ -181,7 +181,7 @@ class Observer(object):
 
     @staticmethod
     def assemble_arrays(interp_files, h5py_filename):
-        with h5py.File(h5py_filename, 'a', driver='hdf5_driver') as hf:
+        with h5py.File(h5py_filename, 'a', driver=None) as hf:
             for filename in interp_files:
                 f = np.load(filename)
                 tmp = u.Quantity(f['array'], str(f['units']))
