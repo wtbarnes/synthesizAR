@@ -109,8 +109,8 @@ class InstrumentBase(object):
                 f = np.load(filename)
                 tmp = u.Quantity(f['array'], str(f['units']))
                 self.commit(tmp, hf[dset_name], int(f['start_index']))
-                os.remove(filename)
-        # os.rmdir(os.path.dirname(filename))
+
+        return interp_files
 
     @staticmethod
     def commit(y, dset, start_index):

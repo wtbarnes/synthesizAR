@@ -154,7 +154,7 @@ class Observer(object):
                 os.makedirs(tmp_file_dir)
             # Create interpolate tasks for each quantity and each loop
             delayed_interp = dask.delayed(instr.interpolate_and_store)
-            tasks[f'{instr.name}'] = {}
+            _tasks = []
             for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                       'ion_temperature', 'density']:
                 start_index = 0
@@ -164,16 +164,23 @@ class Observer(object):
                         q, loop, interp_s, start_index,
                         os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz')))
                     start_index += interp_s.shape[0]
-                tasks[f'{instr.name}'][q] = dask.delayed(instr.assemble_arrays)(interp_tasks, q)
+                _tasks.append(dask.delayed(instr.assemble_arrays)(interp_tasks, q))
 
             # Get tasks for instrument-specific calculations
-            counts_tasks = instr.flatten_parallel(self.field.loops,
-                                                  self._interpolated_loop_coordinates, tmp_file_dir,
-                                                  emission_model=emission_model)
+            _counts_tasks = instr.flatten_parallel(self.field.loops,
+                                                   self._interpolated_loop_coordinates,
+                                                   tmp_file_dir,
+                                                   emission_model=emission_model)
             # Combine tasks
-            tasks[f'{instr.name}'].update(counts_tasks)
+            tasks[f'{instr.name}'] = dask.delayed(_cleanup)(_tasks + _counts_tasks)
 
         return tasks
+
+    @staticmethod
+    def _cleanup(filenames):
+        for f in itertools.chain.from_iterable(filenames):
+            os.remove(f)
+        os.rmdir(os.path.dirname(f))
 
     @staticmethod
     def assemble_map(observed_map, filename, time):
