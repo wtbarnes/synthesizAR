@@ -12,6 +12,7 @@ import h5py
 from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
 from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
+from distributed import Lock
 
 from synthesizAR.util import SpatialPair, heeq_to_hcc_coord
 
@@ -104,12 +105,14 @@ class InstrumentBase(object):
         """
         Assemble interpolated results into single file
         """
+        lock = Lock()
+        lock.acquire()
         with h5py.File(self.counts_file, 'a', driver=None) as hf:
             for filename in interp_files:
                 f = np.load(filename)
                 tmp = u.Quantity(f['array'], str(f['units']))
                 self.commit(tmp, hf[dset_name], int(f['start_index']))
-
+        lock.release()
         return interp_files
 
     @staticmethod
