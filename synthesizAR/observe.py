@@ -172,7 +172,7 @@ class Observer(object):
                                                    tmp_file_dir,
                                                    emission_model=emission_model)
             # Combine tasks
-            tasks[f'{instr.name}'] = dask.delayed(_cleanup)(_tasks + _counts_tasks)
+            tasks[f'{instr.name}'] = dask.delayed(self._cleanup)(_tasks + _counts_tasks)
 
         return tasks
 
