@@ -5,7 +5,7 @@ Create data products from loop simulations
 import os
 import warnings
 import logging
-from itertools import groupby
+from itertools.chain import from_iterable
 
 import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
@@ -150,7 +150,9 @@ class Observer(object):
         emission_model = kwargs.get('emission_model', None)
         tasks = {}
         for instr in self.instruments:
+            # Need to create lock for writing HDF5 files
             lock = distributed.Lock()
+            # Create temporary files where interpolated results will be written
             tmp_file_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
             if not os.path.exists(tmp_file_dir):
                 os.makedirs(tmp_file_dir)
@@ -173,14 +175,14 @@ class Observer(object):
                                                    self._interpolated_loop_coordinates,
                                                    tmp_file_dir, lock,
                                                    emission_model=emission_model)
-            # Combine tasks
+            # Combine tasks into method that cleans up temporary files
             tasks[f'{instr.name}'] = dask.delayed(self._cleanup)(_tasks + _counts_tasks)
 
         return tasks
 
     @staticmethod
     def _cleanup(filenames):
-        for f in itertools.chain.from_iterable(filenames):
+        for f in from_iterable(filenames):
             os.remove(f)
         os.rmdir(os.path.dirname(f))
 
@@ -195,17 +197,12 @@ class Observer(object):
         Assemble pipelines for building maps at each timestep.
 
         Build pipeline for computing final synthesized data products. This can be done
-        either in serial or parallel. The Dask.distributed scheduler is required for the latter
-        option.
+        either in serial or parallel.
 
         Parameters
         ----------
         savedir : `str`
             Top level directory to save data products in
-
-        Other Parameters
-        ----------------
-        client : `~distributed.Client`
         """
         tasks = {}
         file_path_template = os.path.join(savedir, '{}', '{}', 'map_t{:06d}.fits')

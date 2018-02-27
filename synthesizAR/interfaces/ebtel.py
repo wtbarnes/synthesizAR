@@ -6,11 +6,16 @@ import os
 import logging
 import copy
 import warnings
-import itertools
+from itertools.chain import from_iterable
 
 import numpy as np
 import h5py
 import astropy.units as u
+try:
+    import dask
+    import distributed
+except ImportError:
+    warnings.warn('Dask library required for NEI calculation')
 
 from synthesizAR.util import InputHandler, OutputHandler
 from synthesizAR.atomic import Element
@@ -112,25 +117,24 @@ class EbtelInterface(object):
                               'tmp_nei')
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
+        # Create lock for writing HDF5 file
+        lock = distributed.Lock()
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
    
-        tasks = {f'nei {loop.name}': [] for loop in field.loops}
+        filenames = []
         for el_name in unique_elements:
             el = Element(el_name, temperature)
-            tasks[f'rate_matrix {el.element_name}'] = (el._rate_matrix,)
-            tasks[f'ioneq {el.element_name}'] = (el.equilibrium_ionization,
-                                                 f'rate_matrix {el.element_name}')
+            rate_matrix = dask.delayed(el._rate_matrix)()
+            ioneq = dask.delayed(el.equilibrium_ionization)(rate_matrix)
+            tasks = []
             for loop in field.loops:
-                tasks[f'nei {loop.name}'].append((
-                    EbtelInterface.compute_and_save_nei, el, loop, f'rate_matrix {el.element_name}',
-                    f'ioneq {el.element_name}', tmpdir))
+                tasks.append(dask.delayed(EbtelInterface.compute_and_save_nei)(
+                    el, loop, rate_matrix, ioneq, tmpdir))
+            filenames.append(dask.delayed(EbtelInterface.slice_and_store)(
+                tasks, emission_model.ionization_fraction_savefile, lock))
 
-        tasks['nei'] = (EbtelInterface.slice_and_store,
-                        [f'nei {loop.name}' for loop in field.loops],
-                        emission_model.ionization_fraction_savefile)
-
-        return tasks
+        return dask.delayed(EbtelInterface._cleanup)(filenames)
 
     @staticmethod
     def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_path_root):
@@ -146,23 +150,30 @@ class EbtelInterface(object):
         return save_path
 
     @staticmethod
-    def slice_and_store(nei_results, savefile):
+    def slice_and_store(filenames, savefile, lock):
         """
         Collecting and storing all NEI populations in a single HDF5 file
         """
-        with h5py.File(savefile, 'a') as hf:
-            for fn in itertools.chain.from_iterable(nei_results):
-                tmp = np.load(fn)
-                element_name, loop_name = str(tmp['element']), str(tmp['loop'])
-                grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-                y_nei, n_s = tmp['array'], int(tmp['n_s'])
-                data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
-                if element_name not in grp:
-                    dset = grp.create_dataset(element_name, data=data)
-                else:
-                    dset = grp[element_name]
-                    dset[:, :, :] = data
-                dset.attrs['units'] = ''
-                dset.attrs['description'] = 'non-equilibrium ionization fractions'
-                os.remove(fn)
-        os.rmdir(os.path.dirname(fn))
+        with lock:
+            with h5py.File(savefile, 'a') as hf:
+                for fn in filenames:
+                    tmp = np.load(fn)
+                    element_name, loop_name = str(tmp['element']), str(tmp['loop'])
+                    grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
+                    y_nei, n_s = tmp['array'], int(tmp['n_s'])
+                    data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
+                    if element_name not in grp:
+                        dset = grp.create_dataset(element_name, data=data)
+                    else:
+                        dset = grp[element_name]
+                        dset[:, :, :] = data
+                    dset.attrs['units'] = ''
+                    dset.attrs['description'] = 'non-equilibrium ionization fractions'
+
+        return filenames
+
+    @staticmethod
+    def _cleanup(filenames):
+        for f in from_iterable(filenames):
+            os.remove(f)
+        os.rmdir(os.path.dirname(f))
