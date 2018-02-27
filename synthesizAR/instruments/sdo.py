@@ -173,7 +173,8 @@ class InstrumentSDOAIA(InstrumentBase):
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, emission_model=None):
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, lock,
+                         emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale. Returns a dask task.
@@ -196,7 +197,7 @@ class InstrumentSDOAIA(InstrumentBase):
                     y, loop, interp_s, start_index,
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
                 start_index += interp_s.shape[0]
-            tasks.append(dask.delayed(self.assemble_arrays)(interp_tasks, channel['name']))
+            tasks.append(dask.delayed(self.assemble_arrays)(interp_tasks, channel['name'], lock))
 
         return tasks
 
