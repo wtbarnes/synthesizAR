@@ -169,7 +169,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 flattened_emissivities = self.flatten_emissivities(channel, emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
-                y = self.interpolate_and_store(c, loop, interp_s, self.observing_time)
+                y = self.interpolate_and_store(c, loop, interp_s)
                 synthesizAR.Observer.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
@@ -184,22 +184,22 @@ class InstrumentSDOAIA(InstrumentBase):
         else:
             calculate_counts = self.calculate_counts_full
 
-        interp_tasks = {}
-        delayed_interp = dask.delayed(self.interpolate_and_store)
+        tasks = {}
         for channel in self.channels:
             if emission_model is not None:
                 flat_emiss = dask.delayed(self.flatten_emissivities)(channel, emission_model)
             start_index = 0
-            interp_tasks[channel['name']] = []
+            interp_tasks = []
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 y = dask.delayed(calculate_counts)(channel, loop, emission_model, flat_emiss)
-                interp_tasks[channel['name']].append(delayed_interp(
-                    y, loop, interp_s, self.observing_time, start_index,
+                interp_tasks.append(dask.delayed(self.interpolate_and_store)(
+                    y, loop, interp_s, start_index,
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
-
                 start_index += interp_s.shape[0]
+            tasks[f"{channel['name']}"] = dask.delayed(self.assemble_arrays)(interp_tasks,
+                                                                             channel['name'])
 
-        return interp_tasks
+        return tasks
 
     def detect(self, channel, i_time, header, bins, bin_range):
         """

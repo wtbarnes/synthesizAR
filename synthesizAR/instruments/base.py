@@ -84,8 +84,7 @@ class InstrumentBase(object):
         _, _, v_los = heeq_to_hcc(v_x, v_y, v_z, self.observer_coordinate)
         return -v_los
 
-    @staticmethod
-    def interpolate_and_store(y, loop, interp_s, interp_t, start_index=None, save_path=False):
+    def interpolate_and_store(self, y, loop, interp_s, start_index=None, save_path=False):
         """
         Interpolate in time and space and write to HDF5 file.
         """
@@ -93,13 +92,25 @@ class InstrumentBase(object):
             y = getattr(loop, y)
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
-                                  fill_value='extrapolate')(interp_t.value)
+                                  fill_value='extrapolate')(self.observing_time.value)
         if save_path:
             np.savez(save_path, array=interpolated_y, units=y.unit.to_string(),
                      start_index=start_index)
             return save_path
         else:
             return interpolated_y * y.unit
+
+    def assemble_arrays(self, interp_files, dset_name):
+        """
+        Assemble interpolated results into single file
+        """
+        with h5py.File(self.counts_file, 'a', driver=None) as hf:
+            for filename in interp_files:
+                f = np.load(filename)
+                tmp = u.Quantity(f['array'], str(f['units']))
+                Observer.commit(tmp, hf[dset_name], int(f['start_index']))
+                os.remove(filename)
+        # os.rmdir(os.path.dirname(filename))
 
     @staticmethod
     def generic_2d_histogram(counts_filename, dset_name, i_time, bins, bin_range):
