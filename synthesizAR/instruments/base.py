@@ -108,9 +108,15 @@ class InstrumentBase(object):
             for filename in interp_files:
                 f = np.load(filename)
                 tmp = u.Quantity(f['array'], str(f['units']))
-                Observer.commit(tmp, hf[dset_name], int(f['start_index']))
+                self.commit(tmp, hf[dset_name], int(f['start_index']))
                 os.remove(filename)
         # os.rmdir(os.path.dirname(filename))
+
+    @staticmethod
+    def commit(y, dset, start_index):
+        if 'units' not in dset.attrs:
+            dset.attrs['units'] = y.unit.to_string()
+        dset[:, start_index:(start_index + y.shape[1])] = y.value
 
     @staticmethod
     def generic_2d_histogram(counts_filename, dset_name, i_time, bins, bin_range):

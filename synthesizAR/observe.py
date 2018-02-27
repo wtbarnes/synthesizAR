@@ -126,27 +126,21 @@ class Observer(object):
                 start_index = 0
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                     params = (loop, interp_s)
-                    self.commit(instr.interpolate_and_store(loop.velocity_x, *params),
-                                hf['velocity_x'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.velocity_y, *params),
-                                hf['velocity_y'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.velocity_z, *params),
-                                hf['velocity_z'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
-                                hf['electron_temperature'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.ion_temperature, *params),
-                                hf['ion_temperature'], start_index)
-                    self.commit(instr.interpolate_and_store(loop.density, *params), hf['density'],
-                                start_index)
+                    instr.commit(instr.interpolate_and_store(loop.velocity_x, *params),
+                                 hf['velocity_x'], start_index)
+                    instr.commit(instr.interpolate_and_store(loop.velocity_y, *params),
+                                 hf['velocity_y'], start_index)
+                    instr.commit(instr.interpolate_and_store(loop.velocity_z, *params),
+                                 hf['velocity_z'], start_index)
+                    instr.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
+                                 hf['electron_temperature'], start_index)
+                    instr.commit(instr.interpolate_and_store(loop.ion_temperature, *params),
+                                 hf['ion_temperature'], start_index)
+                    instr.commit(instr.interpolate_and_store(loop.density, *params), hf['density'],
+                                 start_index)
                     start_index += interp_s.shape[0]
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
-
-    @staticmethod
-    def commit(y, dset, start_index):
-        if 'units' not in dset.attrs:
-            dset.attrs['units'] = y.unit.to_string()
-        dset[:, start_index:(start_index + y.shape[1])] = y.value
 
     def _flatten_detector_counts_parallel(self, **kwargs):
         """

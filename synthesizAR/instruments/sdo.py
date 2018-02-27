@@ -170,7 +170,7 @@ class InstrumentSDOAIA(InstrumentBase):
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
                 y = self.interpolate_and_store(c, loop, interp_s)
-                synthesizAR.Observer.commit(y, dset, start_index)
+                self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
     def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, emission_model=None):
