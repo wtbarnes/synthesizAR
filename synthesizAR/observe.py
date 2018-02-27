@@ -5,7 +5,7 @@ Create data products from loop simulations
 import os
 import warnings
 import logging
-from itertools.chain import from_iterable
+import itertools
 
 import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
@@ -182,7 +182,7 @@ class Observer(object):
 
     @staticmethod
     def _cleanup(filenames):
-        for f in from_iterable(filenames):
+        for f in itertools.chain.from_iterable(filenames):
             os.remove(f)
         os.rmdir(os.path.dirname(f))
 

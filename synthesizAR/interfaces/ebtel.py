@@ -6,7 +6,7 @@ import os
 import logging
 import copy
 import warnings
-from itertools.chain import from_iterable
+import itertools
 
 import numpy as np
 import h5py
@@ -174,6 +174,6 @@ class EbtelInterface(object):
 
     @staticmethod
     def _cleanup(filenames):
-        for f in from_iterable(filenames):
+        for f in itertools.chain.from_iterable(filenames):
             os.remove(f)
         os.rmdir(os.path.dirname(f))
