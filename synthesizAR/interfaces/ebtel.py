@@ -131,7 +131,7 @@ class EbtelInterface(object):
             for loop in field.loops:
                 tasks.append(dask.delayed(EbtelInterface.compute_and_save_nei)(
                     el, loop, rate_matrix, ioneq, tmpdir))
-            tasks[f'{el.name}'] = dask.delayed(EbtelInterface.slice_and_store)(
+            tasks[f'{el.element_name}'] = dask.delayed(EbtelInterface.slice_and_store)(
                 tasks, emission_model.ionization_fraction_savefile, lock)
 
         return tasks
