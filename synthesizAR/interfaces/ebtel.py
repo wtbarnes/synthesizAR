@@ -122,7 +122,7 @@ class EbtelInterface(object):
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
    
-        filenames = []
+        tasks = {}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             rate_matrix = dask.delayed(el._rate_matrix)()
@@ -131,10 +131,10 @@ class EbtelInterface(object):
             for loop in field.loops:
                 tasks.append(dask.delayed(EbtelInterface.compute_and_save_nei)(
                     el, loop, rate_matrix, ioneq, tmpdir))
-            filenames.append(dask.delayed(EbtelInterface.slice_and_store)(
-                tasks, emission_model.ionization_fraction_savefile, lock))
+            tasks[f'{el.name}'] = dask.delayed(EbtelInterface.slice_and_store)(
+                tasks, emission_model.ionization_fraction_savefile, lock)
 
-        return dask.delayed(EbtelInterface._cleanup)(filenames)
+        return tasks
 
     @staticmethod
     def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_path_root):
