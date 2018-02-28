@@ -198,7 +198,7 @@ class InstrumentSDOAIA(InstrumentBase):
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
                 start_index += interp_s.shape[0]
             tasks.append(dask.delayed(self.assemble_arrays)(
-                interp_tasks, channel['name'], instr.counts_file, lock))
+                interp_tasks, channel['name'], self.counts_file, lock))
 
         return tasks
 
