@@ -92,8 +92,9 @@ class InstrumentBase(object):
         if type(y) is str:
             y = getattr(loop, y)
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
-        interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
-                                  fill_value='extrapolate')(interp_t)
+        y_s = f_s(interp_s)
+        f_t = interp1d(loop.time.value, y_s, axis=0, kind='linear', fill_value='extrapolate')
+        interpolated_y = f_t(interp_t)
         if save_path:
             np.savez(save_path, array=interpolated_y, units=y.unit.to_string(),
                      start_index=start_index)
