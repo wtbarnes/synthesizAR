@@ -158,7 +158,7 @@ class Observer(object):
                 os.makedirs(tmp_file_dir)
             # Create interpolate tasks for each quantity and each loop
             delayed_interp = dask.delayed(instr.interpolate_and_store)
-            _tasks = []
+            tasks[f'{instr.name}'] = {}
             for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                       'ion_temperature', 'density']:
                 start_index = 0
@@ -168,16 +168,15 @@ class Observer(object):
                         q, loop, interp_s, instr.observing_time.value, start_index,
                         os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz')))
                     start_index += interp_s.shape[0]
-                _tasks.append(dask.delayed(instr.assemble_arrays)(
-                    interp_tasks, q, instr.counts_file, lock))
+                tasks[f'{instr.name}'][q] = dask.delayed(instr.assemble_arrays)(
+                    interp_tasks, q, instr.counts_file, lock)
 
             # Get tasks for instrument-specific calculations
-            _counts_tasks = instr.flatten_parallel(self.field.loops,
-                                                   self._interpolated_loop_coordinates,
-                                                   tmp_file_dir, lock,
-                                                   emission_model=emission_model)
-            # Combine tasks into method that cleans up temporary files
-            tasks[f'{instr.name}'] = dask.delayed(self._cleanup)(_tasks + _counts_tasks)
+            counts_tasks = instr.flatten_parallel(self.field.loops,
+                                                  self._interpolated_loop_coordinates,
+                                                  tmp_file_dir, lock,
+                                                  emission_model=emission_model)
+            tasks[f'{instr.name}'].update(counts_tasks)
 
         return tasks
 

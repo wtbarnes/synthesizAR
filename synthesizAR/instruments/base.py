@@ -98,7 +98,6 @@ class InstrumentBase(object):
         if save_path:
             np.savez(save_path, array=interpolated_y, units=y.unit.to_string(),
                      start_index=start_index)
-            del interpolated_y
             return save_path
         else:
             return interpolated_y * y.unit

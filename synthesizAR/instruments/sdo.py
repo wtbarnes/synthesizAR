@@ -185,7 +185,7 @@ class InstrumentSDOAIA(InstrumentBase):
         else:
             calculate_counts = self.calculate_counts_full
 
-        tasks = []
+        tasks = {}
         for channel in self.channels:
             if emission_model is not None:
                 flat_emiss = dask.delayed(self.flatten_emissivities)(channel, emission_model)
@@ -197,8 +197,8 @@ class InstrumentSDOAIA(InstrumentBase):
                     y, loop, interp_s, self.observing_time.value, start_index,
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
                 start_index += interp_s.shape[0]
-            tasks.append(dask.delayed(self.assemble_arrays)(
-                interp_tasks, channel['name'], self.counts_file, lock))
+            tasks[channel['name']] = dask.delayed(self.assemble_arrays)(
+                interp_tasks, channel['name'], self.counts_file, lock)
 
         return tasks
 
