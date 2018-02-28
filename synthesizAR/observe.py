@@ -126,7 +126,7 @@ class Observer(object):
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-                    params = (loop, interp_s, instr.observing_time)
+                    params = (loop, interp_s, instr.observing_time.value)
                     instr.commit(instr.interpolate_and_store(loop.velocity_x, *params),
                                  hf['velocity_x'], start_index)
                     instr.commit(instr.interpolate_and_store(loop.velocity_y, *params),
@@ -165,7 +165,7 @@ class Observer(object):
                 interp_tasks = []
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                     interp_tasks.append(delayed_interp(
-                        q, loop, interp_s, instr.observing_time, start_index,
+                        q, loop, interp_s, instr.observing_time.value, start_index,
                         os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz')))
                     start_index += interp_s.shape[0]
                 _tasks.append(dask.delayed(instr.assemble_arrays)(

@@ -93,10 +93,11 @@ class InstrumentBase(object):
             y = getattr(loop, y)
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         interpolated_y = interp1d(loop.time.value, f_s(interp_s), axis=0, kind='linear',
-                                  fill_value='extrapolate')(interp_t.value)
+                                  fill_value='extrapolate')(interp_t)
         if save_path:
             np.savez(save_path, array=interpolated_y, units=y.unit.to_string(),
                      start_index=start_index)
+            del y
             return save_path
         else:
             return interpolated_y * y.unit

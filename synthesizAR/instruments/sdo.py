@@ -169,7 +169,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 flattened_emissivities = self.flatten_emissivities(channel, emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
-                y = self.interpolate_and_store(c, loop, interp_s, self.observing_time)
+                y = self.interpolate_and_store(c, loop, interp_s, self.observing_time.value)
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
@@ -194,7 +194,7 @@ class InstrumentSDOAIA(InstrumentBase):
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 y = dask.delayed(calculate_counts)(channel, loop, emission_model, flat_emiss)
                 interp_tasks.append(dask.delayed(self.interpolate_and_store)(
-                    y, loop, interp_s, self.observing_time, start_index,
+                    y, loop, interp_s, self.observing_time.value, start_index,
                     os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
                 start_index += interp_s.shape[0]
             tasks.append(dask.delayed(self.assemble_arrays)(
