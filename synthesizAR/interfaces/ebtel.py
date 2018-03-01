@@ -13,7 +13,6 @@ import numpy as np
 import h5py
 import astropy.units as u
 try:
-    import dask
     import distributed
 except ImportError:
     warnings.warn('Dask library required for NEI calculation')
