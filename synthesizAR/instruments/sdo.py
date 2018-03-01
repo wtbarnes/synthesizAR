@@ -7,6 +7,7 @@ import os
 import json
 import pkg_resources
 import warnings
+import toolz
 
 import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
@@ -173,34 +174,41 @@ class InstrumentSDOAIA(InstrumentBase):
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, lock,
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, client, lock,
                          emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale. Returns a dask task.
         """
+        start_indices = np.insert(np.array(
+            [s.shape[0] for s in interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
         if emission_model is None:
             calculate_counts = self.calculate_counts_simple
             flat_emiss = None
         else:
             calculate_counts = self.calculate_counts_full
 
-        tasks = {}
+        futures = []
         for channel in self.channels:
+            paths = [os.path.join(tmp_file_dir, f"{l.name}_{self.name}_{channel['name']}.npz")
+                     for l in loops]
+            # Flatten emissivities for appropriate channel
             if emission_model is not None:
-                flat_emiss = dask.delayed(self.flatten_emissivities)(channel, emission_model)
-            start_index = 0
-            interp_tasks = []
-            for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                y = dask.delayed(calculate_counts)(channel, loop, emission_model, flat_emiss)
-                interp_tasks.append(dask.delayed(self.interpolate_and_store)(
-                    y, loop, interp_s, self.observing_time.value, start_index,
-                    os.path.join(tmp_dir, f"{loop.name}_{self.name}_{channel['name']}.npz")))
-                start_index += interp_s.shape[0]
-            tasks[channel['name']] = dask.delayed(self.assemble_arrays)(
-                interp_tasks, channel['name'], self.counts_file, lock)
+                flat_emiss = self.flatten_emissivities(channel, emission_model)
+            # Create partial functions
+            partial_counts = toolz.curry(calculate_counts)(
+                channel, emission_model=emission_model, flattened_emissivities=flat_emiss)
+            partial_interp = toolz.curry(self.interpolate_and_store)(
+                interp_t=self.observing_time.value)
+            # Map functions to iterables
+            y_futures = client.map(partial_counts, loops)
+            interp_futures = client.map(partial_interp, y_futures, loops,
+                                        interpolated_loop_coordinates, start_indices, paths)
+            # Assemble into array
+            futures.append(client.submit(
+                self.assemble_arrays, interp_futures, channel['name'], self.counts_file, lock))
 
-        return tasks
+        return futures
 
     def detect(self, channel, i_time, header, bins, bin_range):
         """
