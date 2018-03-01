@@ -7,6 +7,7 @@ import logging
 import copy
 import warnings
 import itertools
+import toolz
 
 import numpy as np
 import h5py
@@ -119,22 +120,27 @@ class EbtelInterface(object):
             os.makedirs(tmpdir)
         # Create lock for writing HDF5 file
         lock = distributed.Lock()
+        # Get Dask client
+        if 'client' not in kwargs:
+            raise ValueError('Dask distributed client is required to compute NEI in parallel')
+        client = kwargs.get('client')
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
    
-        tasks = {}
+        el_futures = []
         for el_name in unique_elements:
             el = Element(el_name, temperature)
-            rate_matrix = dask.delayed(el._rate_matrix)()
-            ioneq = dask.delayed(el.equilibrium_ionization)(rate_matrix)
-            _tasks = []
-            for loop in field.loops:
-                _tasks.append(dask.delayed(EbtelInterface.compute_and_save_nei)(
-                    el, loop, rate_matrix, ioneq, tmpdir))
-            tasks[f'{el.element_name}'] = dask.delayed(EbtelInterface.slice_and_store)(
-                _tasks, emission_model.ionization_fraction_savefile, lock)
+            rate_matrix = el._rate_matrix()
+            ioneq = el.equilibrium_ionization(rate_matrix)
+            partial_nei = toolz.curry(EbtelInterface.compute_and_save_nei)(
+                el, rate_matrix=rate_matrix, initial_condition=ioneq, save_path_root=tmpdir)
+            loop_futures = client.map(partial_nei, loop_futures)
+            el_futures.append(client.submit(EbtelInterface.slice_and_store, loop_futures,
+                                            emission_model.ionization_fraction_savefile, lock))
 
-        return tasks
+        future = client.submit(EbtelInterface._cleanup, el_futures)
+
+        return future
 
     @staticmethod
     def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_path_root):
