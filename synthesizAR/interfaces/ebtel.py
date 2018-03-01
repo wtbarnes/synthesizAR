@@ -133,7 +133,7 @@ class EbtelInterface(object):
             ioneq = el.equilibrium_ionization(rate_matrix)
             partial_nei = toolz.curry(EbtelInterface.compute_and_save_nei)(
                 el, rate_matrix=rate_matrix, initial_condition=ioneq, save_path_root=tmpdir)
-            loop_futures = client.map(partial_nei, loop_futures)
+            loop_futures = client.map(partial_nei, field.loops)
             el_futures.append(client.submit(EbtelInterface.slice_and_store, loop_futures,
                                             emission_model.ionization_fraction_savefile, lock))
 
