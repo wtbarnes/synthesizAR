@@ -231,7 +231,7 @@ class InstrumentSDOAIA(InstrumentBase):
             units = u.Unit(hf[channel['name']].attrs['units'])
 
         hpc_coordinates = self.total_coordinates
-        dz = np.diff(bin_range.z)[0] / bins.z * (1. * u.pixel)
+        dz = np.diff(bin_range.z)[0].cgs / bins.z * (1. * u.pixel)
         visible = is_visible(hpc_coordinates, self.observer_coordinate)
         hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
                                     bins=(bins.x.value, bins.y.value),
