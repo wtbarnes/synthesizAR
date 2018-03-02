@@ -1,7 +1,6 @@
 """
 Create data products from loop simulations
 """
-
 import os
 import warnings
 import logging
@@ -19,8 +18,6 @@ try:
     import distributed
 except ImportError:
     warnings.warn('Dask distributed scheduler required for parallel execution')
-
-from synthesizAR.util import heeq_to_hcc, future_property
 
 
 class Observer(object):
