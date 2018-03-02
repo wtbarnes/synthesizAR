@@ -215,10 +215,9 @@ class Observer(object):
             bins, bin_range = instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
                 reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
+            indices_time = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
             for channel in instr.channels:
                 header = instr.make_fits_header(self.field, channel)
-                indices_time = [np.where(reference_time == time)[0][0]
-                                for time in instr.observing_time]
                 file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
                               for i_time in indices_time]
                 if not os.path.exists(os.path.dirname(file_paths[0])):
@@ -229,7 +228,7 @@ class Observer(object):
                         channel, header=header, bins=bins, bin_range=bin_range)
                     map_futures = client.map(partial_detect, indices_time)
                     futures[instr.name][channel['name']] = client.map(
-                        instr.assemble_map, map_futures, file_paths, instr.observing_time)
+                        self.assemble_map, map_futures, file_paths, instr.observing_time)
                 # Serial
                 else:
                     for i, i_time in indices_time:
