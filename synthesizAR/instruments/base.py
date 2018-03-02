@@ -85,8 +85,8 @@ class InstrumentBase(object):
         _, _, v_los = heeq_to_hcc(v_x, v_y, v_z, self.observer_coordinate)
         return -v_los
 
-    @staticmethod
-    def interpolate_and_store(interp_t, y, loop, interp_s, start_index=None, save_path=False):
+    def interpolate_and_store(self, y, loop, interp_s, start_index=None, save_dir=False,
+                              dset_name=None):
         """
         Interpolate in time and space and write to HDF5 file.
         """
@@ -95,16 +95,17 @@ class InstrumentBase(object):
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         y_s = f_s(interp_s)
         f_t = interp1d(loop.time.value, y_s, axis=0, kind='linear', fill_value='extrapolate')
-        interpolated_y = f_t(interp_t)
-        if save_path:
+        interpolated_y = f_t(self.observing_time.value)
+        if save_dir:
+            save_path = os.path.join(save_dir, f'{loop.name}_{self.name}_{dset_name}.pkl')
             with open(save_path, 'wb') as f:
-                pickle.dump((interpolated_y, y.unit.to_string(), start_index), f)
+                pickle.dump((interpolated_y, y.unit.to_string(), start_index, dset_name), f)
             return save_path
         else:
             return interpolated_y * y.unit
 
     @staticmethod
-    def assemble_arrays(interp_files, dset_name, savefile, lock):
+    def assemble_arrays(interp_files, savefile, lock):
         """
         Assemble interpolated results into single file
         """
@@ -112,7 +113,7 @@ class InstrumentBase(object):
             with h5py.File(savefile, 'a', driver=None) as hf:
                 for filename in interp_files:
                     with open(filename, 'rb') as f:
-                        y, units, start_index = pickle.load(f)
+                        y, units, start_index, dset_name = pickle.load(f)
                     tmp = u.Quantity(y, units)
                     InstrumentBase.commit(tmp, hf[dset_name], start_index)
         return interp_files

@@ -164,29 +164,28 @@ class Observer(object):
             interp_futures = []
             for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                       'ion_temperature', 'density']:
-                paths = [os.path.join(tmp_dir, f'{l.name}_{instr.name}_{q}.pkl')
-                         for l in self.field.loops]
                 partial_interp = toolz.curry(instr.interpolate_and_store)(
-                    instr.observing_time.value, q)
+                    q, save_dir=tmp_dir, dset_name=q)
                 loop_futures = client.map(partial_interp, self.field.loops,
-                                          self._interpolated_loop_coordinates, start_indices, paths)
-                _interp_futures = client.submit(
-                    instr.assemble_arrays, loop_futures, q, instr.counts_file, lock)
+                                          self._interpolated_loop_coordinates, start_indices)
                 # Block until complete
-                distributed.client.wait([_interp_futures])
-                interp_futures.append(_interp_futures)
+                distributed.client.wait([loop_futures])
+                interp_futures += loop_futures
 
+            # Calculate and interpolate channel counts for instrument
             counts_futures = instr.flatten_parallel(self.field.loops,
                                                     self._interpolated_loop_coordinates,
                                                     tmp_dir, emission_model=emission_model)
-
-            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures+counts_futures)
+            # Assemble into file and clean up
+            assemble_future = client.submit(instr.assemble_arrays, interp_futures+counts_futures,
+                                            instr.counts_file, lock)
+            futures[f'{instr.name}'] = client.submit(self._cleanup, assemble_future)
 
         return futures
 
     @staticmethod
     def _cleanup(filenames):
-        for f in itertools.chain.from_iterable(filenames):
+        for f in filenames:
             os.remove(f)
         os.rmdir(os.path.dirname(f))
 

@@ -192,25 +192,21 @@ class InstrumentSDOAIA(InstrumentBase):
 
         futures = []
         for channel in self.channels:
-            paths = [os.path.join(tmp_dir, f"{l.name}_{self.name}_{channel['name']}.pkl")
-                     for l in loops]
             # Flatten emissivities for appropriate channel
             if emission_model is not None:
                 flat_emiss = self.flatten_emissivities(channel, emission_model)
             # Create partial functions
             partial_counts = toolz.curry(calculate_counts)(
                 channel, emission_model=emission_model, flattened_emissivities=flat_emiss)
-            partial_interp = toolz.curry(self.interpolate_and_store)(self.observing_time.value)
+            partial_interp = toolz.curry(self.interpolate_and_store)(
+                save_dir=tmp_dir, dset_name=channel['name'])
             # Map functions to iterables
             y_futures = client.map(partial_counts, loops)
-            interp_futures = client.map(partial_interp, y_futures, loops,
-                                        interpolated_loop_coordinates, start_indices, paths)
-            # Assemble into array
-            assemble_future = client.submit(
-                self.assemble_arrays, interp_futures, channel['name'], self.counts_file, lock)
+            loop_futures = client.map(partial_interp, y_futures, loops,
+                                      interpolated_loop_coordinates, start_indices)
             # Block until complete
-            distributed.client.wait([assemble_future])
-            futures.append(assemble_future)
+            distributed.client.wait([loop_futures])
+            futures += loop_futures
 
         return futures
 
