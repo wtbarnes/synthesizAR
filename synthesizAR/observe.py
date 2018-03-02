@@ -229,6 +229,7 @@ class Observer(object):
                     map_futures = client.map(partial_detect, indices_time)
                     futures[instr.name][channel['name']] = client.map(
                         self.assemble_map, map_futures, file_paths, instr.observing_time)
+                    distributed.client.wait(futures[instr.name][channel['name']])
                 # Serial
                 else:
                     for i, i_time in indices_time:
