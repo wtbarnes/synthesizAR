@@ -6,6 +6,7 @@ import os
 import warnings
 import logging
 import itertools
+import toolz
 
 import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
@@ -116,7 +117,11 @@ class Observer(object):
         resolution, and store it. This is done either in serial or parallel.
         """
         if self.parallel:
-            return self._flatten_detector_counts_parallel(**kwargs)
+            if 'client' not in kwargs:
+                raise ValueError('Dask distributed client is required for parallel option')
+            client = kwargs.get('client')
+            del kwargs['client']
+            return self._flatten_detector_counts_parallel(client, **kwargs)
         else:
             self._flatten_detector_counts_serial(**kwargs)
 
@@ -143,12 +148,14 @@ class Observer(object):
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
 
-    def _flatten_detector_counts_parallel(self, **kwargs):
+    def _flatten_detector_counts_parallel(self, client, **kwargs):
         """
         Build custom Dask graph interpolating quantities for each in loop in time and space.
         """
         emission_model = kwargs.get('emission_model', None)
-        tasks = {}
+        futures = {}
+        start_indices = np.insert(np.array(
+            [s.shape[0] for s in self._interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
         for instr in self.instruments:
             # Need to create lock for writing HDF5 files
             lock = distributed.Lock()
@@ -156,29 +163,27 @@ class Observer(object):
             tmp_file_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
             if not os.path.exists(tmp_file_dir):
                 os.makedirs(tmp_file_dir)
-            # Create interpolate tasks for each quantity and each loop
-            delayed_interp = dask.delayed(instr.interpolate_and_store)
-            tasks[f'{instr.name}'] = {}
+            interp_futures = []
             for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                       'ion_temperature', 'density']:
-                start_index = 0
-                interp_tasks = []
-                for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-                    interp_tasks.append(delayed_interp(
-                        q, loop, interp_s, instr.observing_time.value, start_index,
-                        os.path.join(tmp_file_dir, f'{loop.name}_{instr.name}_{q}.npz')))
-                    start_index += interp_s.shape[0]
-                tasks[f'{instr.name}'][q] = dask.delayed(instr.assemble_arrays)(
-                    interp_tasks, q, instr.counts_file, lock)
+                paths = [os.path.join(tmp_file_dir, f'{l.name}_{instr.name}_{q}.npz')
+                         for l in self.field.loops]
+                partial_interp = toolz.curry(instr.interpolate_and_store)(
+                    q, interp_t=instr.observing_time.value)
+                loop_futures = client.map(partial_interp, self.field.loops,
+                                          self._interpolated_loop_coordinates, start_indices, paths)
+                interp_futures.append(client.submit(
+                    instr.assemble_arrays, loop_futures, q, instr.counts_file, lock))
 
             # Get tasks for instrument-specific calculations
-            counts_tasks = instr.flatten_parallel(self.field.loops,
-                                                  self._interpolated_loop_coordinates,
-                                                  tmp_file_dir, lock,
-                                                  emission_model=emission_model)
-            tasks[f'{instr.name}'].update(counts_tasks)
+            counts_futures = instr.flatten_parallel(self.field.loops,
+                                                    self._interpolated_loop_coordinates,
+                                                    tmp_file_dir, client, lock,
+                                                    emission_model=emission_model)
 
-        return tasks
+            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures + counts_futures)
+
+        return futures
 
     @staticmethod
     def _cleanup(filenames):
