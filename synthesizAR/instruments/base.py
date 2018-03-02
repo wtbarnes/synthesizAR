@@ -85,7 +85,7 @@ class InstrumentBase(object):
         return -v_los
 
     @staticmethod
-    def interpolate_and_store(y, loop, interp_s, interp_t, start_index=None, save_path=False):
+    def interpolate_and_store(interp_t, y, loop, interp_s, start_index=None, save_path=False):
         """
         Interpolate in time and space and write to HDF5 file.
         """

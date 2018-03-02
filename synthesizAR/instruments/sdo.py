@@ -170,7 +170,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 flattened_emissivities = self.flatten_emissivities(channel, emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
-                y = self.interpolate_and_store(c, loop, interp_s, self.observing_time.value)
+                y = self.interpolate_and_store(self.observing_time.value, c, loop, interp_s)
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
@@ -200,8 +200,7 @@ class InstrumentSDOAIA(InstrumentBase):
             # Create partial functions
             partial_counts = toolz.curry(calculate_counts)(
                 channel, emission_model=emission_model, flattened_emissivities=flat_emiss)
-            partial_interp = toolz.curry(self.interpolate_and_store)(
-                interp_t=self.observing_time.value)
+            partial_interp = toolz.curry(self.interpolate_and_store)(self.observing_time.value)
             # Map functions to iterables
             y_futures = client.map(partial_counts, loops)
             interp_futures = client.map(partial_interp, y_futures, loops,

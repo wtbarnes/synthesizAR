@@ -126,19 +126,24 @@ class Observer(object):
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-                    params = (loop, interp_s, instr.observing_time.value)
-                    instr.commit(instr.interpolate_and_store(loop.velocity_x, *params),
-                                 hf['velocity_x'], start_index)
-                    instr.commit(instr.interpolate_and_store(loop.velocity_y, *params),
-                                 hf['velocity_y'], start_index)
-                    instr.commit(instr.interpolate_and_store(loop.velocity_z, *params),
-                                 hf['velocity_z'], start_index)
-                    instr.commit(instr.interpolate_and_store(loop.electron_temperature, *params),
-                                 hf['electron_temperature'], start_index)
-                    instr.commit(instr.interpolate_and_store(loop.ion_temperature, *params),
-                                 hf['ion_temperature'], start_index)
-                    instr.commit(instr.interpolate_and_store(loop.density, *params), hf['density'],
-                                 start_index)
+                    instr.commit(instr.interpolate_and_store(
+                        instr.observing_time.value, loop.velocity_x, loop, interp_s),
+                        hf['velocity_x'], start_index)
+                    instr.commit(instr.interpolate_and_store(
+                        instr.observing_time.value, loop.velocity_y, loop, interp_s),
+                        hf['velocity_y'], start_index)
+                    instr.commit(instr.interpolate_and_store(
+                        instr.observing_time.value, loop.velocity_z, loop, interp_s),
+                        hf['velocity_z'], start_index)
+                    instr.commit(instr.interpolate_and_store(
+                        instr.observing_time.value, loop.electron_temperature, loop, interp_s),
+                        hf['electron_temperature'], start_index)
+                    instr.commit(instr.interpolate_and_store(
+                        instr.observing_time.value, loop.ion_temperature, loop, interp_s),
+                        hf['ion_temperature'], start_index)
+                    instr.commit(instr.interpolate_and_store(
+                        instr.observing_time.value, loop.density, loop, interp_s),
+                        hf['density'], start_index)
                     start_index += interp_s.shape[0]
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
@@ -165,19 +170,18 @@ class Observer(object):
                 paths = [os.path.join(tmp_dir, f'{l.name}_{instr.name}_{q}.npz')
                          for l in self.field.loops]
                 partial_interp = toolz.curry(instr.interpolate_and_store)(
-                    y=q, interp_t=instr.observing_time.value)
+                    instr.observing_time.value, q)
                 loop_futures = client.map(partial_interp, self.field.loops,
                                           self._interpolated_loop_coordinates, start_indices, paths)
                 interp_futures.append(client.submit(
                     instr.assemble_arrays, loop_futures, q, instr.counts_file, lock))
 
             # Get tasks for instrument-specific calculations
-            #counts_futures = instr.flatten_parallel(self.field.loops,
-            #                                        self._interpolated_loop_coordinates,
-            #                                        tmp_dir, client, lock,
-            #                                        emission_model=emission_model)
+            counts_futures = instr.flatten_parallel(self.field.loops,
+                                                    self._interpolated_loop_coordinates,
+                                                    tmp_dir, emission_model=emission_model)
 
-            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures) # + counts_futures)
+            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures + counts_futures)
 
         return futures
 
