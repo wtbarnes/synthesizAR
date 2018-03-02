@@ -209,7 +209,7 @@ class InstrumentSDOAIA(InstrumentBase):
             assemble_future = client.submit(
                 self.assemble_arrays, interp_futures, channel['name'], self.counts_file, lock)
             # Block until complete
-            # distributed.client.wait([assemble_future])
+            distributed.client.wait([assemble_future])
             futures.append(assemble_future)
 
         return futures

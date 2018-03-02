@@ -8,6 +8,7 @@ import copy
 import warnings
 import itertools
 import toolz
+import pickle
 
 import numpy as np
 import h5py
@@ -149,9 +150,11 @@ class EbtelInterface(object):
         y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
                                                    loop.density[:, 0], rate_matrix,
                                                    initial_condition)
-        save_path = os.path.join(save_path_root, f'{element.element_name}_{loop.name}.npz')
-        np.savez(save_path, array=y_nei.value, n_s=loop.field_aligned_coordinate.shape[0],
-                 element=element.element_name, loop=loop.name)
+        save_path = os.path.join(save_path_root, f'{element.element_name}_{loop.name}.pkl')
+        with open(save_path, 'wb') as f:
+            pickle.dump((y_nei.value, loop.field_aligned_coordinate.shape[0],
+                         element.element_name, loop.name), f)
+
         return save_path
 
     @staticmethod
@@ -162,10 +165,9 @@ class EbtelInterface(object):
         with lock:
             with h5py.File(savefile, 'a') as hf:
                 for fn in filenames:
-                    tmp = np.load(fn)
-                    element_name, loop_name = str(tmp['element']), str(tmp['loop'])
+                    with open(fn, 'rb') as f:
+                        y_nei, n_s, element_name, loop_name = pickle.load(f)
                     grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-                    y_nei, n_s = tmp['array'], int(tmp['n_s'])
                     data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
                     if element_name not in grp:
                         dset = grp.create_dataset(element_name, data=data)
