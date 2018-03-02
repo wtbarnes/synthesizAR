@@ -174,14 +174,11 @@ class InstrumentSDOAIA(InstrumentBase):
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, emission_model=None):
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale. Returns a dask task.
         """
-        tmp_dir = os.path.join(os.path.dirname(self.counts_file), 'tmp_parallel_files')
-        if not os.path.exists(tmp_dir):
-            os.makedirs(tmp_dir)
         # Setup scheduler
         client = distributed.get_client()
         lock = distributed.Lock(name=f'hdf5_{self.name}')
@@ -209,12 +206,13 @@ class InstrumentSDOAIA(InstrumentBase):
             interp_futures = client.map(partial_interp, y_futures, loops,
                                         interpolated_loop_coordinates, start_indices, paths)
             # Assemble into array
-            futures.append(client.submit(
-                self.assemble_arrays, interp_futures, channel['name'], self.counts_file, lock))
+            assemble_future = client.submit(
+                self.assemble_arrays, interp_futures, channel['name'], self.counts_file, lock)
+            # Block until complete
+            distributed.client.wait([assemble_future])
+            futures.append(assemble_future)
 
-        future = client.submit(synthesizAR.Observer._cleanup, futures)
-
-        return future
+        return futures
 
     def detect(self, channel, i_time, header, bins, bin_range):
         """

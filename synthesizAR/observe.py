@@ -173,10 +173,17 @@ class Observer(object):
                     instr.observing_time.value, q)
                 loop_futures = client.map(partial_interp, self.field.loops,
                                           self._interpolated_loop_coordinates, start_indices, paths)
-                interp_futures.append(client.submit(
-                    instr.assemble_arrays, loop_futures, q, instr.counts_file, lock))
+                _interp_futures = client.submit(
+                    instr.assemble_arrays, loop_futures, q, instr.counts_file, lock)
+                # Block until complete
+                distributed.client.wait([_interp_futures])
+                interp_futures.append(_interp_futures)
 
-            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures)
+            counts_futures = instr.flatten_parallel(self.field.loops,
+                                                    self._interpolated_loop_coordinates,
+                                                    tmp_dir, emission_model=emission_model)
+
+            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures+counts_futures)
 
         return futures
 
@@ -204,7 +211,7 @@ class Observer(object):
         savedir : `str`
             Top level directory to save data products in
         """
-        tasks = {instr.name: [] for instr in self.instruments} if self.parallel else None
+        futures = {instr.name: {} for instr in self.instruments} if self.parallel else None
         file_path_template = os.path.join(savedir, '{}', '{}', 'map_t{:06d}.fits')
         for instr in self.instruments:
             bins, bin_range = instr.make_detector_array(self.field)
@@ -212,6 +219,10 @@ class Observer(object):
                 reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
             for channel in instr.channels:
                 header = instr.make_fits_header(self.field, channel)
+                indices_time = [np.where(reference_time == time)[0][0] 
+                                for time in instr.observing_time]
+                file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
+                              for i_time in indices_time]
                 for time in instr.observing_time:
                     try:
                         i_time = np.where(reference_time == time)[0][0]
@@ -228,4 +239,4 @@ class Observer(object):
                         raw_map = instr.detect(channel, i_time, header, bins, bin_range)
                         self.assemble_map(raw_map, file_path, time)
 
-        return tasks
+        return futures

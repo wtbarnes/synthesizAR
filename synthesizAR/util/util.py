@@ -18,28 +18,6 @@ __all__ = ['SpatialPair', 'future_property', 'delay_property', 'heeq_to_hcc', 'h
 SpatialPair = namedtuple('SpatialPair', 'x y z')
 
 
-def future_property(instance, attr):
-    """
-    Return function and args to be submitted as a future
-    """
-    for obj in [instance] + instance.__class__.mro():
-        if attr in obj.__dict__:
-            prop = obj.__dict__[attr]
-            return (prop.fget, instance)
-    raise AttributeError
-
-
-def delay_property(instance, attr):
-    """
-    Lazily evaluate a class property using Dask delayed
-    """
-    for obj in [instance] + instance.__class__.mro():
-        if attr in obj.__dict__:
-            prop = obj.__dict__[attr]
-            return dask.delayed(prop.fget)(instance)
-    raise AttributeError
-
-
 def heeq_to_hcc(x_heeq, y_heeq, z_heeq, observer_coordinate):
     """
     Convert Heliocentric Earth Equatorial (HEEQ) coordinates to Heliocentric
