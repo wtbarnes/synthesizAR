@@ -155,8 +155,6 @@ class Observer(object):
         start_indices = np.insert(np.array(
             [s.shape[0] for s in self._interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
         for instr in self.instruments:
-            # Need to create lock for writing HDF5 files
-            lock = distributed.Lock(name=f'hdf5_{instr.name}')
             # Create temporary files where interpolated results will be written
             tmp_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
             if not os.path.exists(tmp_dir):
@@ -178,7 +176,7 @@ class Observer(object):
                                                     tmp_dir, emission_model=emission_model)
             # Assemble into file and clean up
             assemble_future = client.submit(instr.assemble_arrays, interp_futures+counts_futures,
-                                            instr.counts_file, lock)
+                                            instr.counts_file)
             futures[f'{instr.name}'] = client.submit(self._cleanup, assemble_future)
 
         return futures

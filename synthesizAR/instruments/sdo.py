@@ -181,7 +181,6 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         # Setup scheduler
         client = distributed.get_client()
-        lock = distributed.Lock(name=f'hdf5_{self.name}')
         start_indices = np.insert(np.array(
             [s.shape[0] for s in interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
         if emission_model is None:

@@ -14,7 +14,7 @@ from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
 from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
 
-from synthesizAR.util import SpatialPair, heeq_to_hcc_coord
+from synthesizAR.util import SpatialPair, heeq_to_hcc_coord, heeq_to_hcc
 
 
 class InstrumentBase(object):
@@ -105,17 +105,16 @@ class InstrumentBase(object):
             return interpolated_y * y.unit
 
     @staticmethod
-    def assemble_arrays(interp_files, savefile, lock):
+    def assemble_arrays(interp_files, savefile):
         """
         Assemble interpolated results into single file
         """
-        with lock:
-            with h5py.File(savefile, 'a', driver=None) as hf:
-                for filename in interp_files:
-                    with open(filename, 'rb') as f:
-                        y, units, start_index, dset_name = pickle.load(f)
-                    tmp = u.Quantity(y, units)
-                    InstrumentBase.commit(tmp, hf[dset_name], start_index)
+        with h5py.File(savefile, 'a', driver=None) as hf:
+            for filename in interp_files:
+                with open(filename, 'rb') as f:
+                    y, units, start_index, dset_name = pickle.load(f)
+                tmp = u.Quantity(y, units)
+                InstrumentBase.commit(tmp, hf[dset_name], start_index)
         return interp_files
 
     @staticmethod
