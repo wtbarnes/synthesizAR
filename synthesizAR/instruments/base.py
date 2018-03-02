@@ -3,6 +3,7 @@ Base class for instrument objects.
 """
 
 import os
+import pickle
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -96,8 +97,8 @@ class InstrumentBase(object):
         f_t = interp1d(loop.time.value, y_s, axis=0, kind='linear', fill_value='extrapolate')
         interpolated_y = f_t(interp_t)
         if save_path:
-            np.savez(save_path, array=interpolated_y, units=y.unit.to_string(),
-                     start_index=start_index)
+            with open(save_path, 'wb') as f:
+                pickle.dump((interpolated_y, y.unit.to_string(), start_index), f)
             return save_path
         else:
             return interpolated_y * y.unit
@@ -110,9 +111,10 @@ class InstrumentBase(object):
         with lock:
             with h5py.File(savefile, 'a', driver=None) as hf:
                 for filename in interp_files:
-                    f = np.load(filename)
-                    tmp = u.Quantity(f['array'], str(f['units']))
-                    InstrumentBase.commit(tmp, hf[dset_name], int(f['start_index']))
+                    with open(filename, 'rb') as f:
+                        y, units, start_index = pickle.load(f)
+                    tmp = u.Quantity(y, units)
+                    InstrumentBase.commit(tmp, hf[dset_name], start_index)
         return interp_files
 
     @staticmethod

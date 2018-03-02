@@ -164,7 +164,7 @@ class Observer(object):
             interp_futures = []
             for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                       'ion_temperature', 'density']:
-                paths = [os.path.join(tmp_dir, f'{l.name}_{instr.name}_{q}.npz')
+                paths = [os.path.join(tmp_dir, f'{l.name}_{instr.name}_{q}.pkl')
                          for l in self.field.loops]
                 partial_interp = toolz.curry(instr.interpolate_and_store)(
                     instr.observing_time.value, q)
@@ -208,7 +208,11 @@ class Observer(object):
         savedir : `str`
             Top level directory to save data products in
         """
-        futures = {instr.name: {} for instr in self.instruments} if self.parallel else None
+        if self.parallel:
+            futures = {instr.name: {} for instr in self.instruments}
+            client = distributed.get_client()
+        else:
+            futures = None
         file_path_template = os.path.join(savedir, '{}', '{}', 'map_t{:06d}.fits')
         for instr in self.instruments:
             bins, bin_range = instr.make_detector_array(self.field)
@@ -216,24 +220,23 @@ class Observer(object):
                 reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
             for channel in instr.channels:
                 header = instr.make_fits_header(self.field, channel)
-                indices_time = [np.where(reference_time == time)[0][0] 
+                indices_time = [np.where(reference_time == time)[0][0]
                                 for time in instr.observing_time]
                 file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
                               for i_time in indices_time]
-                for time in instr.observing_time:
-                    try:
-                        i_time = np.where(reference_time == time)[0][0]
-                    except IndexError as err:
-                        raise IndexError(f'{time} not a valid observing time for {instr.name}') from err
-                    file_path = file_path_template.format(instr.name, channel['name'], i_time)
-                    if not os.path.exists(os.path.dirname(file_path)):
-                        os.makedirs(os.path.dirname(file_path))
-                    if self.parallel:
-                        m = dask.delayed(instr.detect)(channel, i_time, header, bins, bin_range)
-                        tasks[f'{instr.name}'].append(dask.delayed(self.assemble_map)(
-                            m, file_path, time))
-                    else:
+                if not os.path.exists(os.path.dirname(file_paths[0])):
+                    os.makedirs(os.path.dirname(file_paths[0]))
+                # Parallel
+                if self.parallel:
+                    partial_detect = toolz.curry(instr.detect)(
+                        channel, header=header, bins=bins, bin_range=bin_range)
+                    map_futures = client.map(partial_detect, indices_time)
+                    futures[instr.name][channel['name']] = client.map(
+                        instr.assemble_map, map_futures, file_paths, instr.observing_time)
+                # Serial
+                else:
+                    for i, i_time in indices_time:
                         raw_map = instr.detect(channel, i_time, header, bins, bin_range)
-                        self.assemble_map(raw_map, file_path, time)
+                        self.assemble_map(raw_map, file_paths[i], instr.observing_time[i])
 
         return futures
