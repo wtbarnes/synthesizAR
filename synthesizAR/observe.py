@@ -173,7 +173,7 @@ class Observer(object):
                 _interp_futures = client.submit(
                     instr.assemble_arrays, loop_futures, q, instr.counts_file, lock)
                 # Block until complete
-                distributed.client.wait([_interp_futures])
+                # distributed.client.wait([_interp_futures])
                 interp_futures.append(_interp_futures)
 
             counts_futures = instr.flatten_parallel(self.field.loops,
