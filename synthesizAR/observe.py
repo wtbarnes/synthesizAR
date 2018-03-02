@@ -165,7 +165,7 @@ class Observer(object):
                 paths = [os.path.join(tmp_dir, f'{l.name}_{instr.name}_{q}.npz')
                          for l in self.field.loops]
                 partial_interp = toolz.curry(instr.interpolate_and_store)(
-                    q, interp_t=instr.observing_time.value)
+                    y=q, interp_t=instr.observing_time.value)
                 loop_futures = client.map(partial_interp, self.field.loops,
                                           self._interpolated_loop_coordinates, start_indices, paths)
                 interp_futures.append(client.submit(
