@@ -19,9 +19,9 @@ from sunpy.util.metadata import MetaDict
 from sunpy.coordinates.frames import Helioprojective
 import h5py
 try:
-    import dask
+    import distributed
 except ImportError:
-    warnings.warn('Dask library required for parallel execution')
+    warnings.warn('Dask distributed scheduler required for parallel execution')
 
 import synthesizAR
 from synthesizAR.util import SpatialPair, is_visible
@@ -174,12 +174,14 @@ class InstrumentSDOAIA(InstrumentBase):
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, client, lock,
-                         emission_model=None):
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale. Returns a dask task.
         """
+        # Setup scheduler
+        client = distributed.get_client()
+        lock = distributed.Lock(name=f'hdf5_{self.name}')
         start_indices = np.insert(np.array(
             [s.shape[0] for s in interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
         if emission_model is None:

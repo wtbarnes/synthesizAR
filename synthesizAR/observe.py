@@ -16,10 +16,9 @@ from sunpy.sun import constants
 from sunpy.coordinates.frames import HeliographicStonyhurst
 import h5py
 try:
-    import dask
     import distributed
 except ImportError:
-    warnings.warn('Dask library required for parallel execution')
+    warnings.warn('Dask distributed scheduler required for parallel execution')
 
 from synthesizAR.util import heeq_to_hcc, future_property
 
@@ -117,11 +116,7 @@ class Observer(object):
         resolution, and store it. This is done either in serial or parallel.
         """
         if self.parallel:
-            if 'client' not in kwargs:
-                raise ValueError('Dask distributed client is required for parallel option')
-            client = kwargs.get('client')
-            del kwargs['client']
-            return self._flatten_detector_counts_parallel(client, **kwargs)
+            return self._flatten_detector_counts_parallel(**kwargs)
         else:
             self._flatten_detector_counts_serial(**kwargs)
 
@@ -148,17 +143,18 @@ class Observer(object):
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
 
-    def _flatten_detector_counts_parallel(self, client, **kwargs):
+    def _flatten_detector_counts_parallel(self, **kwargs):
         """
         Build custom Dask graph interpolating quantities for each in loop in time and space.
         """
+        client = distributed.get_client()
         emission_model = kwargs.get('emission_model', None)
         futures = {}
         start_indices = np.insert(np.array(
             [s.shape[0] for s in self._interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
         for instr in self.instruments:
             # Need to create lock for writing HDF5 files
-            lock = distributed.Lock()
+            lock = distributed.Lock(name=f'hdf5_{instr.name}')
             # Create temporary files where interpolated results will be written
             tmp_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
             if not os.path.exists(tmp_dir):
@@ -176,12 +172,12 @@ class Observer(object):
                     instr.assemble_arrays, loop_futures, q, instr.counts_file, lock))
 
             # Get tasks for instrument-specific calculations
-            counts_futures = instr.flatten_parallel(self.field.loops,
-                                                    self._interpolated_loop_coordinates,
-                                                    tmp_dir, client, lock,
-                                                    emission_model=emission_model)
+            #counts_futures = instr.flatten_parallel(self.field.loops,
+            #                                        self._interpolated_loop_coordinates,
+            #                                        tmp_dir, client, lock,
+            #                                        emission_model=emission_model)
 
-            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures + counts_futures)
+            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures) # + counts_futures)
 
         return futures
 
