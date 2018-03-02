@@ -177,9 +177,9 @@ class Observer(object):
                     instr.assemble_arrays, loop_futures, q, instr.counts_file, lock))
 
             # Get tasks for instrument-specific calculations
-            counts_futures = instr.flatten_parallel(self.field.loops,
-                                                    self._interpolated_loop_coordinates,
-                                                    tmp_dir, emission_model=emission_model)
+            # counts_futures = instr.flatten_parallel(self.field.loops,
+            #                                         self._interpolated_loop_coordinates,
+            #                                         tmp_dir, emission_model=emission_model)
 
             futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures + counts_futures)
 
