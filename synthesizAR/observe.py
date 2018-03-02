@@ -181,7 +181,7 @@ class Observer(object):
             #                                         self._interpolated_loop_coordinates,
             #                                         tmp_dir, emission_model=emission_model)
 
-            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures + counts_futures)
+            futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures)
 
         return futures
 
