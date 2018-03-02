@@ -190,7 +190,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
         futures = []
         for channel in self.channels:
-            paths = [os.path.join(tmp_file_dir, f"{l.name}_{self.name}_{channel['name']}.npz")
+            paths = [os.path.join(tmp_dir, f"{l.name}_{self.name}_{channel['name']}.npz")
                      for l in loops]
             # Flatten emissivities for appropriate channel
             if emission_model is not None:

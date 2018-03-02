@@ -160,13 +160,13 @@ class Observer(object):
             # Need to create lock for writing HDF5 files
             lock = distributed.Lock()
             # Create temporary files where interpolated results will be written
-            tmp_file_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
-            if not os.path.exists(tmp_file_dir):
-                os.makedirs(tmp_file_dir)
+            tmp_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
+            if not os.path.exists(tmp_dir):
+                os.makedirs(tmp_dir)
             interp_futures = []
             for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                       'ion_temperature', 'density']:
-                paths = [os.path.join(tmp_file_dir, f'{l.name}_{instr.name}_{q}.npz')
+                paths = [os.path.join(tmp_dir, f'{l.name}_{instr.name}_{q}.npz')
                          for l in self.field.loops]
                 partial_interp = toolz.curry(instr.interpolate_and_store)(
                     q, interp_t=instr.observing_time.value)
@@ -178,7 +178,7 @@ class Observer(object):
             # Get tasks for instrument-specific calculations
             counts_futures = instr.flatten_parallel(self.field.loops,
                                                     self._interpolated_loop_coordinates,
-                                                    tmp_file_dir, client, lock,
+                                                    tmp_dir, client, lock,
                                                     emission_model=emission_model)
 
             futures[f'{instr.name}'] = client.submit(self._cleanup, interp_futures + counts_futures)
