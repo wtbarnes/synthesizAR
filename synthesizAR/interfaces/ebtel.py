@@ -6,7 +6,6 @@ import os
 import logging
 import copy
 import warnings
-import itertools
 import toolz
 import pickle
 
@@ -109,21 +108,33 @@ class EbtelInterface(object):
     @staticmethod
     def calculate_ionization_fraction(field, emission_model, **kwargs):
         """
-        Solve the time-dependent ionization balance equation for a particular loop and ion.
+        Solve the time-dependent ionization balance equation for all loops and all elements
 
-        Build a Dask task graph to solve the time-dependent ion population equations for all
-        loops in the field and all elements in our emission model.
+        This method computes the time dependent ion population fractions for each element in 
+        the emission model and each loop in the active region and compiles the results to a single
+        HDF5 file. To do this efficiently, it uses the dask.distributed library to take advantage of
+        multiple processes/cores/machines and compute the population fractions in parallel. It returns
+        an asynchronous `~distributed.client.Future` object which holds the state of the submitted
+        tasks.
+
+        Parameters
+        ----------
+        field : `~synthesizAR.Field`
+        emission_model : `~synthesizAR.atomic.EmissionModel`
+
+        Other Parameters
+        ---------------------
+        temperature : `~astropy.units.Quantity`
+
+        Returns
+        --------
+        future : `~distributed.client.Future`
         """
+        client = distributed.get_client()
         tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile),
                               'tmp_nei')
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
-        # Create lock for writing HDF5 file
-        lock = distributed.Lock()
-        # Get Dask client
-        if 'client' not in kwargs:
-            raise ValueError('Dask distributed client is required to compute NEI in parallel')
-        client = kwargs.get('client')
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
    
@@ -135,22 +146,24 @@ class EbtelInterface(object):
             partial_nei = toolz.curry(EbtelInterface.compute_and_save_nei)(
                 el, rate_matrix=rate_matrix, initial_condition=ioneq, save_path_root=tmpdir)
             loop_futures = client.map(partial_nei, field.loops)
-            el_futures.append(client.submit(EbtelInterface.slice_and_store, loop_futures,
-                                            emission_model.ionization_fraction_savefile, lock))
+            distributed.wait(loop_futures)
+            el_futures += loop_futures
 
-        future = client.submit(EbtelInterface._cleanup, el_futures)
+        store_future = client.submit(EbtelInterface.slice_and_store, el_futures,
+                                     emission_model.ionization_fraction_savefile)
+        future = client.submit(EbtelInterface._cleanup, store_future)
 
         return future
 
     @staticmethod
-    def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_path_root):
+    def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_dir):
         """
         Compute and save NEI populations for a given element and loop
         """
         y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
                                                    loop.density[:, 0], rate_matrix,
                                                    initial_condition)
-        save_path = os.path.join(save_path_root, f'{element.element_name}_{loop.name}.pkl')
+        save_path = os.path.join(save_dir, f'{element.element_name}_{loop.name}.pkl')
         with open(save_path, 'wb') as f:
             pickle.dump((y_nei.value, loop.field_aligned_coordinate.shape[0],
                          element.element_name, loop.name), f)
@@ -158,29 +171,28 @@ class EbtelInterface(object):
         return save_path
 
     @staticmethod
-    def slice_and_store(filenames, savefile, lock):
+    def slice_and_store(filenames, savefile):
         """
-        Collecting and storing all NEI populations in a single HDF5 file
+        Collect and store all NEI populations in a single HDF5 file
         """
-        with lock:
-            with h5py.File(savefile, 'a') as hf:
-                for fn in filenames:
-                    with open(fn, 'rb') as f:
-                        y_nei, n_s, element_name, loop_name = pickle.load(f)
-                    grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-                    data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
-                    if element_name not in grp:
-                        dset = grp.create_dataset(element_name, data=data)
-                    else:
-                        dset = grp[element_name]
-                        dset[:, :, :] = data
-                    dset.attrs['units'] = ''
-                    dset.attrs['description'] = 'non-equilibrium ionization fractions'
+        with h5py.File(savefile, 'a') as hf:
+            for fn in filenames:
+                with open(fn, 'rb') as f:
+                    y_nei, n_s, element_name, loop_name = pickle.load(f)
+                grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
+                data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
+                if element_name not in grp:
+                    dset = grp.create_dataset(element_name, data=data)
+                else:
+                    dset = grp[element_name]
+                    dset[:, :, :] = data
+                dset.attrs['units'] = ''
+                dset.attrs['description'] = 'non-equilibrium ionization fractions'
 
         return filenames
 
     @staticmethod
     def _cleanup(filenames):
-        for f in itertools.chain.from_iterable(filenames):
+        for f in filenames:
             os.remove(f)
         os.rmdir(os.path.dirname(f))
