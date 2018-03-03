@@ -15,8 +15,7 @@ from .chianti import Ion, Element
 
 class EmissionModel(fiasco.IonCollection):
     """
-    Model for how atomic data is used to calculate emission from
-    coronal plasma.
+    Model for how atomic data is used to calculate emission from coronal plasma.
     """
     
     @u.quantity_input

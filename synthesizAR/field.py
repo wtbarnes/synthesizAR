@@ -31,6 +31,12 @@ class Field(object):
 
     Examples
     --------
+    >>> import synthesizAR
+    >>> from sunpy.map import Map
+    >>> import astropy.units as u
+    >>> m = Map('/path/to/sample_hmi.fits')
+    >>> fieldlines = [([[1,2,3],[4,5,6]] * u.Mm, [1e2,1e3] * u.G)]
+    >>> field = synthesizAR.Field(m, fieldlines)
     """
 
     def __init__(self, magnetogram, fieldlines):
