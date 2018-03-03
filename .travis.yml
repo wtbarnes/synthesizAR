@@ -32,7 +32,7 @@ env:
         - ASTROPY_VERSION=stable
         - MAIN_CMD='python setup.py'
         - PIP_DEPENDENCIES='plasmapy git+git://github.com/wtbarnes/fiasco.git'
-        - CONDA_DEPENDENCIES='dask h5py matplotlib scipy sunpy yt numba'
+        - CONDA_DEPENDENCIES='dask distributed h5py matplotlib scipy sunpy yt numba'
         - CONDA_CHANNELS='conda-forge'
         - EVENT_TYPE='pull_request push'
 

@@ -8,6 +8,7 @@ synthesizAR is compatible with Python 3.6+. The easiest and most convenient way 
 
 - astropy
 - dask
+- distributed
 - h5py
 - fiasco
 - matplotlib
