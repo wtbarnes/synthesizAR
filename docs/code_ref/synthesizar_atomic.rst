@@ -1,4 +1,4 @@
-Atomic Physics and Emission Models
+synthesizAR atomic
 ================================================
 
 .. automodapi:: synthesizAR.atomic

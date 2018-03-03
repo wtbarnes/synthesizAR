@@ -1,4 +1,4 @@
-Instruments
+synthesizAR instruments
 ===============================
 
 .. automodapi:: synthesizAR.instruments

@@ -1,4 +1,4 @@
-Utilities
+synthesizAR util
 ======================
 
 .. automodapi:: synthesizAR.util
