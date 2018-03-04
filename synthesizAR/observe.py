@@ -123,24 +123,10 @@ class Observer(object):
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
                 for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-                    instr.commit(instr.interpolate_and_store(
-                        instr.observing_time.value, loop.velocity_x, loop, interp_s),
-                        hf['velocity_x'], start_index)
-                    instr.commit(instr.interpolate_and_store(
-                        instr.observing_time.value, loop.velocity_y, loop, interp_s),
-                        hf['velocity_y'], start_index)
-                    instr.commit(instr.interpolate_and_store(
-                        instr.observing_time.value, loop.velocity_z, loop, interp_s),
-                        hf['velocity_z'], start_index)
-                    instr.commit(instr.interpolate_and_store(
-                        instr.observing_time.value, loop.electron_temperature, loop, interp_s),
-                        hf['electron_temperature'], start_index)
-                    instr.commit(instr.interpolate_and_store(
-                        instr.observing_time.value, loop.ion_temperature, loop, interp_s),
-                        hf['ion_temperature'], start_index)
-                    instr.commit(instr.interpolate_and_store(
-                        instr.observing_time.value, loop.density, loop, interp_s),
-                        hf['density'], start_index)
+                    for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
+                              'ion_temperature', 'density']:
+                        val = instr.interpolate_and_store(q, loop, interp_s)
+                        instr.commit(val, hf[q], start_index)
                     start_index += interp_s.shape[0]
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
@@ -232,7 +218,7 @@ class Observer(object):
                     distributed.client.wait(futures[instr.name][channel['name']])
                 # Serial
                 else:
-                    for i, i_time in indices_time:
+                    for i, i_time in enumerate(indices_time):
                         raw_map = instr.detect(channel, i_time, header, bins, bin_range)
                         self.assemble_map(raw_map, file_paths[i], instr.observing_time[i])
 
