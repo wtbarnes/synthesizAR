@@ -1,5 +1,3 @@
-.. synthesizAR documentation master file
-
 synthesizAR
 ============
 
@@ -16,6 +14,6 @@ synthesizAR is designed to be modular and extensible. Extensions for new hydrody
    :maxdepth: 2
 
    getting_started
+   tutorial
    code_ref/index
-   examples
    develop

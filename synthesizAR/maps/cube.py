@@ -1,5 +1,5 @@
 """
-Object to deal with x,y,lambda data cubes
+Containers for multidimensional data
 """
 
 import os
@@ -13,6 +13,8 @@ from sunpy.map import Map, MapCube, GenericMap
 from sunpy.util.metadata import MetaDict
 from sunpy.io.fits import get_header
 
+__all__ = ['EMCube', 'EISCube']
+
 
 class EMCube(MapCube):
     """
@@ -20,8 +22,15 @@ class EMCube(MapCube):
 
     Parameters
     ----------
-    Examples
-    --------
+    data : `~astropy.units.Quantity`
+        3D array (2D spatial + temperature) cube of emission measure data
+    header : `~sunpy.util.metadata.MetaDict`
+    temperature_bin_edges : `~astropy.units.Quantity`
+        Should have same shape as third dimension of `data`
+
+    Other Parameters
+    ----------------
+    plot_settings : `dict`
     """
 
     @u.quantity_input
@@ -34,7 +43,7 @@ class EMCube(MapCube):
         # build map list
         map_list = []
         for i in range(self.temperature_bin_edges.shape[0] - 1):
-            tmp = GenericMap(data[:,:,i], meta_base)
+            tmp = GenericMap(data[:, :, i], meta_base)
             tmp.meta['temp_a'] = self.temperature_bin_edges[i].value
             tmp.meta['temp_b'] = self.temperature_bin_edges[i+1].value
             tmp.plot_settings.update(kwargs.get('plot_settings', {}))
@@ -51,49 +60,69 @@ class EMCube(MapCube):
         tmp_meta = self[0].meta.copy()
         tmp_meta['temp_a'] = self.temperature_bin_edges[0]
         tmp_meta['temp_b'] = self.temperature_bin_edges[-1]
-        return GenericMap(self.as_array().sum(axis=2), tmp_meta, plot_settings=self[0].plot_settings)
+        return GenericMap(self.as_array().sum(axis=2), tmp_meta,
+                          plot_settings=self[0].plot_settings)
 
-    def get_1d_distribution(self, range_a, range_b):
+    def get_1d_distribution(self, bottom_left_corner, top_right_corner):
         """
-        Return a 1D emission measure distribution for a spatial selection. The mean is
-        taken over the desired spatial selection.
+        Mean emission measure distribution over area defined by corners.
+
+        Parameters
+        ----------
+        bottom_left_corner : `~astropy.coordinates.SkyCoord`
+        top_right_corner : `~astropy.coordinates.SkyCoord`
         """
         em_list = []
         for i in range(self.temperature_bin_edges.shape[0] - 1):
-            em_list.append(self[i].submap(range_a, range_b).data.mean())
+            em_list.append(self[i].submap(bottom_left_corner, top_right_corner).data.mean())
 
-        return self.temperature_bin_edges, u.Quantity(em_list, u.Unit(self[0].meta['bunit']))
+        return u.Quantity(em_list, u.Unit(self[0].meta['bunit']))
 
     def make_slope_map(self, temperature_bounds=None, em_threshold=None, rsquared_tolerance=0.5):
         """
-        Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a 
+        Calculate emission measure slope :math:`a` in each pixel
+
+        Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a
         given temperature range. Only those pixels for which the minimum :math:`\mathrm{EM}`
         across all temperature bins is above some threshold value.
 
         .. warning:: This method provides no measure of the goodness of the fit. Some slope values
                      may not provide an accurate fit to the data.
+
+        Parameters
+        ----------
+        temperature_bounds : `~astropy.units.Quantity`, optional
+        em_threshold : `~astropy.units.Quantity`, optional
+            Mask emission measure below this value
+        rsquared_tolerance : `float`
+            Throw away slopes with :math:`r^2` below this value
         """
         if temperature_bounds is None:
             temperature_bounds = u.Quantity((1e6, 4e6), u.K)
         if em_threshold is None:
             em_threshold = u.Quantity(1e25, u.cm**(-5))
         # cut on temperature
-        temperature_bin_centers = (self.temperature_bin_edges[:-1] + self.temperature_bin_edges[1:])/2.
-        index_temperature_bounds = np.where(np.logical_and(temperature_bin_centers >= temperature_bounds[0],
-                                                           temperature_bin_centers <= temperature_bounds[1]))
+        temperature_bin_centers = (self.temperature_bin_edges[:-1]
+                                   + self.temperature_bin_edges[1:])/2.
+        index_temperature_bounds = np.where(np.logical_and(
+            temperature_bin_centers >= temperature_bounds[0],
+            temperature_bin_centers <= temperature_bounds[1]))
         temperature_fit = temperature_bin_centers[index_temperature_bounds].value
         # unwrap to 2D and threshold
         data = self.as_array()*u.Unit(self[0].meta['bunit'])
         flat_data = data.reshape(np.prod(data.shape[:2]), temperature_bin_centers.shape[0])
-        index_data_threshold = np.where(np.min(flat_data[:,index_temperature_bounds[0]], axis=1) >= em_threshold)
-        flat_data_threshold = flat_data.value[index_data_threshold[0],:][:,index_temperature_bounds[0]]
+        index_data_threshold = np.where(np.min(
+            flat_data[:, index_temperature_bounds[0]], axis=1) >= em_threshold)
+        flat_data_threshold = flat_data.value[index_data_threshold[0], :][:, index_temperature_bounds[0]]
         # very basic but vectorized fitting
-        _, rss_flat, _, _, _ = np.polyfit(np.log10(temperature_fit), np.log10(flat_data_threshold.T), 0, full=True)
-        coefficients, rss, _, _, _ = np.polyfit(np.log10(temperature_fit), np.log10(flat_data_threshold.T), 1, full=True)
+        _, rss_flat, _, _, _ = np.polyfit(
+            np.log10(temperature_fit), np.log10(flat_data_threshold.T), 0, full=True)
+        coefficients, rss, _, _, _ = np.polyfit(
+            np.log10(temperature_fit), np.log10(flat_data_threshold.T), 1, full=True)
         rsquared = 1. - rss/rss_flat
         slopes = np.where(rsquared >= rsquared_tolerance, coefficients[0], 0.)
         # rebuild into a map
-        slopes_flat = np.zeros(flat_data.shape[0])
+        slopes_flat = np.zeros(flat_data.shape[0]) * np.nan
         slopes_flat[index_data_threshold[0]] = slopes
         slopes_2d = np.reshape(slopes_flat, data.shape[:2])
         base_meta = self[0].meta.copy()
@@ -111,10 +140,12 @@ class EMCube(MapCube):
         """
         Override the MapCube indexing so that an `EMCube` object is returned.
         """
-        if type(self.temperature_bin_edges[key].value) == np.ndarray and len(self.temperature_bin_edges[key].value) > 1:
-            tmp_data = u.Quantity(self.as_array()[:,:,key], u.Unit(self.maps[0].meta['bunit']))
+        if type(self.temperature_bin_edges[key].value) == np.ndarray and \
+           len(self.temperature_bin_edges[key].value) > 1:
+            tmp_data = u.Quantity(self.as_array()[:, :, key], u.Unit(self.maps[0].meta['bunit']))
             tmp_meta = self.maps[0].meta.copy()
-            tmp = EMCube(tmp_data, tmp_meta, self.temperature_bin_edges[key], plot_settings=self.maps[0].plot_settings)
+            tmp = EMCube(tmp_data, tmp_meta, self.temperature_bin_edges[key],
+                         plot_settings=self.maps[0].plot_settings)
         else:
             tmp = self.maps[key]
             tmp.meta['temp_a'] = self.temperature_bin_edges[key].value
@@ -129,7 +160,8 @@ class EMCube(MapCube):
         with h5py.File(filename, 'x') as hf:
             dset_data = hf.create_dataset('emission_measure', data=self.as_array())
             dset_data.attrs['units'] = self[0].meta['bunit']
-            dset_temperature_bin_edges = hf.create_dataset('temperature_bin_edges', data=self.temperature_bin_edges.value)
+            dset_temperature_bin_edges = hf.create_dataset(
+                'temperature_bin_edges', data=self.temperature_bin_edges.value)
             dset_temperature_bin_edges.attrs['units'] = self.temperature_bin_edges.unit.to_string()
             meta_group = hf.create_group('meta')
             for key in self[0].meta:
@@ -141,9 +173,10 @@ class EMCube(MapCube):
         Restore `EMCube` from an HDF5 file.
         """
         header = MetaDict()
-        with h5py.File(filename,'r') as hf:
+        with h5py.File(filename, 'r') as hf:
             data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs['units'])
-            temperature_bin_edges = u.Quantity(hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs['units'])
+            temperature_bin_edges = u.Quantity(
+                hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs['units'])
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
 
@@ -176,20 +209,15 @@ class EISCube(object):
         self._fix_header()
 
     def __repr__(self):
-        return '''synthesizAR {obj_name}
+        return f'''synthesizAR {type(self).__name__}
 -----------------------------------------
-Telescope : {tel}
-Instrument : {instr}
-Area : x={x_range}, y={y_range}
-Dimension : {dim}
-Scale : {scale}
-Wavelength range : {wvl_range}
-Wavelength dimension : {wvl_dim}
-        '''.format(obj_name=type(self).__name__, tel=self.meta['telescop'],
-                   instr=self.meta['instrume'], dim=u.Quantity(self[0].dimensions),
-                   scale=u.Quantity(self[0].scale), wvl_dim=len(self.wavelength),
-                   wvl_range=u.Quantity([self.wavelength[0], self.wavelength[-1]]),
-                   x_range=self[0].xrange, y_range=self[0].yrange)
+Telescope : {self.meta['telescop']}
+Instrument : {self.meta['instrume']}
+Area : x={self[0].xrange}, y={self[0].yrange}
+Dimension : {u.Quantity(self[0].dimensions)}
+Scale : {u.Quantity(self[0].scale)}
+Wavelength range : {u.Quantity([self.wavelength[0], self.wavelength[-1]])}
+Wavelength dimension : {len(self.wavelength)}'''
 
     def __getitem__(self, key):
         """
@@ -199,7 +227,8 @@ Wavelength dimension : {wvl_dim}
         if type(self.wavelength[key].value) == np.ndarray and len(self.wavelength[key].value) > 1:
             new_meta = self.meta.copy()
             new_meta['wavelnth'] = (self.wavelength[key][0].value+self.wavelength[key][-1].value)/2.
-            return EISCube(data=self.data[:, :, key], header=new_meta, wavelength=self.wavelength[key])
+            return EISCube(data=self.data[:, :, key], header=new_meta,
+                           wavelength=self.wavelength[key])
         else:
             meta_map2d = self.meta.copy()
             meta_map2d['naxis'] = 2
@@ -210,9 +239,9 @@ Wavelength dimension : {wvl_dim}
             tmp_map.plot_settings.update({'cmap': self.cmap})
             return tmp_map
 
-    def submap(self, range_x, range_y):
+    def submap(self, bottom_left_corner, top_right_corner):
         """
-        Crop to spatial area designated by x and y ranges. Uses `~sunpy.map.Map.submap`
+        Crop to spatial area designated by corners
 
         .. warning:: It is faster to crop in wavelength space first and then crop in
                      coordinate space.
@@ -220,11 +249,11 @@ Wavelength dimension : {wvl_dim}
         # call submap on each slice in wavelength
         new_data = []
         for i in range(self.wavelength.shape[0]):
-            new_data.append(self[i].submap(range_x,range_y).data)
-        new_data = np.stack(new_data,axis=2)*self.data.unit
+            new_data.append(self[i].submap(bottom_left_corner, top_right_corner).data)
+        new_data = np.stack(new_data, axis=2)*self.data.unit
         # fix metadata
-        new_meta = self[0].submap(range_x, range_y).meta.copy()
-        for key in ['wavelnth','naxis3', 'ctype3', 'cunit3', 'cdelt3']:
+        new_meta = self[0].submap(bottom_left_corner, top_right_corner).meta.copy()
+        for key in ['wavelnth', 'naxis3', 'ctype3', 'cunit3', 'cdelt3']:
             new_meta[key] = self.meta[key]
 
         return EISCube(data=new_data, header=new_meta, wavelength=self.wavelength)
@@ -235,13 +264,14 @@ Wavelength dimension : {wvl_dim}
         """
         if isinstance(x, EISCube):
             assert np.all(self.wavelength == x.wavelength), 'Wavelength ranges must be equal in order to add EISCubes'
-            key_checks = ['cdelt1', 'cdelt2', 'crpix1', 'crpix2', 'ctype1', 'ctype2', 'crval1', 'crval2']
+            key_checks = ['cdelt1', 'cdelt2', 'crpix1', 'crpix2', 'ctype1', 'ctype2', 'crval1',
+                          'crval2']
             for k in key_checks:
-                assert self.meta[k] == x.meta[k], '{} keys in metadata do not match'.format(k)
+                assert self.meta[k] == x.meta[k], f'{k} keys in metadata do not match'
             data = self.data + x.data
         else:
             # if x is not an instance of EISCube, let numpy/astropy decide whether it can
-            # be added to the data attribute, e.g. a scalar or some 3D array with 
+            # be added to the data attribute, e.g. a scalar or some 3D array with
             # appropriate units
             data = self.data + x
         return EISCube(data=data, header=self.meta.copy(), wavelength=self.wavelength)
@@ -293,7 +323,8 @@ Wavelength dimension : {wvl_dim}
         """
         Save to HDF5 file.
         """
-        dset_save_kwargs = kwargs.get('hdf5_save_params', {'compression': 'gzip', 'dtype': np.float32})
+        dset_save_kwargs = kwargs.get(
+            'hdf5_save_params', {'compression': 'gzip', 'dtype': np.float32})
         with h5py.File(filename, 'x') as hf:
             meta_group = hf.create_group('meta')
             for key in self.meta:

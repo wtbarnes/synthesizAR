@@ -51,6 +51,7 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
     meta['bunit'] = v_los.unit.to_string()
     meta['detector'] = 'LOS Velocity'
     meta['comment'] = 'LOS velocity calculated by synthesizAR'
+
     return GenericMap(hist.T, meta, plot_settings=plot_settings)
 
 
@@ -88,14 +89,29 @@ def make_temperature_map(time: u.s, field, instr, **kwargs):
     meta['bunit'] = units.to_string()
     meta['detector'] = 'Electron Temperature'
     meta['comment'] = 'Column-averaged electron temperature calculated by synthesizAR'
+
     return GenericMap(hist.T, meta, plot_settings=plot_settings)
 
 
 @u.quantity_input
 def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None, **kwargs):
     """
-    Return a cube of maps showing the true emission meausure in each pixel
-    as a function of electron temperature.
+    Compute true emission meausure in each pixel as a function of electron temperature.
+
+    Parameters
+    ----------
+    time : `~astropy.units.Quantity`
+    field : `~synthesizAR.Field`
+    instr : `~synthesizAR.instruments.InstrumentBase`
+    temperature_bin_edges : `~astropy.units.Quantity`
+
+    Other Parameters
+    ----------------
+    plot_settings : `dict`
+
+    Returns
+    -------
+    `~synthesizAR.maps.EMCube`
     """
     plot_settings = {'cmap': cm.get_cmap('magma'),
                      'norm': colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}

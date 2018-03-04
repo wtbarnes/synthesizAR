@@ -32,8 +32,6 @@ class Observer(object):
 
     Examples
     --------
-    Notes
-    -----
     """
 
     def __init__(self, field, instruments, parallel=False):
@@ -59,8 +57,6 @@ class Observer(object):
     @u.quantity_input
     def _interpolate_loops(self, ds: u.cm):
         """
-        Interpolate loops to common resolution
-        
         Interpolate all loops to a resolution (`ds`) below the minimum bin width
         of all of the instruments. This ensures that the image isn't 'patchy'
         when it is binned.
@@ -84,10 +80,8 @@ class Observer(object):
         """
         Create files to store interpolated counts before binning.
 
-        Note
-        ----
-        After creating the instrument objects and passing them to the observer,
-        it is always necessary to call this method.
+        .. note:: After creating the instrument objects and passing them to the observer,
+                  it is always necessary to call this method.
         """
         file_template = os.path.join(savedir, '{}_counts.h5')
         total_coordinates, self._interpolated_loop_coordinates = self._interpolate_loops(ds)

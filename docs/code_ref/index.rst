@@ -10,4 +10,5 @@ API Reference
    synthesizar_extrapolate
    synthesizar_instruments
    synthesizar_interfaces
+   synthesizar_maps
    synthesizar_util
