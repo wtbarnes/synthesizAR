@@ -15,7 +15,8 @@ from sunpy.map import Map
 __all__ = ['plot_aia_channels', 'make_aia_animation']
 
 
-def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm=None, fontsize=14, **kwargs):
+def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm=None, fontsize=14, 
+                      **kwargs):
     """
     Plot maps of the EUV channels of AIA for a given timestep
 
@@ -66,7 +67,8 @@ def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm
         return fig, ims
 
 
-def make_aia_animation(aia, start_time: u.s, stop_time: u.s, root_dir, figsize=None, norm=None, fontsize=14, **kwargs):
+def make_aia_animation(aia, start_time: u.s, stop_time: u.s, root_dir, figsize=None, norm=None, 
+                       fontsize=14, **kwargs):
     """
     Build animation from a series of synthesized AIA observations
     """
@@ -75,21 +77,21 @@ def make_aia_animation(aia, start_time: u.s, stop_time: u.s, root_dir, figsize=N
     start_index = np.where(reference_time == start_time)[0][0]
     stop_index = np.where(reference_time == stop_time)[0][0]
     fig_format = os.path.join(root_dir, f'{aia.name}', '{}', 'map_t{:06d}.fits')
-    fig, ims = plot_aia_channels(aia, start_time, root_dir, figsize=figsize, norm=norm, fontsize=fontsize, 
-                                 use_with_animation=True)
+    fig, ims = plot_aia_channels(aia, start_time, root_dir, figsize=figsize, norm=norm,
+                                 fontsize=fontsize, use_with_animation=True)
 
     def update_fig(i):
         for channel in aia.channels:
             tmp = Map(fig_format.format(channel['name'], i))
             ims[channel['name']].set_array(tmp.data)
-        fig.suptitle(r'$t={:.0f}$ {}'.format(reference_time[i].value, reference_time.unit.to_string()), 
+        fig.suptitle(f'$t={reference_time[i].value:.0f}$ {reference_time.unit.to_string()}',
                      fontsize=fontsize)
         return [ims[k] for k in ims]
 
     animator_settings = {'interval': 50, 'blit': True}
     animator_settings.update(kwargs.get('animator_settings', {}))
-    animation = matplotlib.animation.FuncAnimation(fig, update_fig, frames=range(start_index, stop_index),
+    animation = matplotlib.animation.FuncAnimation(fig, update_fig,
+                                                   frames=range(start_index, stop_index),
                                                    **animator_settings)
 
     return animation
-
