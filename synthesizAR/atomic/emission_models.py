@@ -39,7 +39,7 @@ class EmissionModel(fiasco.IonCollection):
             'temperature_unit': self.temperature.unit.to_string(),
             'density': self.density.value.tolist(),
             'density_unit': self.density.unit.to_string(),
-            'ion_list': ['_'.join([ion.ion_name.split()[0].lower(), ion.ion_name.split()[1]]) for ion in self],
+            'ion_list': [ion.ion_name for ion in self],
             'dset_names': [ion._dset_names for ion in self]
         }
         if hasattr(self, 'emissivity_savefile'):
