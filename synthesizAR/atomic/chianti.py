@@ -47,11 +47,6 @@ class Element(fiasco.Element):
             y[i, :] /= y[i, :].sum()
 
         return u.Quantity(y)
-        
-    def __getitem__(self, value):
-        if type(value) is int:
-            value = self.ions[value]
-        return Ion(value, self.temperature, **self._ion_kwargs)
 
 
 class Ion(fiasco.Ion):
