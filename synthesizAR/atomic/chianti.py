@@ -65,9 +65,11 @@ class Ion(fiasco.Ion):
         Need a more efficient way of calculating upsilon for all transitions. Current method is 
         slow for ions with many transitions, e.g. Fe IX and Fe XI
         """
-        energy_ratio = np.outer(const.k_B.cgs*self.temperature, 1.0/self._scups['delta_energy'].to(u.erg))
-        upsilon = np.array(list(map(self.burgess_tully_descale, self._scups['bt_t'], self._scups['bt_upsilon'],
-                                    energy_ratio.T, self._scups['bt_c'], self._scups['bt_type'])))
+        energy_ratio = np.outer(const.k_B.cgs*self.temperature,
+                                1.0/self._scups['delta_energy'].to(u.erg))
+        upsilon = np.array(list(map(self.burgess_tully_descale, self._scups['bt_t'],
+                                    self._scups['bt_upsilon'], energy_ratio.T, self._scups['bt_c'],
+                                    self._scups['bt_type'])))
         upsilon = u.Quantity(np.where(upsilon > 0., upsilon, 0.))
         return upsilon.T
     
@@ -81,7 +83,8 @@ class Ion(fiasco.Ion):
         omega_upper = 2.*self._elvlc['J'][self._scups['upper_level'] - 1] + 1.
         omega_lower = 2.*self._elvlc['J'][self._scups['lower_level'] - 1] + 1.
         dex_rate = c*upsilon/np.sqrt(self.temperature[:, np.newaxis])/omega_upper
-        energy_ratio = np.outer(1./const.k_B.cgs/self.temperature, self._scups['delta_energy'].to(u.erg))
+        energy_ratio = np.outer(1./const.k_B.cgs/self.temperature,
+                                self._scups['delta_energy'].to(u.erg))
         ex_rate = omega_upper/omega_lower*dex_rate*np.exp(-energy_ratio)
         
         return dex_rate, ex_rate
@@ -92,17 +95,19 @@ class Ion(fiasco.Ion):
         Calculates the collision rate for de-exciting and exciting collisions for protons
         """
         # Create scaled temperature--these are not stored in the file
-        bt_t = np.vectorize(np.linspace, excluded=[0, 1], otypes='O')(0, 1, [ups.shape[0] 
-                                                                      for ups in self._psplups['bt_rate']])
+        bt_t = np.vectorize(np.linspace, excluded=[0, 1], otypes='O')(
+            0, 1, [ups.shape[0] for ups in self._psplups['bt_rate']])
         # Get excitation rates directly from scaled data
-        energy_ratio = np.outer(const.k_B.cgs*self.temperature, 1.0/self._psplups['delta_energy'].to(u.erg))
-        ex_rate = np.array(list(map(self.burgess_tully_descale, bt_t, self._psplups['bt_rate'], energy_ratio.T,
-                                    self._psplups['bt_c'], self._psplups['bt_type'])))
+        energy_ratio = np.outer(const.k_B.cgs*self.temperature,
+                                1.0/self._psplups['delta_energy'].to(u.erg))
+        ex_rate = np.array(list(map(self.burgess_tully_descale, bt_t,
+                                    self._psplups['bt_rate'], energy_ratio.T, self._psplups['bt_c'], 
+                                    self._psplups['bt_type'])))
         ex_rate = u.Quantity(np.where(ex_rate > 0., ex_rate, 0.), u.cm**3/u.s).T
         # Calculation de-excitation rates from excitation rate
         omega_upper = 2.*self._elvlc['J'][self._psplups['upper_level'] - 1] + 1.
         omega_lower = 2.*self._elvlc['J'][self._psplups['lower_level'] - 1] + 1.
-        dex_rate = (omega_lower/omega_upper)*ex_rate*np.exp(1./energy_ratio)
+        dex_rate = (omega_lower / omega_upper) * ex_rate*np.exp(1. / energy_ratio)
         
         return dex_rate, ex_rate
     
@@ -127,12 +132,13 @@ class Ion(fiasco.Ion):
         coeff_matrix = np.zeros(self.temperature.shape + level.shape + level.shape)/u.s
         
         # Radiative decays
-        a_diagonal = collect_v(self._wgfa['upper_level'], level, self._wgfa['A'].value, None)*self._wgfa['A'].unit
+        a_diagonal = collect_v(
+            self._wgfa['upper_level'], level, self._wgfa['A'].value, None) * self._wgfa['A'].unit
         # Decay out of current level
         coeff_matrix[:, level - 1, level - 1] -= a_diagonal
         # Decay into current level from upper levels
         coeff_matrix[:, self._wgfa['lower_level']-1, self._wgfa['upper_level']-1] += self._wgfa['A']
-        
+
         # Proton and electron collision rates
         dex_rate_e, ex_rate_e = self.electron_collision_rate()
         ex_diagonal = np.array([collect(lower_level, l, ex_rate_e.value.T, 0)
@@ -148,7 +154,7 @@ class Ion(fiasco.Ion):
                                       for l in level]).T*ex_rate_p.unit
             dex_diagonal_p = np.array([collect(upper_level_p, l, dex_rate_p.value.T, 0)
                                        for l in level]).T*dex_rate_p.unit
-        
+
         populations = np.zeros(self.temperature.shape + density.shape + level.shape)
         b = np.zeros(self.temperature.shape+level.shape)
         b[:, -1] = 1.0
@@ -159,28 +165,32 @@ class Ion(fiasco.Ion):
             # De-excitation from upper states and excitation from lower states
             coeff_matrix_copy[:, lower_level - 1, upper_level - 1] += d*dex_rate_e
             coeff_matrix_copy[:, upper_level - 1, lower_level - 1] += d*ex_rate_e
-            
+
             # Same processes as above, but for protons
             if include_protons and self._psplups is not None:
-                coeff_matrix_copy[:, level-1, level-1] -= d*p2e_ratio[:, np.newaxis]*(dex_diagonal_p + ex_diagonal_p)
-                coeff_matrix_copy[:, lower_level_p - 1, upper_level_p - 1] += d*p2e_ratio[:, np.newaxis]*dex_rate_p
-                coeff_matrix_copy[:, upper_level_p - 1, lower_level_p - 1] += d*p2e_ratio[:, np.newaxis]*ex_rate_p
-            
-            coeff_matrix_copy[:, -1, :] = 1.*coeff_matrix_copy.unit
+                coeff_matrix_copy[:, level-1, level-1] -= d*p2e_ratio[:, np.newaxis]*(
+                    dex_diagonal_p + ex_diagonal_p)
+                coeff_matrix_copy[:, lower_level_p - 1, upper_level_p - 1] += (
+                    d*p2e_ratio[:, np.newaxis]*dex_rate_p)
+                coeff_matrix_copy[:, upper_level_p - 1, lower_level_p - 1] += (
+                    d*p2e_ratio[:, np.newaxis]*ex_rate_p)
+
+            coeff_matrix_copy[:, -1, :] = 1. * coeff_matrix_copy.unit
             pop = np.linalg.solve(coeff_matrix_copy.value, b)
             pop = np.where(pop < 0., 0., pop)
             pop /= pop.sum(axis=1)[:, np.newaxis]
             populations[:, i_d, :] = pop
-                
+
         return u.Quantity(populations)
-    
+
     @fiasco.util.needs_dataset('wgfa', default=(None, None))
     @u.quantity_input
     def emissivity(self, density: u.cm**(-3), include_energy=False, **kwargs):
         """
         Calculate emissivity for all lines as a function of temperature and density
         """
-        populations = self.level_populations(density, include_protons=kwargs.get('include_protons', True))
+        populations = self.level_populations(
+            density, include_protons=kwargs.get('include_protons', True))
         if populations is None:
             return (None, None)
         wavelengths = np.fabs(self._wgfa['wavelength'])
@@ -200,7 +210,8 @@ class Ion(fiasco.Ion):
 @u.quantity_input
 def proton_ratio(temperature: u.K):
     """
-    Calculate ratio between proton and electron density as a function of temperature. See Eq. 7 of [1]_.
+    Calculate ratio between proton and electron density as a function of temperature. 
+    See Eq. 7 of [1]_.
 
     References
     ----------
@@ -211,14 +222,17 @@ def proton_ratio(temperature: u.K):
         el = fiasco.Element(el_name, temperature=temperature)
         for ion in el:
             if denominator is None:
-                denominator = ion._ioneq['chianti']['ionization_fraction']*ion.abundance*ion.charge_state
+                denominator = (ion._ioneq['chianti']['ionization_fraction']
+                               * ion.abundance * ion.charge_state)
             else:
-                denominator += ion._ioneq['chianti']['ionization_fraction']*ion.abundance*ion.charge_state
-            
+                denominator += (ion._ioneq['chianti']['ionization_fraction']
+                                * ion.abundance * ion.charge_state)
+
     el_h = fiasco.Element('hydrogen', temperature=temperature)
     numerator = el_h[1].abundance*el_h[1]._ioneq['chianti']['ionization_fraction']
-    f_ratio = interp1d(el_h[1]._ioneq['chianti']['temperature'], numerator/denominator, fill_value='extrapolate')
-    
+    f_ratio = interp1d(el_h[1]._ioneq['chianti']['temperature'], numerator/denominator,
+                       fill_value='extrapolate')
+
     return f_ratio(temperature.value)
 
 
