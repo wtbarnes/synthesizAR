@@ -144,7 +144,7 @@ class EbtelInterface(object):
             rate_matrix = el._rate_matrix()
             ioneq = el.equilibrium_ionization(rate_matrix)
             partial_nei = toolz.curry(EbtelInterface.compute_and_save_nei)(
-                el, rate_matrix=rate_matrix, initial_condition=ioneq, save_path_root=tmpdir)
+                el, rate_matrix=rate_matrix, initial_condition=ioneq, save_dir=tmpdir)
             loop_futures = client.map(partial_nei, field.loops)
             distributed.wait(loop_futures)
             el_futures += loop_futures
