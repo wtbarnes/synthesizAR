@@ -21,6 +21,8 @@ class EmissionModel(fiasco.IonCollection):
     @u.quantity_input
     def __init__(self, density: u.cm**(-3), *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # FIXME: this line can be removed once Ion subclass is no longer needed
+        self._ion_list = [Ion(i.ion_name, i.temperature) for i in self._ion_list]
         self.temperature = self[0].temperature
         self.density = density
         self.resolved_wavelengths = kwargs.get('resolved_wavelengths', {})

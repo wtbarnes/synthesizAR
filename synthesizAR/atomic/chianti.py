@@ -21,6 +21,11 @@ __all__ = ['Element', 'Ion', 'list_elements']
 
 
 class Element(fiasco.Element):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # FIXME: this can be removed once fiasco includes emissivity calculation
+        self._ion_list = [Ion(i.ion_name, i.temperature) for i in self._ion_list]
         
     @u.quantity_input
     def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3),
