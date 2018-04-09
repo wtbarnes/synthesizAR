@@ -62,13 +62,13 @@ class EbtelInterface(object):
         oh.output_dict['loop_length'] = loop.full_length.value/2.0
         event_properties = self.heating_model.calculate_event_properties(loop)
         events = []
-        for i in range(self.heating_model.number_events):
+        for i in range(event_properties['magnitude'].shape):
             events.append({'event': {
-                                    'magnitude': event_properties['magnitude'][i],
-                                    'rise_start': event_properties['rise_start'][i],
-                                    'rise_end': event_properties['rise_end'][i],
-                                    'decay_start': event_properties['decay_start'][i],
-                                    'decay_end': event_properties['decay_end'][i]}})
+                'magnitude': event_properties['magnitude'][i],
+                'rise_start': event_properties['rise_start'][i],
+                'rise_end': event_properties['rise_end'][i],
+                'decay_start': event_properties['decay_start'][i],
+                'decay_end': event_properties['decay_end'][i]}})
         oh.output_dict['heating']['events'] = events
         oh.print_to_xml()
         oh.output_dict['config_filename'] = oh.output_filename
