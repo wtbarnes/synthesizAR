@@ -62,7 +62,7 @@ class EbtelInterface(object):
         oh.output_dict['loop_length'] = loop.full_length.value/2.0
         event_properties = self.heating_model.calculate_event_properties(loop)
         events = []
-        for i in range(event_properties['magnitude'].shape):
+        for i in range(event_properties['magnitude'].shape[0]):
             events.append({'event': {
                 'magnitude': event_properties['magnitude'][i],
                 'rise_start': event_properties['rise_start'][i],
