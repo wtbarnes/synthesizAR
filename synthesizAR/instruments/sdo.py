@@ -99,7 +99,7 @@ class InstrumentSDOAIA(InstrumentBase):
                                     additional_fields=additional_fields, parallel=parallel)
         
     @staticmethod
-    def calculate_counts_simple(channel, loop, *args):
+    def calculate_counts_simple(channel, loop, *args, **kwargs):
         """
         Calculate the AIA intensity using only the temperature response functions.
         """

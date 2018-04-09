@@ -113,15 +113,17 @@ class Observer(object):
 
     def _flatten_detector_counts_serial(self, **kwargs):
         emission_model = kwargs.get('emission_model', None)
+        interpolate_hydro_quantities = kwargs.get('interpolate_hydro_quantities', True)
         for instr in self.instruments:
             with h5py.File(instr.counts_file, 'a', driver=kwargs.get('hdf5_driver', None)) as hf:
                 start_index = 0
-                for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
-                    for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
-                              'ion_temperature', 'density']:
-                        val = instr.interpolate_and_store(q, loop, interp_s)
-                        instr.commit(val, hf[q], start_index)
-                    start_index += interp_s.shape[0]
+                if interpolate_hydro_quantities:
+                    for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
+                        for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
+                                  'ion_temperature', 'density']:
+                            val = instr.interpolate_and_store(q, loop, interp_s)
+                            instr.commit(val, hf[q], start_index)
+                        start_index += interp_s.shape[0]
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
                                      emission_model=emission_model)
 
@@ -131,6 +133,7 @@ class Observer(object):
         """
         client = distributed.get_client()
         emission_model = kwargs.get('emission_model', None)
+        interpolate_hydro_quantities = kwargs.get('interpolate_hydro_quantities', True)
         futures = {}
         start_indices = np.insert(np.array(
             [s.shape[0] for s in self._interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
@@ -140,15 +143,16 @@ class Observer(object):
             if not os.path.exists(tmp_dir):
                 os.makedirs(tmp_dir)
             interp_futures = []
-            for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
-                      'ion_temperature', 'density']:
-                partial_interp = toolz.curry(instr.interpolate_and_store)(
-                    q, save_dir=tmp_dir, dset_name=q)
-                loop_futures = client.map(partial_interp, self.field.loops,
-                                          self._interpolated_loop_coordinates, start_indices)
-                # Block until complete
-                distributed.client.wait([loop_futures])
-                interp_futures += loop_futures
+            if interpolate_hydro_quantities:
+                for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
+                          'ion_temperature', 'density']:
+                    partial_interp = toolz.curry(instr.interpolate_and_store)(
+                        q, save_dir=tmp_dir, dset_name=q)
+                    loop_futures = client.map(partial_interp, self.field.loops,
+                                              self._interpolated_loop_coordinates, start_indices)
+                    # Block until complete
+                    distributed.client.wait([loop_futures])
+                    interp_futures += loop_futures
 
             # Calculate and interpolate channel counts for instrument
             counts_futures = instr.flatten_parallel(self.field.loops,
