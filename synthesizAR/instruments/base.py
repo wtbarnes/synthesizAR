@@ -94,8 +94,14 @@ class InstrumentBase(object):
             y = getattr(loop, y)
         f_s = interp1d(loop.field_aligned_coordinate.value, y.value, axis=1, kind='linear')
         y_s = f_s(interp_s)
-        f_t = interp1d(loop.time.value, y_s, axis=0, kind='linear', fill_value='extrapolate')
-        interpolated_y = f_t(self.observing_time.value)
+        if loop.time.shape == (1,):
+            # If static case, no need to interpolate in time
+            # But require that the observing and loop times are the same
+            assert np.all(loop.time == self.observing_time)
+            interpolated_y = y_s
+        else:
+            f_t = interp1d(loop.time.value, y_s, axis=0, kind='linear', fill_value='extrapolate')
+            interpolated_y = f_t(self.observing_time.value)
         if save_dir:
             save_path = os.path.join(save_dir, f'{loop.name}_{self.name}_{dset_name}.pkl')
             with open(save_path, 'wb') as f:
