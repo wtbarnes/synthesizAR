@@ -34,9 +34,9 @@ class Field(object):
     >>> import synthesizAR
     >>> from sunpy.map import Map
     >>> import astropy.units as u
-    >>> m = Map('/path/to/sample_hmi.fits')
+    >>> m = Map('/path/to/sample_hmi.fits') # doctest: +SKIP
     >>> fieldlines = [([[1,2,3],[4,5,6]] * u.Mm, [1e2,1e3] * u.G)]
-    >>> field = synthesizAR.Field(m, fieldlines)
+    >>> field = synthesizAR.Field(m, fieldlines) # doctest: +SKIP
     """
 
     def __init__(self, magnetogram, fieldlines):
@@ -94,7 +94,7 @@ Magnetogram Info:
         Examples
         --------
         >>> import synthesizAR
-        >>> restored_field = synthesizAR.Field.restore('/path/to/restored/field/dir')
+        >>> restored_field = synthesizAR.Field.restore('/path/to/restored/field/dir') # doctest: +SKIP
         """
         fieldlines = []
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
