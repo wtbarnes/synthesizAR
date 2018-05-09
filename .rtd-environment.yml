@@ -12,6 +12,7 @@ dependencies:
 - numpy
 - numba
 - scipy
+- sphinx=1.5.6
 - sunpy
 - yt
 - pip:
