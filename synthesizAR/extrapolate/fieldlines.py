@@ -59,9 +59,9 @@ def find_seed_points(ds, number_fieldlines, lower_boundary=None, preexisting_see
     preexisting_seeds : `list`, optional
         If a seed point is in this list, it is thrown out
     mask_threshold : `float`, optional
-        Fraction of the field strength above which the field is masked. Should be between 0 and 1.
-        A value close to 1 means the seed points will be concentrated in areas of stronger (more
-        negative) field.
+        Fraction of the field strength below (above) which the field is masked. Should be between -1 
+        and 1. A value close to +1(-1) means the seed points will be concentrated in areas of more
+        positive (negative) field.
     safety : `float`
         Ensures the boundary is not resampled to impossibly small resolutions
     max_failures : `int`
@@ -72,8 +72,13 @@ def find_seed_points(ds, number_fieldlines, lower_boundary=None, preexisting_see
     else:
         boundary = lower_boundary
     # mask the boundary map and estimate resampled resolution
-    mask_above = mask_threshold * np.nanmin(boundary)
-    masked_boundary = np.ma.masked_invalid(np.ma.masked_greater(boundary, mask_above))
+    if mask_threshold < 0:
+        mask_val = np.fabs(mask_threshold) * np.nanmin(boundary)
+        mask_func = np.ma.masked_greater
+    else:
+        mask_val = mask_threshold * np.nanmax(boundary)
+        mask_func = np.ma.masked_less
+    masked_boundary = np.ma.masked_invalid(mask_func(boundary, mask_val))
     epsilon_area = float(masked_boundary.count()) / float(boundary.shape[0] * boundary.shape[1])
     resample_resolution = int(safety*np.sqrt(number_fieldlines/epsilon_area))
 
@@ -81,8 +86,7 @@ def find_seed_points(ds, number_fieldlines, lower_boundary=None, preexisting_see
     boundary_resampled = resample(boundary.T, (resample_resolution, resample_resolution),
                                   method='linear', center=True)
     boundary_resampled = boundary_resampled.T
-    masked_boundary_resampled = np.ma.masked_invalid(
-                                    np.ma.masked_greater(boundary_resampled, mask_above))
+    masked_boundary_resampled = np.ma.masked_invalid(mask_func(boundary_resampled, mask_val))
 
     # find the unmasked indices
     unmasked_indices = [(ix, iy) for iy, ix in zip(*np.where(masked_boundary_resampled.mask == 0))]
@@ -119,7 +123,7 @@ def find_seed_points(ds, number_fieldlines, lower_boundary=None, preexisting_see
     return seed_points
 
 
-def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None, direction=-1,
+def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None, direction=1,
                      **kwargs):
     """
     Trace lines of constant potential through a 3D magnetic field volume.
@@ -137,6 +141,9 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None,
     max_tries : `int`, optional
     get_seed_points : function, optional
         Function that returns a list of seed points
+    direction : `int`, optional
+        Use +1 to trace from positive to negative field and -1 to trace from negative to positive
+        field
 
     Returns
     -------
