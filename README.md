@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/_static/synthesizar_logo.png" width=50%><br>
+  <img src="docs/_static/synthesizar_logo.png" width=55%><br>
 </div>
 
 # synthesizAR
