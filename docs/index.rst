@@ -1,3 +1,7 @@
+.. figure:: _static/synthesizar_logo.png
+   :align: center
+   :width: 75%
+
 synthesizAR
 ============
 

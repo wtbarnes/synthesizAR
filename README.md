@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/_static/synthesizar_logo.png" width=45%><br>
+</div>
+
 # synthesizAR
 [![Powered by SunPy Badge]( http://img.shields.io/badge/powered%20by-SunPy-orange.svg?style=flat)](http://www.sunpy.org)
 [![Build Status](https://travis-ci.org/wtbarnes/synthesizAR.svg?branch=master)](https://travis-ci.org/wtbarnes/synthesizAR)

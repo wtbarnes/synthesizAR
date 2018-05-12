@@ -4,22 +4,28 @@ Getting Started
 
 Dependencies
 ------------
-synthesizAR is compatible with Python 3.6+. The easiest and most convenient way to install Python is through the `Anaconda <https://www.continuum.io/downloads>`_ distribution. Additionally, synthesizAR requires several other packages from the scientific Python ecosystem,
+synthesizAR is compatible with Python 3.6+. The easiest and most convenient way to install Python is through the `Anaconda <https://www.continuum.io/downloads>`_ distribution. Additionally, synthesizAR requires several other packages from the scientific Python ecosystem.
 
 - astropy
 - dask
 - distributed
 - h5py
-- fiasco
+- fiasco (Install via the `GitHub repository <https://github.com/wtbarnes/fiasco>`_)
 - matplotlib
 - numpy
 - numba
-- plasmapy
+- plasmapy (Install with `pip install plasmapy`)
 - scipy
 - sunpy
 - yt
 
-These can be installed through either `conda` (recommended) or pip.
+Unless otherwise noted, all of these packages can be downloaded using the command,
+
+.. code-block:: bash
+
+    $ conda install -c conda-forge {package-name}
+
+See the following section for an easier way to install all of the needed dependencies with one command.
 
 Install
 -------
