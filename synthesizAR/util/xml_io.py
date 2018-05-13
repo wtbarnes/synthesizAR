@@ -1,180 +1,136 @@
 """
-Routines for reading in and printing out files for results and configuration.
+Fancy reading and writing of XML files, mainly for EBTEL configuration.
 """
-
-import logging
+import warnings
 from collections import OrderedDict
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as xdm
 
 import numpy as np
 
+__all__ = ['read_xml', 'write_xml']
 
-class InputHandler(object):
+
+def read_xml(input_filename,):
     """
-    General classs for handling XML input files.
+    For all input variables, find them in the XML tree and return them to a dictionary
 
     Parameters
     ----------
     input_filename : `str`
-    input_vars : `list`
-        List of variables to read from XML file `input_filename`
-
-    Notes
-    -----
-    A logging instance should be created prior to instantiating
-    InputHandler so that relevant log messages can be recorded.
     """
-
-    def __init__(self, input_filename, input_vars=None, **kwargs):
-        tree = ET.parse(input_filename)
-        self.root = tree.getroot()
-        if input_vars is not None:
-            self.var_list = input_vars
+    tree = ET.parse(input_filename)
+    root = tree.getroot()
+    var_list = [child.tag for child in root]
+    input_dict = {}
+    for var in var_list:
+        # Find node
+        node = root.find(var)
+        # Check if found
+        if node is None:
+            warnings.warn(f'No value found for input {var}. Returning None.')
+            input_dict[var] = None
         else:
-            self.var_list = [child.tag for child in self.root]
-        self.logger = logging.getLogger(type(self).__name__)
+            input_dict[node.tag] = read_node(node)
 
-    def lookup_vars(self, **kwargs):
-        """
-        For all input variables, find them in the XML tree and return them to a dictionary
-        """
-
-        input_dict = {}
-        for var in self.var_list:
-            # Find node
-            node = self.root.find(var)
-            # Check if found
-            if node is None:
-                self.logger.warning("No value found for input %s. Returning None."%var)
-                input_dict[var] = None
-            else:
-                input_dict[node.tag] = self._read_node(node)
-
-        return input_dict
-
-    def _read_node(self, node):
-        """
-        Read in node values for different configurations
-        """
-
-        if node.getchildren():
-            _child_tags = [child.tag for child in node.getchildren()]
-            if len(_child_tags) != len(set(_child_tags)):
-                tmp = []
-                for child in node.getchildren():
-                    tmp.append({child.tag: self._read_node(child)})
-            else:
-                tmp = OrderedDict()
-                for child in node.getchildren():
-                    tmp[child.tag] = self._read_node(child)
-            return tmp
-        else:
-            if node.text:
-                return self._type_checker(node.text)
-            elif node.attrib:
-                return {key: self._type_checker(node.attrib[key]) for key in node.attrib}
-            else:
-                self.logger.warning('Unrecognized node format for %s. Returning None.'%(node.tag))
-                return None
-
-    def _bool_filter(self, val):
-        """
-        Convert true/false string to Python bool
-        """
-
-        trues = ['True', 'TRUE', 'true', 'yes', 'Yes']
-        falses = ['False', 'FALSE', 'false', 'no', 'No']
-
-        if any([val == t for t in trues]):
-            return True
-        elif any([val == f for f in falses]):
-            return False
-        else:
-            return val
-
-    def _type_checker(self, val):
-        """
-        Convert to int or float if possible
-        """
-        try:
-            return int(val)
-        except ValueError:
-            pass
-        try:
-            return float(val)
-        except ValueError:
-            pass
-
-        return self._bool_filter(val)
+    return input_dict
 
 
-class OutputHandler(object):
+def read_node(node):
     """
-    General class for handling printing of output files from Python dictionaries.
-    Can be used to print both configuration files as well as results files. Print to
-    either plain text or structured XML files.
+    Read in node values for different configurations
+    """
+    if node.getchildren():
+        _child_tags = [child.tag for child in node.getchildren()]
+        if len(_child_tags) != len(set(_child_tags)):
+            tmp = []
+            for child in node.getchildren():
+                tmp.append({child.tag: read_node(child)})
+        else:
+            tmp = OrderedDict()
+            for child in node.getchildren():
+                tmp[child.tag] = read_node(child)
+        return tmp
+    else:
+        if node.text:
+            return type_checker(node.text)
+        elif node.attrib:
+            return {key: type_checker(node.attrib[key]) for key in node.attrib}
+        else:
+            warnings.warn(f'Unrecognized node format for {node.tag}. Returning None.')
+            return None
+
+
+def bool_filter(val):
+    """
+    Convert true/false string to Python bool
+    """
+    trues = ['True', 'TRUE', 'true', 'yes', 'Yes']
+    falses = ['False', 'FALSE', 'false', 'no', 'No']
+    if any([val == t for t in trues]):
+        return True
+    elif any([val == f for f in falses]):
+        return False
+    else:
+        return val
+
+
+def type_checker(val):
+    """
+    Convert to int or float if possible
+    """
+    try:
+        return int(val)
+    except ValueError:
+        pass
+    try:
+        return float(val)
+    except ValueError:
+        pass
+    return bool_filter(val)
+
+
+def write_xml(output_dict, output_filename):
+    """
+    Print dictionary to XML file
 
     Parameters
     ----------
-    output_filename : `str`
-        filename to print to
     output_dict : `dict`
         structure to print to file
+    output_filename : `str`
+        filename to print to
     """
+    root = ET.Element('root')
+    for key in output_dict:
+        set_element_recursive(root, output_dict[key], key)
+    with open(output_filename, 'w') as f:
+        f.write(pretty_print_xml(root))
 
-    def __init__(self, output_filename, output_dict, **kwargs):
-        self.output_filename = output_filename
-        self.output_dict = output_dict
-        #configure logger
-        self.logger = logging.getLogger(type(self).__name__)
 
-    def print_to_xml(self):
-        """
-        Print dictionary to XML file
-        """
-        self.root = ET.Element('root')
-        for key in self.output_dict:
-            self._set_element_recursive(self.root, self.output_dict[key],key)
+def set_element_recursive(root, node, keyname):
+    """
+    Set element tags, values, and attributes. Recursive for arrays/lists.
+    """
+    element = ET.SubElement(root, keyname)
+    if type(node) is list:
+        for item in node:
+            sub_keyname = [k for k in item][0]
+            set_element_recursive(element, item[sub_keyname], sub_keyname)
+    elif type(node).__name__ == 'OrderedDict':
+        for key in node:
+            set_element_recursive(element, node[key], key)
+    elif type(node) is dict:
+        for key in node:
+            element.set(key, str(node[key]))
+    else:
+        element.text = str(node)
 
-        with open(self.output_filename, 'w') as f:
-            f.write(self._pretty_print_xml(self.root))
 
-        f.close()
-
-    def display_xml(self):
-        """
-        Print formatted XML to the screen
-        """
-
-        if not hasattr(self,'root'):
-            self.logger.error('No root element found. Run self.print_to_xml() first.')
-
-        print(self._pretty_print_xml(self.root))
-
-    def _set_element_recursive(self, root, node, keyname):
-        """
-        Set element tags, values, and attributes. Recursive for arrays/lists.
-        """
-        element = ET.SubElement(root, keyname)
-        if type(node) is list:
-            for item in node:
-                sub_keyname = [k for k in item][0]
-                self._set_element_recursive(element, item[sub_keyname], sub_keyname)
-        elif type(node).__name__ == 'OrderedDict':
-            for key in node:
-                self._set_element_recursive(element, node[key], key)
-        elif type(node) is dict:
-            for key in node:
-                element.set(key, str(node[key]))
-        else:
-            element.text = str(node)
-
-    def _pretty_print_xml(self, element):
-        """
-        Formatted XML output for writing to file.
-        """
-
-        unformatted = ET.tostring(element)
-        xdmparse = xdm.parseString(unformatted)
-        return xdmparse.toprettyxml(indent="    ")
+def pretty_print_xml(element):
+    """
+    Formatted XML output for writing to file.
+    """
+    unformatted = ET.tostring(element)
+    xdmparse = xdm.parseString(unformatted)
+    return xdmparse.toprettyxml(indent="    ")
