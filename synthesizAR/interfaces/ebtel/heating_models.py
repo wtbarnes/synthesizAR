@@ -1,7 +1,6 @@
 """
 Heating models for hydrodynamic simulations
 """
-
 import logging
 import random
 
@@ -30,8 +29,8 @@ class HeatingBase(object):
         """
         Constructor
         """
-        self.logger = logging.getLogger(name=type(self).__name__)
         self.heating_options = heating_options
+        self.logger = logging.getLogger(name=type(self).__name__)
 
     @property
     def number_events(self):

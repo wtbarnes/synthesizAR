@@ -1,9 +1,7 @@
 """
 Interface between loop object and ebtel++ simulation
 """
-
 import os
-import logging
 import copy
 import warnings
 import toolz
@@ -17,16 +15,13 @@ try:
 except ImportError:
     warnings.warn('Dask library required for NEI calculation')
 
-from synthesizAR.util import InputHandler, OutputHandler
+from synthesizAR.util import write_xml
 from synthesizAR.atomic import Element
 
 
 class EbtelInterface(object):
     """
-    Interface to the EBTEL model
-
-    Interface between synthesizAR and the Enthalpy-Based Thermal Evolution of Loops code for
-    computing time-dependent solutions of spatially-averaged loops.
+    Interface to the Enthalpy-Based Thermal Evolution of Loops (EBTEL) model
 
     Parameters
     ----------
@@ -34,45 +29,47 @@ class EbtelInterface(object):
         Config dictionary with default parameters for all loops.
     heating_model : object
         Heating model class for configuring event times and rates
-    parent_config_dir : `str`
+    config_dir : `str`
         Path to configuration file directory
-    parent_results_dir : `str`
+    results_dir : `str`
         Path to results file directory
     """
 
-    def __init__(self, base_config, heating_model, parent_config_dir, parent_results_dir):
+    def __init__(self, base_config, heating_model, config_dir, results_dir):
         """
         Create EBTEL interface
         """
-        self.logger = logging.getLogger(name=type(self).__name__)
         self.name = 'EBTEL'
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config
-        self.parent_config_dir = parent_config_dir
-        self.parent_results_dir = parent_results_dir
+        self.config_dir = config_dir
+        self.results_dir = results_dir
+        if not os.path.exists(self.config_dir):
+            os.makedirs(self.config_dir)
+        if not os.path.exists(self.results_dir):
+            os.makedirs(self.results_dir)
 
     def configure_input(self, loop):
         """
         Configure EBTEL input for a given loop object.
         """
-        oh = OutputHandler(os.path.join(self.parent_config_dir, loop.name+'.xml'),
-                           copy.deepcopy(self.base_config))
-        oh.output_dict['output_filename'] = os.path.join(self.parent_results_dir, loop.name)
-        oh.output_dict['loop_length'] = loop.full_length.value/2.0
+        output_filename = os.path.join(self.config_dir, loop.name+'.xml')
+        output_dict = copy.deepcopy(self.base_config)
+        output_dict['output_filename'] = os.path.join(self.results_dir, loop.name)
+        output_dict['loop_length'] = loop.full_length.to(u.cm).value / 2.0
         event_properties = self.heating_model.calculate_event_properties(loop)
         events = []
         for i in range(event_properties['magnitude'].shape[0]):
-            events.append({'event': {
-                'magnitude': event_properties['magnitude'][i],
-                'rise_start': event_properties['rise_start'][i],
-                'rise_end': event_properties['rise_end'][i],
-                'decay_start': event_properties['decay_start'][i],
-                'decay_end': event_properties['decay_end'][i]}})
-        oh.output_dict['heating']['events'] = events
-        oh.print_to_xml()
-        oh.output_dict['config_filename'] = oh.output_filename
-        loop.hydro_configuration = oh.output_dict
+            events.append({'event': {'magnitude': event_properties['magnitude'][i],
+                                     'rise_start': event_properties['rise_start'][i],
+                                     'rise_end': event_properties['rise_end'][i],
+                                     'decay_start': event_properties['decay_start'][i],
+                                     'decay_end': event_properties['decay_end'][i]}})
+        output_dict['heating']['events'] = events
+        write_xml(output_dict, output_filename)
+        output_dict['config_filename'] = output_filename
+        loop.hydro_configuration = output_dict
 
     def load_results(self, loop):
         """

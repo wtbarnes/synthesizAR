@@ -1,6 +1,7 @@
 synthesizAR interfaces
 ==========================================
-Hydrodynamic model Interfaces and models
 
-.. automodapi:: synthesizAR.interfaces
+EBTEL Interface
+---------------------
+.. automodapi:: synthesizAR.interfaces.ebtel
    :no-heading:
