@@ -63,7 +63,7 @@ def read_node(node):
 
 def bool_filter(val):
     """
-    Convert true/false string to Python bool
+    Convert true/false string to Python bool. Otherwise, return string.
     """
     trues = ['True', 'TRUE', 'true', 'yes', 'Yes']
     falses = ['False', 'FALSE', 'false', 'no', 'No']
