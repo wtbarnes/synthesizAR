@@ -2,13 +2,94 @@
 Helper routines for field extrapolation routines and dealing with vector field data
 """
 import numpy as np
+import astropy.time
 import astropy.units as u
+import astropy.constants as const
 import yt
 import sunpy.coordinates
+from sunpy.util.metadata import MetaDict
+from sunpy.map import GenericMap
 
 from synthesizAR.util import to_heeq
 
-__all__ = ['magnetic_field_to_yt_dataset', 'local_to_heeq', 'heeq_to_local']
+__all__ = ['synthetic_magnetogram', 'magnetic_field_to_yt_dataset', 'local_to_heeq',
+           'heeq_to_local']
+
+
+@u.quantity_input
+def synthetic_magnetogram(bottom_left_coord, top_right_coord, shape: u.pixel, centers,
+                          sigmas: u.arcsec, amplitudes: u.Gauss, observer=None):
+    """
+    Compute synthetic magnetogram using 2D guassian "sunspots"
+    
+    Parameters
+    ----------
+    bottom_left_coord : `~astropy.coordinates.SkyCoord`
+        Bottom left corner
+    top_right_coord : `~astropy.coordinates.SkyCoord`
+        Top right corner
+    shape : `~astropy.units.Quantity`
+        Dimensionality of the magnetogram
+    centers : `~astropy.coordinates.SkyCoord`
+        Center coordinates of flux concentration
+    sigmas : `~astropy.units.Quantity`
+        Standard deviation of flux concentration with shape `(N,2)`, with `N` the
+        number of flux concentrations
+    amplitudes : `~astropy.units.Quantity`
+        Amplitude of flux concentration with shape `(N,)`
+    observer : `~astropy.coordinates.SkyCoord`, optional
+        Defaults to Earth observer at current time
+    """
+    time_now = astropy.time.Time.now()
+    if observer is None:
+        observer = sunpy.coordinates.ephemeris.get_earth(time=time_now)
+    # Transform to HPC frame
+    bottom_left_coord = bottom_left_coord.transform_to(
+        sunpy.coordinates.Helioprojective(observer=observer))
+    top_right_coord = top_right_coord.transform_to(
+        sunpy.coordinates.Helioprojective(observer=observer))
+    # Setup array
+    delta_x = (top_right_coord.Tx - bottom_left_coord.Tx).to(u.arcsec)
+    delta_y = (top_right_coord.Ty - bottom_left_coord.Ty).to(u.arcsec)
+    dx = delta_x / shape[0]
+    dy = delta_y / shape[1]
+    data = np.zeros((int(shape[1].value), int(shape[0].value)))
+    xphysical, yphysical = np.meshgrid(np.arange(shape[0].value)*shape.unit*dx,
+                                       np.arange(shape[1].value)*shape.unit*dy)
+    # Add sunspots
+    centers = centers.transform_to(sunpy.coordinates.Helioprojective(observer=observer))
+    for c, s, a in zip(centers, sigmas, amplitudes):
+        xc_2 = (xphysical - (c.Tx - bottom_left_coord.Tx)).to(u.arcsec).value**2.0
+        yc_2 = (yphysical - (c.Ty - bottom_left_coord.Ty)).to(u.arcsec).value**2.0
+        data += a.to(u.Gauss).value * np.exp(
+            - xc_2 / (2 * s[0].to(u.arcsec).value**2) - yc_2 / (2 * s[1].to(u.arcsec).value**2))
+    # Build metadata
+    meta = MetaDict({
+        'telescop': 'synthetic_magnetic_imager',
+        'instrume': 'synthetic_magnetic_imager',
+        'detector': 'synthetic_magnetic_imager',
+        'bunit': 'Gauss',
+        'ctype1': 'HPLN-TAN',
+        'ctype2': 'HPLT-TAN',
+        'hgln_obs': observer.transform_to('heliographic_stonyhurst').lon.to(u.deg).value,
+        'hglt_obs': observer.transform_to('heliographic_stonyhurst').lat.to(u.deg).value,
+        'cunit1': 'arcsec',
+        'cunit2': 'arcsec',
+        'crpix1': (shape[0].value + 1)/2.,
+        'crpix2': (shape[1].value + 1)/2.,
+        'cdelt1': dx.value,
+        'cdelt2': dy.value,
+        'crval1': ((bottom_left_coord.Tx + top_right_coord.Tx)/2.).to(u.arcsec).value,
+        'crval2': ((bottom_left_coord.Ty + top_right_coord.Ty)/2.).to(u.arcsec).value,
+        'dsun_obs': observer.transform_to('heliographic_stonyhurst').radius.to(u.m).value,
+        'dsun_ref': observer.transform_to('heliographic_stonyhurst').radius.to(u.m).value,
+        'rsun_ref': const.R_sun.to(u.m).value,
+        'rsun_obs': ((const.R_sun / observer.transform_to(
+            'heliographic_stonyhurst').radius).decompose() * u.radian).to(u.arcsec).value,
+        't_obs': time_now.iso,
+        'date-obs': time_now.iso,
+    })
+    return GenericMap(data, meta)
 
 
 @u.quantity_input
