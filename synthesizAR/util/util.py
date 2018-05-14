@@ -11,7 +11,7 @@ from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst, Heliocentric
 from sunpy.sun import constants
 
-__all__ = ['SpatialPair', 'heeq_to_hcc', 'heeq_to_hcc_coord', 'to_heeq', 'is_visible']
+__all__ = ['SpatialPair', 'heeq_to_hcc', 'heeq_to_hcc_coord', 'is_visible']
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
@@ -45,20 +45,6 @@ def heeq_to_hcc_coord(x_heeq: u.cm, y_heeq: u.cm, z_heeq: u.cm, observer_coordin
     """
     x, y, z = heeq_to_hcc(x_heeq, y_heeq, z_heeq, observer_coordinate)
     return SkyCoord(x=x, y=y, z=z, frame=Heliocentric(observer=observer_coordinate))
-
-
-def to_heeq(coord):
-    """
-    Transform a coordinate to HEEQ
-    """
-    coord = coord.transform_to(HeliographicStonyhurst)
-    phi = coord.lon.to(u.radian)
-    theta = coord.lat.to(u.radian)
-    radius = coord.radius
-    x_heeq = radius * np.cos(theta) * np.cos(phi)
-    y_heeq = radius * np.cos(theta) * np.sin(phi)
-    z_heeq = radius * np.sin(theta)
-    return x_heeq, y_heeq, z_heeq
 
 
 def is_visible(coords, observer):
