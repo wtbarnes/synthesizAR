@@ -61,7 +61,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Magnetic field strength as a function of the field-aligned coordinate
         """
-        self._field_strength
+        return self._field_strength
 
     @property
     def field_aligned_coordinate(self):
