@@ -17,7 +17,7 @@ import astropy.constants as const
 import plasmapy.atomic
 import fiasco
 
-__all__ = ['Element', 'Ion', 'list_elements']
+__all__ = ['Element', 'Ion',]
 
 
 class Element(fiasco.Element):
@@ -59,25 +59,6 @@ class Ion(fiasco.Ion):
     Subclass of fiasco ion that adds functionality for calculating level populations.
     """
     
-    @fiasco.util.needs_dataset('scups')
-    def effective_collision_strength(self):
-        """
-        Calculate the effective collision strength or the Maxwellian-averaged collision
-        strength, typically denoted by upsilon.
-        
-        Note
-        ----
-        Need a more efficient way of calculating upsilon for all transitions. Current method is 
-        slow for ions with many transitions, e.g. Fe IX and Fe XI
-        """
-        energy_ratio = np.outer(const.k_B.cgs*self.temperature,
-                                1.0/self._scups['delta_energy'].to(u.erg))
-        upsilon = np.array(list(map(self.burgess_tully_descale, self._scups['bt_t'],
-                                    self._scups['bt_upsilon'], energy_ratio.T, self._scups['bt_c'],
-                                    self._scups['bt_type'])))
-        upsilon = u.Quantity(np.where(upsilon > 0., upsilon, 0.))
-        return upsilon.T
-    
     @fiasco.util.needs_dataset('elvlc', 'scups')
     def electron_collision_rate(self):
         """
@@ -99,20 +80,8 @@ class Ion(fiasco.Ion):
         """
         Calculates the collision rate for de-exciting and exciting collisions for protons
         """
-        # Create scaled temperature--these are not stored in the file
-        bt_t = np.vectorize(np.linspace, excluded=[0, 1], otypes='O')(
-            0, 1, [ups.shape[0] for ups in self._psplups['bt_rate']])
-        # Get excitation rates directly from scaled data
-        energy_ratio = np.outer(const.k_B.cgs*self.temperature,
-                                1.0/self._psplups['delta_energy'].to(u.erg))
-        ex_rate = np.array(list(map(self.burgess_tully_descale, bt_t,
-                                    self._psplups['bt_rate'], energy_ratio.T, self._psplups['bt_c'], 
-                                    self._psplups['bt_type'])))
-        ex_rate = u.Quantity(np.where(ex_rate > 0., ex_rate, 0.), u.cm**3/u.s).T
-        # Calculation de-excitation rates from excitation rate
-        omega_upper = 2.*self._elvlc['J'][self._psplups['upper_level'] - 1] + 1.
-        omega_lower = 2.*self._elvlc['J'][self._psplups['lower_level'] - 1] + 1.
-        dex_rate = (omega_lower / omega_upper) * ex_rate*np.exp(1. / energy_ratio)
+        ex_rate = self.proton_collision_excitation_rate()
+        dex_rate = self.proton_collision_deexcitation_rate()
         
         return dex_rate, ex_rate
     
@@ -151,7 +120,7 @@ class Ion(fiasco.Ion):
         dex_diagonal = np.array([collect(upper_level, l, dex_rate_e.value.T, 0)
                                  for l in level]).T*dex_rate_e.unit
         if include_protons and self._psplups is not None:
-            p2e_ratio = proton_ratio(self.temperature)
+            p2e_ratio = fiasco.proton_electron_ratio(self.temperature)
             dex_rate_p, ex_rate_p = self.proton_collision_rate()
             upper_level_p = self._psplups['upper_level']
             lower_level_p = self._psplups['lower_level']
@@ -210,46 +179,3 @@ class Ion(fiasco.Ion):
         emissivity = populations[:, :, upper_levels - 1]*(a_values*energy)
         
         return wavelengths, emissivity
-
-
-@u.quantity_input
-def proton_ratio(temperature: u.K):
-    """
-    Calculate ratio between proton and electron density as a function of temperature. 
-    See Eq. 7 of [1]_.
-
-    References
-    ----------
-    .. [1] Young, P. et al., 2003, ApJS, `144 135 <http://adsabs.harvard.edu/abs/2003ApJS..144..135Y>`_
-    """
-    denominator = None
-    for el_name in list_elements():
-        el = fiasco.Element(el_name, temperature=temperature)
-        for ion in el:
-            if denominator is None:
-                denominator = (ion._ioneq['chianti']['ionization_fraction']
-                               * ion.abundance * ion.charge_state)
-            else:
-                denominator += (ion._ioneq['chianti']['ionization_fraction']
-                                * ion.abundance * ion.charge_state)
-
-    el_h = fiasco.Element('hydrogen', temperature=temperature)
-    numerator = el_h[1].abundance*el_h[1]._ioneq['chianti']['ionization_fraction']
-    f_ratio = interp1d(el_h[1]._ioneq['chianti']['temperature'], numerator/denominator,
-                       fill_value='extrapolate')
-
-    return f_ratio(temperature.value)
-
-
-def list_elements():
-    """
-    List all available elements in the CHIANTI database.
-    """
-    with h5py.File(fiasco.defaults['hdf5_dbase_root']) as hf:
-        elements = []
-        for k in hf.keys():
-            try:
-                elements.append(plasmapy.atomic.atomic_symbol(k.capitalize()))
-            except plasmapy.atomic.names.InvalidParticleError:
-                continue
-    return elements
