@@ -38,8 +38,8 @@ class Loop(object):
     @u.quantity_input
     def __init__(self, name, coordinates: u.cm, field_strength: u.gauss):
         self.name = name
-        self.coordinates = coordinates.to(u.cm)
-        self.field_strength = field_strength.to(u.gauss)
+        self._coordinates = coordinates.to(u.cm)
+        self._field_strength = field_strength.to(u.gauss)
 
     def __repr__(self):
         fp0 = ','.join(['{:.3g}'.format(l) for l in self.coordinates[0, :].value])
@@ -48,6 +48,20 @@ class Loop(object):
 Loop full-length, 2L : {self.full_length.to(u.Mm):.3f}
 Footpoints : ({fp0}),({fp1}) {self.coordinates.unit.to_string()}
 Maximum field strength : {np.max(self.field_strength):.2f}'''
+
+    @property
+    def coordinates(self):
+        """
+        World coordinates of loop
+        """
+        return self._coordinates
+
+    @property
+    def field_strength(self):
+        """
+        Magnetic field strength as a function of the field-aligned coordinate
+        """
+        self._field_strength
 
     @property
     def field_aligned_coordinate(self):
