@@ -12,9 +12,9 @@ import numba
 from sunpy.coordinates.frames import Heliocentric
 from astropy.utils.console import ProgressBar
 
-from synthesizAR.util import SpatialPair, to_heeq
+from synthesizAR.util import SpatialPair
 
-from .helpers import local_to_heeq, heeq_to_local, magnetic_field_to_yt_dataset
+from .helpers import from_local, to_local, magnetic_field_to_yt_dataset
 from .fieldlines import trace_fieldlines, peek_fieldlines
 
 __all__ = ['PotentialField', 'peek_projections']
@@ -89,7 +89,9 @@ class PotentialField(object):
         with ProgressBar(len(lines), ipython_widget=kwargs.get('notebook', True)) as progress:
             for l, b in lines:
                 l = u.Quantity(l, self.range.x.unit)
-                l_heeq = u.Quantity(local_to_heeq(*l.T, self.magnetogram.center)).T
+                # FIXME: leave as SkyCoord once Loop is fixed to use SkyCoord
+                l_heeq = from_local(l[:, 0], l[:, 1], l[:, 2],
+                                    self.magnetogram.center).cartesian.xyz.T
                 m = u.Quantity(b, str(ds.r['Bz'].units))
                 fieldlines.append((l_heeq, m))
                 progress.update()
@@ -97,12 +99,8 @@ class PotentialField(object):
         return fieldlines
         
     def _calculate_range(self, magnetogram):
-        left_corner = heeq_to_local(
-                        *u.Quantity(to_heeq(magnetogram.bottom_left_coord))[:, np.newaxis],
-                        magnetogram.center)
-        right_corner = heeq_to_local(
-                        *u.Quantity(to_heeq(magnetogram.top_right_coord))[:, np.newaxis],
-                        magnetogram.center)
+        left_corner = to_local(magnetogram.bottom_left_coord, magnetogram.center)
+        right_corner = to_local(magnetogram.top_right_coord, magnetogram.center)
         range_x = u.Quantity([left_corner[0][0], right_corner[0][0]])
         range_y = u.Quantity([left_corner[1][0], right_corner[1][0]])
         return range_x, range_y
@@ -116,8 +114,7 @@ class PotentialField(object):
         p_y, p_x = np.indices((int(self.shape.x.value), int(self.shape.y.value)))
         pixels = u.Quantity([(i_x, i_y) for i_x, i_y in zip(p_x.flatten(), p_y.flatten())], 'pixel')
         world_coords = self.magnetogram.pixel_to_world(pixels[:, 0], pixels[:, 1])
-        local_x, local_y, _ = heeq_to_local(*u.Quantity(to_heeq(world_coords)),
-                                            self.magnetogram.center)
+        local_x, local_y, _ = to_local(world_coords, self.magnetogram.center)
         # Flatten
         points = np.stack([local_x.to(u.cm).value, local_y.to(u.cm).value], axis=1)
         values = u.Quantity(self.magnetogram.data, self.magnetogram.meta['bunit']).value.flatten()
@@ -134,9 +131,7 @@ class PotentialField(object):
         """
         LOS vector in the local coordinate system
         """
-        los = self.magnetogram.observer_coordinate.transform_to(
-                    Heliocentric(observer=self.magnetogram.observer_coordinate))
-        los = heeq_to_local(*u.Quantity(to_heeq(los))[:, np.newaxis], self.magnetogram.center)
+        los = to_local(self.magnetogram.observer_coordinate, self.magnetogram.center)
         return np.squeeze(u.Quantity(los))
         
     def calculate_phi(self):

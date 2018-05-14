@@ -4,16 +4,14 @@ Helper routines for field extrapolation routines and dealing with vector field d
 import numpy as np
 import astropy.time
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 import astropy.constants as const
 import yt
 import sunpy.coordinates
 from sunpy.util.metadata import MetaDict
 from sunpy.map import GenericMap
 
-from synthesizAR.util import to_heeq
-
-__all__ = ['synthetic_magnetogram', 'magnetic_field_to_yt_dataset', 'local_to_heeq',
-           'heeq_to_local']
+__all__ = ['synthetic_magnetogram', 'magnetic_field_to_yt_dataset', 'from_local', 'to_local']
 
 
 @u.quantity_input
@@ -122,31 +120,55 @@ def magnetic_field_to_yt_dataset(Bx: u.gauss, By: u.gauss, Bz: u.gauss, range_x:
 
 
 @u.quantity_input
-def local_to_heeq(x_local: u.cm, y_local: u.cm, z_local: u.cm, center):
+def from_local(x_local: u.cm, y_local: u.cm, z_local: u.cm, center):
     """
-    Transform from a cartesian frame centered on the active region (with the z-axis parallel
-    to the surface normal) to a HEEQ frame.
+    Transform from a Cartesian frame centered on the active region (with the z-axis parallel
+    to the surface normal).
+
+    Parameters
+    ----------
+    x_local : `~astropy.units.Quantity`
+    y_local : `~astropy.units.Quantity`
+    z_local : `~astropy.units.Quantity`
+    center : `~astropy.coordinates.SkyCoord`
+        Center of the active region
+
+    Returns
+    -------
+    coord : `~astropy.coordinates.SkyCoord`
     """
-    x_center, y_center, z_center = to_heeq(center)
     center = center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
+    x_center, y_center, z_center = center.cartesian.xyz
     # NOTE: the coordinates are permuted because the local z-axis is parallel to the surface normal
     coord_heeq = (rotate_z(center.lon) @ rotate_y(-center.lat)
                   @ u.Quantity([z_local, x_local, y_local]))
 
-    return coord_heeq[0, :] + x_center, coord_heeq[1, :] + y_center, coord_heeq[2, :] + z_center
+    return SkyCoord(x=coord_heeq[0, :] + x_center,
+                    y=coord_heeq[1, :] + y_center,
+                    z=coord_heeq[2, :] + z_center,
+                    frame=sunpy.coordinates.HeliographicStonyhurst, representation='cartesian')
 
 
 @u.quantity_input
-def heeq_to_local(x_heeq: u.cm, y_heeq: u.cm, z_heeq: u.cm, center):
+def to_local(coord, center):
     """
-    Transform from HEEQ frame to a cartesian frame centered on the active region
+    Transform coordinate to a cartesian frame centered on the active region
     (with the z-axis normal to the surface).
+
+    Parameters
+    ----------
+    coord : `~astropy.coordinates.SkyCoord`
+    center : `~astropy.coordinates.SkyCoord`
+        Center of the active region
     """
-    x_center, y_center, z_center = to_heeq(center)
-    center = center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
-    x_heeq -= x_center
-    y_heeq -= y_center
-    z_heeq -= z_center
+    center = center.transform_to(sunpy.coordinates.HeliographicStonyhurst)
+    x_center, y_center, z_center = center.cartesian.xyz
+    xyz_heeq = coord.transform_to(sunpy.coordinates.HeliographicStonyhurst).cartesian.xyz
+    if xyz_heeq.shape == (3,):
+        xyz_heeq = xyz_heeq[:, np.newaxis]
+    x_heeq = xyz_heeq[0, :] - x_center
+    y_heeq = xyz_heeq[1, :] - y_center
+    z_heeq = xyz_heeq[2, :] - z_center
     coord_local = (rotate_y(center.lat) @ rotate_z(-center.lon)
                    @ u.Quantity([x_heeq, y_heeq, z_heeq]))
     # NOTE: the coordinates are permuted because the local z-axis is parallel to the surface normal
