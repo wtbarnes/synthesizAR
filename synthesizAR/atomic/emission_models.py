@@ -1,6 +1,7 @@
 """
 Various models for calculating emission from multiple ions
 """
+import warnings
 import json
 
 import numpy as np
@@ -10,7 +11,7 @@ from astropy.utils.console import ProgressBar
 import h5py
 import fiasco
 
-from .chianti import Ion, Element
+from .chianti import Element
 
 
 class EmissionModel(fiasco.IonCollection):
@@ -21,8 +22,6 @@ class EmissionModel(fiasco.IonCollection):
     @u.quantity_input
     def __init__(self, density: u.cm**(-3), *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # FIXME: this line can be removed once Ion subclass is no longer needed
-        self._ion_list = [Ion(i.ion_name, i.temperature, **i._dset_names) for i in self._ion_list]
         self.temperature = self[0].temperature
         self.density = density
         self.resolved_wavelengths = kwargs.get('resolved_wavelengths', {})
@@ -30,6 +29,7 @@ class EmissionModel(fiasco.IonCollection):
         default_abundance = kwargs.get('default_abundance_dataset', 'sun_photospheric_2009_asplund')
         for ion in self._ion_list:
             if ion.abundance is None:
+                warnings.warn(f'Replacing abuance in {ion.ion_name} with {default_abundance}')
                 ion._dset_names['abundance_filename'] = default_abundance
 
     def save(self, savefile):
@@ -91,9 +91,16 @@ class EmissionModel(fiasco.IonCollection):
         with h5py.File(savefile, 'w') as hf:
             with ProgressBar(len(self._ion_list), ipython_widget=notebook) as progress:
                 for ion in self:
-                    wavelength, emissivity = ion.emissivity(self.density, include_energy=False)
-                    if wavelength is None or emissivity is None:
+                    pop = ion.level_populations(self.density)
+                    # NOTE: populations not available for every ion
+                    if pop is None:
+                        warnings.warn(f'Cannot compute level populations for {ion.ion_name}')
                         continue
+                    upper_level = ion.transitions.upper_level[~ion.transitions.is_twophoton]
+                    wavelength = ion.transitions.wavelength[~ion.transitions.is_twophoton]
+                    A = ion.transitions.A[~ion.transitions.is_twophoton]
+                    i_upper = fiasco.util.vectorize_where(ion._elvlc['level'], upper_level)
+                    emissivity = pop[:, :, i_upper] * A * u.photon
                     emissivity = emissivity[:, :, np.argsort(wavelength)]
                     wavelength = np.sort(wavelength)
                     grp = hf.create_group(ion.ion_name)
