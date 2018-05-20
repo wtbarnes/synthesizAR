@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-import yt
+from sunpy.coordinates import HeliographicStonyhurst
 from sunpy.image.rescale import resample
+import yt
 
 from synthesizAR.util import heeq_to_hcc_coord, is_visible
 
@@ -212,18 +213,20 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
     # Lines
     line_frequency = kwargs.get('line_frequency', 5)
     for line in fieldlines[::line_frequency]:
-        # Convert to proper coordinates
-        coord = (heeq_to_hcc_coord(line[:, 0], line[:, 1], line[:, 2],
-                                   magnetogram.observer_coordinate)
-                 .transform_to(magnetogram.coordinate_frame))
+        try:
+            coord = line.transform_to(magnetogram.coordinate_frame)
+        except AttributeError:
+            # This try-catch is due to a bug where to convert out of an HEEQ frame
+            # one must first transform to a polar HGS frame
+            # FIXME:  once this is fixed upstream in SunPy, this can be removed
+            coord = line.transform_to(HeliographicStonyhurst).transform_to(
+                magnetogram.coordinate_frame)
         # Mask lines behind the solar disk
         i_visible = np.where(is_visible(coord, magnetogram.observer_coordinate))
         coord_visible = SkyCoord(Tx=coord.Tx[i_visible], Ty=coord.Ty[i_visible],
                                  distance=coord.distance[i_visible],
                                  frame=magnetogram.coordinate_frame)
-        # Plot line
         ax.plot_coord(coord_visible, '-', color=kwargs.get('color', 'k'), lw=kwargs.get('lw', 1),
                       alpha=kwargs.get('alpha', 0.5))
 
     plt.show()
-    
