@@ -10,7 +10,9 @@ import glob
 
 import numpy as np
 import sunpy.map
+from sunpy.coordinates import HeliographicStonyhurst
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from astropy.utils.console import ProgressBar
 import h5py
 
@@ -81,8 +83,8 @@ Magnetogram Info:
                     grp.attrs['parameters_savefile'] = loop.parameters_savefile
                 else:
                     grp.attrs['parameters_savefile'] = ''
-                ds = grp.create_dataset('coordinates', data=loop.coordinates.value)
-                ds.attrs['units'] = loop.coordinates.unit.to_string()
+                ds = grp.create_dataset('coordinates', data=loop.coordinates.cartesian.xyz.value)
+                ds.attrs['units'] = loop.coordinates.cartesian.xyz.unit.to_string()
                 ds = grp.create_dataset('field_strength', data=loop.field_strength.value)
                 ds.attrs['units'] = loop.field_strength.unit.to_string()
 
@@ -100,7 +102,11 @@ Magnetogram Info:
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
-                coordinates = u.Quantity(grp['coordinates'], grp['coordinates'].attrs['units'])
+                x = u.Quantity(grp['coordinates'][0, :], grp['coordinates'].attrs['units'])
+                y = u.Quantity(grp['coordinates'][1, :], grp['coordinates'].attrs['units'])
+                z = u.Quantity(grp['coordinates'][2, :], grp['coordinates'].attrs['units'])
+                coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
+                                       representation='cartesian')
                 field_strength = u.Quantity(grp['field_strength'],
                                             grp['field_strength'].attrs['units'])
                 fieldlines.append({'index': grp.attrs['index'],
@@ -145,11 +151,11 @@ Magnetogram Info:
                     (time, electron_temperature, ion_temperature,
                      density, velocity) = interface.load_results(loop, **kwargs)
                     # convert velocity to loop coordinate system
-                    grad_xyz = np.gradient(loop.coordinates.value, axis=0)
-                    s_hat = grad_xyz / np.expand_dims(np.linalg.norm(grad_xyz, axis=1), axis=-1)
-                    velocity_x = velocity * s_hat[:, 0]
-                    velocity_y = velocity * s_hat[:, 1]
-                    velocity_z = velocity * s_hat[:, 2]
+                    grad_xyz = np.gradient(loop.coordinates.cartesian.xyz.value, axis=1)
+                    s_hat = grad_xyz / np.linalg.norm(grad_xyz, axis=0)
+                    velocity_x = velocity * s_hat[0, :]
+                    velocity_y = velocity * s_hat[1, :]
+                    velocity_z = velocity * s_hat[2, :]
                     # Write to file
                     loop.parameters_savefile = savefile
                     grp = hf.create_group(loop.name)
