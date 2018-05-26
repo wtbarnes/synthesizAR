@@ -13,7 +13,7 @@ from sunpy.coordinates import HeliographicStonyhurst
 from sunpy.image.rescale import resample
 import yt
 
-from synthesizAR.util import heeq_to_hcc_coord, is_visible
+from synthesizAR.util import is_visible
 
 __all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines']
 

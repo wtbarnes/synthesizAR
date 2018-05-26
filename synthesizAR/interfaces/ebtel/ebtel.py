@@ -91,7 +91,7 @@ class EbtelInterface(object):
         velocity = np.outer(_tmp[:, -2], np.ones(N_s))*u.cm/u.s
         # flip sign of velocity where the radial distance from center is maximum
         # FIXME: this is probably not the best way to do this...
-        r = np.sqrt(np.sum(loop.coordinates.value**2, axis=1))
+        r = np.sqrt(np.sum(loop.coordinates.cartesian.xyz.value**2, axis=0))
         i_mirror = np.where(np.diff(np.sign(np.gradient(r))))[0]
         if i_mirror.shape[0] > 0:
             i_mirror = i_mirror[0] + 1

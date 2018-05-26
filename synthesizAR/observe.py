@@ -69,10 +69,10 @@ class Observer(object):
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
                                          loop.field_aligned_coordinate.value[-1], n_interp)
             interpolated_loop_coordinates.append(interpolated_s)
-            nots, _ = splprep(loop.coordinates.value.T)
+            nots, _ = splprep(loop.coordinates.cartesian.xyz.value)
             total_coordinates.append(np.array(splev(np.linspace(0, 1, n_interp), nots)).T)
 
-        total_coordinates = np.vstack(total_coordinates) * loop.coordinates.unit
+        total_coordinates = np.vstack(total_coordinates) * loop.coordinates.cartesian.xyz.unit
 
         return total_coordinates, interpolated_loop_coordinates
 
@@ -87,11 +87,6 @@ class Observer(object):
         total_coordinates, self._interpolated_loop_coordinates = self._interpolate_loops(ds)
         interp_s_shape = (int(np.median([s.shape for s in self._interpolated_loop_coordinates])),)
         for instr in self.instruments:
-            # If no observer coordinate specified, use that of the magnetogram
-            if instr.observer_coordinate is None:
-                # FIXME: Setting attributes of other classes like this is bad!
-                instr.observer_coordinate = (self.field.magnetogram.observer_coordinate
-                                             .transform_to(HeliographicStonyhurst))
             chunks = kwargs.get('chunks', instr.observing_time.shape + interp_s_shape)
             dset_shape = instr.observing_time.shape + (len(total_coordinates),)
             instr.build_detector_file(file_template, dset_shape, chunks, self.field,
