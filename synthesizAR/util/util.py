@@ -5,10 +5,7 @@ peripheral to the actual physics.
 from collections import namedtuple
 
 import numpy as np
-import dask.delayed
 import astropy.units as u
-from astropy.coordinates import SkyCoord
-from sunpy.coordinates import HeliographicStonyhurst, Heliocentric
 from sunpy.sun import constants
 
 __all__ = ['SpatialPair', 'is_visible']
