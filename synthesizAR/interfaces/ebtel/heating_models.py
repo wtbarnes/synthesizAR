@@ -5,6 +5,37 @@ import logging
 import random
 
 import numpy as np
+import astropy.units as u
+
+__all__ = ['RandomNanoflares', 'UniformHeating', 'PowerLawScaledWaitingTimes',
+           'PowerLawUnscaledWaitingTimes', 'calculate_free_energy', 'power_law_transform']
+
+
+class RandomNanoflares(object):
+    """
+    Add a single nanoflare at a random time during the simulation period
+
+    Parameters
+    ----------
+    duration : `~astropy.units.Quantity`
+        Duration of each event
+    stress : `float`
+        Fraction of field energy density to input into the loop
+    """
+    @u.quantity_input
+    def __init__(self, duration: u.s, stress):
+        self.duration = duration.to(u.s).value
+        self.stress = stress
+        
+    def calculate_event_properties(self, loop):
+        self.number_events = 1
+        start_time = np.random.uniform(low=0, high=self.base_config['total_time'] - self.duration)
+        max_energy = (self.stress * loop.field_strength.mean().value)**2/(8.*np.pi)
+        return {'magnitude': np.array([max_energy/(self.duration/2.)]),
+                'rise_start': np.array([start_time]),
+                'rise_end': np.array([start_time+self.duration/2]),
+                'decay_start': np.array([start_time+self.duration/2]),
+                'decay_end': np.array([start_time+self.duration])}
 
 
 class HeatingBase(object):

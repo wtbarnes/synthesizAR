@@ -31,7 +31,7 @@ class InstrumentHinodeEIS(InstrumentBase):
     spatial, and temporal resolution along with the instrument response functions.
     """
 
-    def __init__(self, observing_time, observer_coordinate=None, window=None, apply_psf=True):
+    def __init__(self, observing_time, observer_coordinate, window=None, apply_psf=True):
         self.name = 'Hinode_EIS'
         self.cadence = 10.0*u.s
         self.resolution = SpatialPair(x=1.0*u.arcsec/u.pixel, y=2.0*u.arcsec/u.pixel, z=None)
@@ -170,15 +170,16 @@ class InstrumentHinodeEIS(InstrumentBase):
 
 class InstrumentHinodeXRT(InstrumentBase):
 
-    def __init__(self, observing_time, observer_coordinate=None, apply_psf=True):
+    def __init__(self, observing_time, observer_coordinate, apply_psf=True):
         self.name = 'Hinode_XRT'
         self.cadence = 20*u.s
-        self.resolution = SpatialPair(x=2.05719995499*u.arcsec/u.pixel, y=2.05719995499*u.arcsec/u.pixel, z=None)
+        self.resolution = SpatialPair(x=2.05719995499*u.arcsec/u.pixel,
+                                      y=2.05719995499*u.arcsec/u.pixel, z=None)
         self.fits_template['telescop'] = 'Hinode'
         self.fits_template['instrume'] = 'XRT'
         self.fits_template['waveunit'] = 'keV'
         self.apply_psf = apply_psf
-        super().__init__(observing_time, observer_coordinate=observer_coordinate)
+        super().__init__(observing_time, observer_coordinate)
         self._setup_channels()
 
     def _setup_channels(self):
@@ -274,12 +275,9 @@ class InstrumentHinodeXRT(InstrumentBase):
         with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
             units = u.Unit(hf[channel['name']].attrs['units'])
-            coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
-        hpc_coordinates = (heeq_to_hcc_coord(total_coordinates[:, 0], total_coordinates[:, 1],
-                                             total_coordinates[:, 2], observer_coordinate)
-                           .transform_to(Helioprojective(observer=self.observer_coordinate)))
-        dz = np.diff(bin_range.z).to(coordinates.unit)[0] / bins.z * (1. * u.pixel)
+        hpc_coordinates = self.total_coordinates
+        dz = np.diff(bin_range.z).cgs[0] / bins.z * (1. * u.pixel)
         visible = is_visible(hpc_coordinates, observer_coordinate)
         hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
                                     bins=(bins.x.value, bins.y.value),

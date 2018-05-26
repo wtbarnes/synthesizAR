@@ -36,14 +36,15 @@ class InstrumentSDOAIA(InstrumentBase):
     ----------
     observing_time : `tuple`
         start and end of observing time
-    observer_coordinate : `~astropy.coordinates.SkyCoord`, optional
-    apply_psf : `bool`
+    observer_coordinate : `~astropy.coordinates.SkyCoord`
+    apply_psf : `bool`, optional
+        If True (default), apply AIA point-spread function to images
 
     Examples
     --------
     """
 
-    def __init__(self, observing_time, observer_coordinate=None, apply_psf=True):
+    def __init__(self, observing_time, observer_coordinate, apply_psf=True):
         self.fits_template['telescop'] = 'SDO/AIA'
         self.fits_template['detector'] = 'AIA'
         self.fits_template['waveunit'] = 'angstrom'
@@ -65,7 +66,7 @@ class InstrumentSDOAIA(InstrumentBase):
         self.resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel, y=0.600698*u.arcsec/u.pixel,
                                       z=None)
         self.apply_psf = apply_psf
-        super().__init__(observing_time, observer_coordinate=observer_coordinate)
+        super().__init__(observing_time, observer_coordinate)
         self._setup_channels()
 
     def _setup_channels(self):

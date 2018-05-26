@@ -91,7 +91,7 @@ class PotentialField(object):
                 l = u.Quantity(l, self.range.x.unit)
                 # FIXME: leave as SkyCoord once Loop is fixed to use SkyCoord
                 l_heeq = from_local(l[:, 0], l[:, 1], l[:, 2],
-                                    self.magnetogram.center).cartesian.xyz.T
+                                    self.magnetogram.center)
                 m = u.Quantity(b, str(ds.r['Bz'].units))
                 fieldlines.append((l_heeq, m))
                 progress.update()

@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 import astropy.units as u
+from sunpy.coordinates import HeliographicStonyhurst
 import h5py
 
 
@@ -16,37 +17,39 @@ class Loop(object):
     Parameters
     ----------
     name : `str`
-    coordinates : `astropy.Quantity`
-        HEEQ Cartesian coordinates of the loop
-    field_strength : `astropy.Quantity`
+    coordinates : `astropy.coordinates.SkyCoord`
+        Loop coordinates; should be able to transform to HEEQ
+    field_strength : `astropy.units.Quantity`
         Scalar magnetic field strength along the loop
 
     Examples
     --------
     >>> import astropy.units as u
+    >>> from astropy.coordinates import SkyCoord
     >>> import synthesizAR
-    >>> coordinate = u.Quantity([[1,2,3],[4,5,6]], 'Mm')
+    >>> coordinate = SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm, frame='heliographic_stonyhurst', representation='cartesian')
     >>> field_strength = u.Quantity([100,200], 'gauss')
     >>> loop = synthesizAR.Loop('coronal_loop', coordinate, field_strength)
     >>> loop
     Name : coronal_loop
     Loop full-length, 2L : 5.196 Mm
-    Footpoints : (1e+08,2e+08,3e+08),(4e+08,5e+08,6e+08) cm
+    Footpoints : (1 Mm,2 Mm,3 Mm),(4 Mm,5 Mm,6 Mm)
     Maximum field strength : 200.00 G
     """
 
     @u.quantity_input
-    def __init__(self, name, coordinates: u.cm, field_strength: u.gauss):
+    def __init__(self, name, coordinates, field_strength: u.gauss):
         self.name = name
-        self._coordinates = coordinates.to(u.cm)
+        self._coordinates = coordinates.transform_to(HeliographicStonyhurst)
+        self._coordinates.representation = 'cartesian'
         self._field_strength = field_strength.to(u.gauss)
 
     def __repr__(self):
-        fp0 = ','.join(['{:.3g}'.format(l) for l in self.coordinates[0, :].value])
-        fp1 = ','.join(['{:.3g}'.format(l) for l in self.coordinates[-1, :].value])
+        f0 = f'{self.coordinates.x[0]:.3g},{self.coordinates.y[0]:.3g},{self.coordinates.z[0]:.3g}'
+        f1 = f'{self.coordinates.x[-1]:.3g},{self.coordinates.y[-1]:.3g},{self.coordinates.z[-1]:.3g}'
         return f'''Name : {self.name}
 Loop full-length, 2L : {self.full_length.to(u.Mm):.3f}
-Footpoints : ({fp0}),({fp1}) {self.coordinates.unit.to_string()}
+Footpoints : ({f0}),({f1})
 Maximum field strength : {np.max(self.field_strength):.2f}'''
 
     @property
@@ -68,16 +71,15 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Field-aligned coordinate :math:`s` such that :math:`0<s<L`
         """
-        return np.append(0., np.linalg.norm(np.diff(self.coordinates.value, axis=0),
-                                            axis=1).cumsum()) * self.coordinates.unit
+        return np.append(0., np.linalg.norm(np.diff(self.coordinates.cartesian.xyz.value, axis=1),
+                                            axis=0).cumsum()) * self.coordinates.cartesian.xyz.unit
 
     @property
     def full_length(self):
         """
         Loop full-length :math:`2L`, from footpoint to footpoint
         """
-        return np.sum(np.linalg.norm(np.diff(self.coordinates.value, axis=0),
-                                     axis=1)) * self.coordinates.unit
+        return np.diff(self.field_aligned_coordinate).sum()
 
     @property
     def time(self):

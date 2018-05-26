@@ -11,40 +11,10 @@ from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst, Heliocentric
 from sunpy.sun import constants
 
-__all__ = ['SpatialPair', 'heeq_to_hcc', 'heeq_to_hcc_coord', 'is_visible']
+__all__ = ['SpatialPair', 'is_visible']
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
-
-
-def heeq_to_hcc(x_heeq, y_heeq, z_heeq, observer_coordinate):
-    """
-    Convert Heliocentric Earth Equatorial (HEEQ) coordinates to Heliocentric
-    Cartesian Coordinates (HCC) for a given observer. See Eqs. 2 and 11 of [1]_.
-
-    References
-    ----------
-    .. [1] Thompson, W. T., 2006, A&A, `449, 791 <http://adsabs.harvard.edu/abs/2006A%26A...449..791T>`_
-    """
-    observer_coordinate = observer_coordinate.transform_to(HeliographicStonyhurst)
-    Phi_0 = observer_coordinate.lon.to(u.radian)
-    B_0 = observer_coordinate.lat.to(u.radian)
-
-    x_hcc = y_heeq*np.cos(Phi_0) - x_heeq*np.sin(Phi_0)
-    y_hcc = z_heeq*np.cos(B_0) - x_heeq*np.sin(B_0)*np.cos(Phi_0) - y_heeq*np.sin(Phi_0)*np.sin(B_0)
-    z_hcc = z_heeq*np.sin(B_0) + x_heeq*np.cos(B_0)*np.cos(Phi_0) + y_heeq*np.cos(B_0)*np.sin(Phi_0)
-
-    return x_hcc, y_hcc, z_hcc
-
-
-@u.quantity_input
-def heeq_to_hcc_coord(x_heeq: u.cm, y_heeq: u.cm, z_heeq: u.cm, observer_coordinate):
-    """
-    Return an HCC `~astropy.coordinates.SkyCoord` object from a set of HEEQ positions.
-    This is a wrapper around `~heeq_to_hcc`.
-    """
-    x, y, z = heeq_to_hcc(x_heeq, y_heeq, z_heeq, observer_coordinate)
-    return SkyCoord(x=x, y=y, z=z, frame=Heliocentric(observer=observer_coordinate))
 
 
 def is_visible(coords, observer):

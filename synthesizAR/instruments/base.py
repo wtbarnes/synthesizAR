@@ -14,7 +14,7 @@ from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
 from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
 
-from synthesizAR.util import SpatialPair, heeq_to_hcc_coord, heeq_to_hcc
+from synthesizAR.util import SpatialPair
 
 
 class InstrumentBase(object):
@@ -26,13 +26,13 @@ class InstrumentBase(object):
     ----------
     observing_time : `~astropy.units.Quantity`
         Tuple of start and end observing times
-    observer_coordinate : `~astropy.coordinates.SkyCoord`, optional
+    observer_coordinate : `~astropy.coordinates.SkyCoord`
         Coordinate of the observing instrument
     """
     fits_template = MetaDict()
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observer_coordinate=None):
+    def __init__(self, observing_time: u.s, observer_coordinate):
         self.observing_time = np.arange(observing_time[0].to(u.s).value,
                                         observing_time[1].to(u.s).value,
                                         self.cadence.value)*u.s
@@ -73,16 +73,24 @@ class InstrumentBase(object):
         with h5py.File(self.counts_file, 'r') as hf:
             total_coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
 
-        coords = heeq_to_hcc_coord(total_coordinates[:, 0], total_coordinates[:, 1],
-                                   total_coordinates[:, 2], self.observer_coordinate)
-
-        return coords.transform_to(Helioprojective(observer=self.observer_coordinate))
+        coords = SkyCoord(x=total_coordinates[:, 0], y=total_coordinates[:, 1],
+                          z=total_coordinates[:, 2], frame=HeliographicStonyhurst,
+                          representation='cartesian')
+        # This extra transform-to is due to a bug where to convert out of an HEEQ frame
+        # one must first transform to a polar HGS frame
+        # FIXME:  once this is fixed upstream in SunPy, this can be removed
+        return coords.transform_to(HeliographicStonyhurst).transform_to(
+            Helioprojective(observer=self.observer_coordinate))
 
     def los_velocity(self, v_x, v_y, v_z):
         """
         Compute the LOS velocity for the instrument observer
         """
-        _, _, v_los = heeq_to_hcc(v_x, v_y, v_z, self.observer_coordinate)
+        # NOTE: transform from HEEQ to HCC with respect to the instrument observer
+        obs = self.observer_coordinate.transform_to(HeliographicStonyhurst)
+        Phi_0, B_0 = obs.lon.to(u.radian), obs.lat.to(u.radian)
+        v_los = v_z*np.sin(B_0) + v_x*np.cos(B_0)*np.cos(Phi_0) + v_y*np.cos(B_0)*np.sin(Phi_0)
+        # NOTE: Negative sign to be consistent with convention v_los > 0 away from observer
         return -v_los
 
     def interpolate_and_store(self, y, loop, interp_s, start_index=None, save_dir=False,
