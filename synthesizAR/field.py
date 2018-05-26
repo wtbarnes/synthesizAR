@@ -3,10 +3,7 @@ Active region object definition. This object holds all the important information
 synthesized active region.
 """
 import os
-import warnings
 import datetime
-import pickle
-import glob
 
 import numpy as np
 import sunpy.map
@@ -37,7 +34,9 @@ class Field(object):
     >>> from sunpy.map import Map
     >>> import astropy.units as u
     >>> m = Map('/path/to/sample_hmi.fits') # doctest: +SKIP
-    >>> fieldlines = [([[1,2,3],[4,5,6]] * u.Mm, [1e2,1e3] * u.G)]
+    >>> fieldlines = [(SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,
+                       frame='heliographic_stonyhurst', representation='cartesian'),
+                       [1e2,1e3] * u.G)]
     >>> field = synthesizAR.Field(m, fieldlines) # doctest: +SKIP
     """
 
