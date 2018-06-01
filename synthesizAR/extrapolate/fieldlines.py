@@ -5,17 +5,21 @@ import warnings
 import functools
 
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import astropy.units as u
+import astropy.constants as const
 from astropy.coordinates import SkyCoord
-from sunpy.coordinates import HeliographicStonyhurst
+from sunpy.coordinates import HeliographicStonyhurst, HeliographicCarrington
 from sunpy.image.rescale import resample
+import sunpy.time
 import yt
 
 from synthesizAR.util import is_visible
 
-__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines']
+__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines',
+           'from_pfsspack']
 
 
 @u.quantity_input
@@ -164,15 +168,22 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None,
                                       preexisting_seeds=seed_points,
                                       mask_threshold=kwargs.get('mask_threshold', 0.1),
                                       safety=kwargs.get('safety', 2.))
-        # trace fieldlines
         yt_unit = ds.domain_width / ds.domain_width.value
         streamlines = yt.visualization.api.Streamlines(ds, seed_points * yt_unit,
                                                        xfield='Bx', yfield='By', zfield='Bz',
                                                        get_magnitude=True,
                                                        direction=direction)
-        streamlines.integrate_through_volume()
+        # FIXME: The reason for this try-catch is that occasionally a streamline will fall out of
+        # bounds of the yt volume and the tracing will fail. We can just ignore this and move on
+        # This is probably an issue that should be reported upstream to yt as I'm not really sure
+        # what this problem is here.
+        try:
+            streamlines.integrate_through_volume()
+        except AssertionError:
+            i_tries += 1
+            warnings.warn(f'Streamlines out of bounds. Tries left = {max_tries - i_tries}')
+            continue
         streamlines.clean_streamlines()
-        # filter
         keep_streamline = streamline_filter_wrapper(streamlines.streamlines, ds.domain_width,
                                                     **kwargs)
         if True not in keep_streamline:
@@ -181,7 +192,6 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None,
             continue
         else:
             i_tries = 0
-        # save strealines
         fieldlines += [(stream[np.all(stream != 0.0, axis=1)], mag[np.all(stream != 0.0, axis=1)])
                        for stream, mag, keep in zip(streamlines.streamlines,
                                                     streamlines.magnitudes,
@@ -230,3 +240,63 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
                       alpha=kwargs.get('alpha', 0.5))
 
     plt.show()
+
+
+def from_pfsspack(pfss_fieldlines):
+    """
+    Convert fieldline coordinates output from the SSW package `pfss <http://www.lmsal.com/~derosa/pfsspack/>`_ 
+    into `~astropy.coordinates.SkyCoord` objects.
+
+    Parameters
+    ----------
+    pfss_fieldlines : `~numpy.recarray`
+        Structure produced by reading pfss output with `~scipy.io.readsav`
+
+    Returns
+    -------
+    fieldlines : `list`
+        Each entry is a `tuple` containing a `~astropy.coordinates.SkyCoord` object and a
+        `~astropy.units.Quantity` object listing the coordinates and field strength along the loop.
+    """
+    # Fieldline coordinates
+    num_fieldlines = pfss_fieldlines['ptr'].shape[0]
+    fieldlines = []
+    for i in range(num_fieldlines):
+        # NOTE: For an unknown reason, there are a number of invalid points for each line output
+        # by pfss
+        n_valid = pfss_fieldlines['nstep'][i]
+        lon = (pfss_fieldlines['ptph'][i, :] * u.radian).to(u.deg)[:n_valid]
+        lat = 90 * u.deg - (pfss_fieldlines['ptth'][i, :] * u.radian).to(u.deg)[:n_valid]
+        radius = ((pfss_fieldlines['ptr'][i, :]) * const.R_sun.to(u.cm))[:n_valid]
+        coord = SkyCoord(
+            lon=lon, lat=lat, radius=radius,
+            frame=HeliographicCarrington(
+                obstime=sunpy.time.parse_time(pfss_fieldlines['now'].decode('utf-8'))))
+        fieldlines.append(coord)
+        
+    # Magnetic field strengths
+    lon_grid = (pfss_fieldlines['phi'] * u.radian - np.pi * u.radian).to(u.deg).value
+    lat_grid = (np.pi / 2. * u.radian - pfss_fieldlines['theta'] * u.radian).to(u.deg).value
+    radius_grid = pfss_fieldlines['rix'] * const.R_sun.to(u.cm).value
+    B_radius = pfss_fieldlines['br']
+    B_lat = pfss_fieldlines['bth']
+    B_lon = pfss_fieldlines['bph']
+    # Create interpolators
+    B_radius_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_radius,
+                                                    bounds_error=False, fill_value=None)
+    B_lat_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_lat,
+                                                 bounds_error=False, fill_value=None)
+    B_lon_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_lon,
+                                                 bounds_error=False, fill_value=None)
+    # Interpolate values through each line
+    field_strengths = []
+    for f in fieldlines:
+        points = np.stack([f.spherical.distance.to(u.cm).value,
+                           f.spherical.lat.to(u.deg).value,
+                           f.spherical.lon.to(u.deg).value], axis=1)
+        b_r = B_radius_interpolator(points)
+        b_lat = B_lat_interpolator(points)
+        b_lon = B_lon_interpolator(points)
+        field_strengths.append(np.sqrt(b_r**2 + b_lat**2 + b_lon**2) * u.Gauss)
+    
+    return [(l, b) for l, b in zip(fieldlines, field_strengths)]
