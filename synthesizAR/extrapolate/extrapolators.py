@@ -1,8 +1,6 @@
 """
 Field extrapolation methods for computing 3D vector magnetic fields from LOS magnetograms
 """
-import logging
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
@@ -41,8 +39,6 @@ class PotentialField(object):
 
     @u.quantity_input
     def __init__(self, magnetogram, width_z: u.cm, shape_z: u.pixel):
-        self.logger = logging.getLogger()
-        self.logger.setLevel(logging.INFO)
         self.magnetogram = magnetogram
         self.shape = SpatialPair(x=magnetogram.dimensions.x, y=magnetogram.dimensions.y, z=shape_z)
         range_x, range_y = self._calculate_range(magnetogram)
@@ -85,16 +81,15 @@ class PotentialField(object):
         lower_boundary = self.project_boundary(self.range.x, self.range.y).value
         lines = trace_fieldlines(ds, number_fieldlines, lower_boundary=lower_boundary, **kwargs)
         fieldlines = []
-        self.logger.info('Transforming streamlines to HEEQ...')
         with ProgressBar(len(lines), ipython_widget=kwargs.get('notebook', True)) as progress:
             for l, b in lines:
                 l = u.Quantity(l, self.range.x.unit)
-                # FIXME: leave as SkyCoord once Loop is fixed to use SkyCoord
-                l_heeq = from_local(l[:, 0], l[:, 1], l[:, 2],
-                                    self.magnetogram.center)
+                l_heeq = from_local(l[:, 0], l[:, 1], l[:, 2], self.magnetogram.center)
                 m = u.Quantity(b, str(ds.r['Bz'].units))
                 fieldlines.append((l_heeq, m))
-                progress.update()
+                # NOTE: Only suppress progress bar for tests
+                if kwargs.get('verbose', True):
+                    progress.update()
 
         return fieldlines
         
