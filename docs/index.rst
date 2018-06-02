@@ -19,5 +19,6 @@ synthesizAR is designed to be modular and extensible. Extensions for new hydrody
 
    getting_started
    tutorial
+   examples
    code_ref/index
    develop
