@@ -68,5 +68,5 @@ install:
 script:
    - $MAIN_CMD $SETUP_CMD
 
-after_success:
-    - if [[ $SETUP_CMD == *coverage* ]]; then coveralls --rcfile='synthesizAR/tests/coveragerc'; fi
+#after_success:
+#    - if [[ $SETUP_CMD == *coverage* ]]; then coveralls --rcfile='synthesizAR/tests/coveragerc'; fi
