@@ -45,7 +45,7 @@ env:
         # Make sure that egg_info works without dependencies
         - SETUP_CMD='egg_info'
         - SETUP_CMD='install'
-        #- SETUP_CMD='test --coverage'
+        - SETUP_CMD='test --coverage'
         - SETUP_CMD='build_docs'
 
 matrix:
