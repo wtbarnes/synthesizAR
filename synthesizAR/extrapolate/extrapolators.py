@@ -87,7 +87,7 @@ class PotentialField(object):
                 l_heeq = from_local(l[:, 0], l[:, 1], l[:, 2], self.magnetogram.center)
                 m = u.Quantity(b, str(ds.r['Bz'].units))
                 fieldlines.append((l_heeq, m))
-                # NOTE: Only suppress progress bar for tests
+                # NOTE: Optionally suppress progress bar for tests
                 if kwargs.get('verbose', True):
                     progress.update()
 
