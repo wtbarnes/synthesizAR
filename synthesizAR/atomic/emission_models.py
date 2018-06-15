@@ -120,9 +120,9 @@ class EmissionModel(fiasco.IonCollection):
             # NOTE: check for 'units' vs 'unit' is because of inconsistencies in metadata
             # across datasets
             ds = hf['/'.join([ion.ion_name, 'wavelength'])]
-            wavelength = u.Quantity(ds, ds.attrs.get('unit', ds.attrs['units']))
+            wavelength = u.Quantity(ds, ds.attrs.get('unit', ds.attrs.get('units')))
             ds = hf['/'.join([ion.ion_name, 'emissivity'])]
-            emissivity = u.Quantity(ds, ds.attrs.get('unit', ds.attrs['units']))
+            emissivity = u.Quantity(ds, ds.attrs.get('unit', ds.attrs.get('units')))
             
         return wavelength, emissivity
 
@@ -193,7 +193,7 @@ class EmissionModel(fiasco.IonCollection):
         with h5py.File(self.ionization_fraction_savefile, 'r') as hf:
             dset = hf['/'.join([loop.name, ion.element_name])]
             ionization_fraction = u.Quantity(dset[:, :, ion.charge_state],
-                                             dset.attrs.get('unit', ds.attrs['units']))
+                                             dset.attrs.get('unit', ds.attrs.get('units')))
 
         return ionization_fraction
 

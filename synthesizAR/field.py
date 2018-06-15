@@ -99,13 +99,16 @@ Magnetogram Info:
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
-                x = u.Quantity(grp['coordinates'][0, :], grp['coordinates'].attrs.get('unit', dset.attrs['units']))
-                y = u.Quantity(grp['coordinates'][1, :], grp['coordinates'].attrs.get('unit', dset.attrs['units']))
-                z = u.Quantity(grp['coordinates'][2, :], grp['coordinates'].attrs.get('unit', dset.attrs['units']))
+                x = u.Quantity(grp['coordinates'][0, :], grp['coordinates'].attrs.get(
+                    'unit', grp['coordinates'].attrs.get('units')))
+                y = u.Quantity(grp['coordinates'][1, :], grp['coordinates'].attrs.get(
+                    'unit', grp['coordinates'].attrs.get('units')))
+                z = u.Quantity(grp['coordinates'][2, :], grp['coordinates'].attrs.get(
+                    'unit', grp['coordinates'].attrs.get('units')))
                 coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
                                        representation='cartesian')
-                field_strength = u.Quantity(grp['field_strength'],
-                                            grp['field_strength'].attrs.get('unit', dset.attrs['units']))
+                field_strength = u.Quantity(grp['field_strength'], grp['field_strength'].attrs.get(
+                    'unit', grp['field_strength'].attrs.get('units')))
                 fieldlines.append({'index': grp.attrs['index'],
                                    'parameters_savefile': grp.attrs['parameters_savefile'],
                                    'coordinates': coordinates, 'field_strength': field_strength})

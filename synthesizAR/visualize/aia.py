@@ -33,7 +33,7 @@ def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm
         norm = matplotlib.colors.SymLogNorm(1e-6, vmin=1, vmax=5e3)
     with h5py.File(aia.counts_file, 'r') as hf:
         reference_time = u.Quantity(hf['time'], hf['time'].attrs.get(
-            'unit', hf['time'].attrs['units']))
+            'unit', hf['time'].attrs.get('units')))
     i_time = np.where(reference_time == time)[0][0]
     fig_format = os.path.join(root_dir, f'{aia.name}', '{}', f'map_t{i_time:06d}.fits')
     fig = plt.figure(figsize=figsize)
@@ -75,7 +75,7 @@ def make_aia_animation(aia, start_time: u.s, stop_time: u.s, root_dir, figsize=N
     """
     with h5py.File(aia.counts_file, 'r') as hf:
         reference_time = u.Quantity(hf['time'], hf['time'].attrs.get(
-            'unit', hf['time'].attrs['units']))
+            'unit', hf['time'].attrs.get('units')))
     start_index = np.where(reference_time == start_time)[0][0]
     stop_index = np.where(reference_time == stop_time)[0][0]
     fig_format = os.path.join(root_dir, f'{aia.name}', '{}', 'map_t{:06d}.fits')

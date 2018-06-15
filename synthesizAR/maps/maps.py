@@ -32,7 +32,7 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
             i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs.get(
-                'unit', hf['time'].attrs['units'])) == time)[0][0]
+                'unit', hf['time'].attrs.get('units'))) == time)[0][0]
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
         v_x = u.Quantity(hf['velocity_x'][i_time, :], hf['velocity_x'].attrs.get(
@@ -127,14 +127,14 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
             i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs.get(
-                'unit', hf['time'].attrs['units'])) == time)[0][0]
+                'unit', hf['time'].attrs.get('units'))) == time)[0][0]
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
         unbinned_temperature = np.array(hf['electron_temperature'][i_time, :])
         temperature_unit = u.Unit(hf['electron_temperature'].attrs.get(
-            'unit', hf['electron_temperature'].attrs['units']))
+            'unit', hf['electron_temperature'].attrs.get('units')))
         unbinned_density = np.array(hf['density'][i_time, :])
-        density_unit = u.Unit(hf['density'].attrs.get('unit', hf['density'].attrs['units']))
+        density_unit = u.Unit(hf['density'].attrs.get('unit', hf['density'].attrs.get('units')))
 
     # setup bin edges and weights
     if temperature_bin_edges is None:

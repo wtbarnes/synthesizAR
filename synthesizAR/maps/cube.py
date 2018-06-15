@@ -175,10 +175,10 @@ class EMCube(MapCube):
         header = MetaDict()
         with h5py.File(filename, 'r') as hf:
             data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs.get(
-                'unit', hf['emission_measure'].attrs['units']))
+                'unit', hf['emission_measure'].attrs.get('units')))
             temperature_bin_edges = u.Quantity(
                 hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs.get(
-                    'unit', hf['temperature_bin_edges'].attrs['units']))
+                    'unit', hf['temperature_bin_edges'].attrs.get('units')))
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
 
@@ -382,9 +382,9 @@ Wavelength dimension : {len(self.wavelength)}'''
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
             wavelength = np.array(hf['wavelength'])*u.Unit(hf['wavelength'].attrs.get(
-                'unit', hf['intensity'].attrs['units']))
+                'unit', hf['intensity'].attrs.get('units')))
             data = np.array(hf['intensity'])*u.Unit(hf['intensity'].attrs.get(
-                'unit', hf['intensity'].attrs['units']))
+                'unit', hf['intensity'].attrs.get('units')))
 
         return data, header, wavelength
 
