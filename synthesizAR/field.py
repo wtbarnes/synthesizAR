@@ -81,9 +81,9 @@ Magnetogram Info:
                 else:
                     grp.attrs['parameters_savefile'] = ''
                 ds = grp.create_dataset('coordinates', data=loop.coordinates.cartesian.xyz.value)
-                ds.attrs['units'] = loop.coordinates.cartesian.xyz.unit.to_string()
+                ds.attrs['unit'] = loop.coordinates.cartesian.xyz.unit.to_string()
                 ds = grp.create_dataset('field_strength', data=loop.field_strength.value)
-                ds.attrs['units'] = loop.field_strength.unit.to_string()
+                ds.attrs['unit'] = loop.field_strength.unit.to_string()
 
     @classmethod
     def restore(cls, savedir):
@@ -99,13 +99,13 @@ Magnetogram Info:
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
-                x = u.Quantity(grp['coordinates'][0, :], grp['coordinates'].attrs['units'])
-                y = u.Quantity(grp['coordinates'][1, :], grp['coordinates'].attrs['units'])
-                z = u.Quantity(grp['coordinates'][2, :], grp['coordinates'].attrs['units'])
+                x = u.Quantity(grp['coordinates'][0, :], grp['coordinates'].attrs.get('unit', dset.attrs['units']))
+                y = u.Quantity(grp['coordinates'][1, :], grp['coordinates'].attrs.get('unit', dset.attrs['units']))
+                z = u.Quantity(grp['coordinates'][2, :], grp['coordinates'].attrs.get('unit', dset.attrs['units']))
                 coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
                                        representation='cartesian')
                 field_strength = u.Quantity(grp['field_strength'],
-                                            grp['field_strength'].attrs['units'])
+                                            grp['field_strength'].attrs.get('unit', dset.attrs['units']))
                 fieldlines.append({'index': grp.attrs['index'],
                                    'parameters_savefile': grp.attrs['parameters_savefile'],
                                    'coordinates': coordinates, 'field_strength': field_strength})
@@ -158,31 +158,31 @@ Magnetogram Info:
                     grp = hf.create_group(loop.name)
                     # time
                     dset_time = grp.create_dataset('time', data=time.value)
-                    dset_time.attrs['units'] = time.unit.to_string()
+                    dset_time.attrs['unit'] = time.unit.to_string()
                     # electron temperature
                     dset_electron_temperature = grp.create_dataset('electron_temperature',
                                                                    data=electron_temperature.value)
-                    dset_electron_temperature.attrs['units'] = electron_temperature.unit.to_string()
+                    dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
                     # ion temperature
                     dset_ion_temperature = grp.create_dataset('ion_temperature',
                                                               data=ion_temperature.value)
-                    dset_ion_temperature.attrs['units'] = ion_temperature.unit.to_string()
+                    dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
                     # number density
                     dset_density = grp.create_dataset('density', data=density.value)
-                    dset_density.attrs['units'] = density.unit.to_string()
+                    dset_density.attrs['unit'] = density.unit.to_string()
                     # field-aligned velocity
                     dset_velocity = grp.create_dataset('velocity', data=velocity.value)
-                    dset_velocity.attrs['units'] = velocity.unit.to_string()
+                    dset_velocity.attrs['unit'] = velocity.unit.to_string()
                     dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
                     # Cartesian xyz velocity
                     dset_velocity_x = grp.create_dataset('velocity_x', data=velocity_x.value)
-                    dset_velocity_x.attrs['units'] = velocity_x.unit.to_string()
+                    dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
                     dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
                     dset_velocity_y = grp.create_dataset('velocity_y', data=velocity_y.value)
-                    dset_velocity_y.attrs['units'] = velocity_y.unit.to_string()
+                    dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
                     dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
                     dset_velocity_z = grp.create_dataset('velocity_z', data=velocity_z.value)
-                    dset_velocity_z.attrs['units'] = velocity_z.unit.to_string()
+                    dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
                     dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
 
                     progress.update()

@@ -94,7 +94,7 @@ class Observer(object):
             with h5py.File(instr.counts_file, 'a') as hf:
                 if 'coordinates' not in hf:
                     dset = hf.create_dataset('coordinates', data=total_coordinates.value)
-                    dset.attrs['units'] = total_coordinates.unit.to_string()
+                    dset.attrs['unit'] = total_coordinates.unit.to_string()
 
     def flatten_detector_counts(self, **kwargs):
         """
@@ -193,7 +193,8 @@ class Observer(object):
         for instr in self.instruments:
             bins, bin_range = instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
-                reference_time = u.Quantity(hf['time'], hf['time'].attrs['units'])
+                reference_time = u.Quantity(hf['time'], hf['time'].attrs.get(
+                    'unit', hf['time'].attrs['units']))
             indices_time = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
             for channel in instr.channels:
                 header = instr.make_fits_header(self.field, channel)

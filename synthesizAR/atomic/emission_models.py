@@ -105,9 +105,9 @@ class EmissionModel(fiasco.IonCollection):
                     wavelength = np.sort(wavelength)
                     grp = hf.create_group(ion.ion_name)
                     ds = grp.create_dataset('wavelength', data=wavelength.value)
-                    ds.attrs['units'] = wavelength.unit.to_string()
+                    ds.attrs['unit'] = wavelength.unit.to_string()
                     ds = grp.create_dataset('emissivity', data=emissivity.data)
-                    ds.attrs['units'] = emissivity.unit.to_string()
+                    ds.attrs['unit'] = emissivity.unit.to_string()
                     progress.update()
     
     def get_emissivity(self, ion):
@@ -117,10 +117,12 @@ class EmissionModel(fiasco.IonCollection):
         with h5py.File(self.emissivity_savefile, 'r') as hf:
             if ion.ion_name not in hf:
                 return (None, None)
+            # NOTE: check for 'units' vs 'unit' is because of inconsistencies in metadata
+            # across datasets
             ds = hf['/'.join([ion.ion_name, 'wavelength'])]
-            wavelength = u.Quantity(ds, ds.attrs['units'])
+            wavelength = u.Quantity(ds, ds.attrs.get('unit', ds.attrs['units']))
             ds = hf['/'.join([ion.ion_name, 'emissivity'])]
-            emissivity = u.Quantity(ds,  ds.attrs['units'])
+            emissivity = u.Quantity(ds, ds.attrs.get('unit', ds.attrs['units']))
             
         return wavelength, emissivity
 
@@ -172,7 +174,7 @@ class EmissionModel(fiasco.IonCollection):
                         else:
                             dset = grp[element.element_name]
                             dset[:, :, :] = data.value
-                        dset.attrs['units'] = data.unit.to_string()
+                        dset.attrs['unit'] = data.unit.to_string()
                         dset.attrs['description'] = 'equilibrium ionization fractions'
                         progress.update()
 
@@ -190,7 +192,8 @@ class EmissionModel(fiasco.IonCollection):
         """
         with h5py.File(self.ionization_fraction_savefile, 'r') as hf:
             dset = hf['/'.join([loop.name, ion.element_name])]
-            ionization_fraction = u.Quantity(dset[:, :, ion.charge_state], dset.attrs['units'])
+            ionization_fraction = u.Quantity(dset[:, :, ion.charge_state],
+                                             dset.attrs.get('unit', ds.attrs['units']))
 
         return ionization_fraction
 

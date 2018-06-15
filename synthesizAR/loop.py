@@ -88,7 +88,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'time'])]
-            time = u.Quantity(dset, dset.attrs['units'])
+            time = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return time
 
     @property
@@ -98,7 +98,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'electron_temperature'])]
-            temperature = u.Quantity(dset, dset.attrs['units'])
+            temperature = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return temperature
 
     @property
@@ -108,7 +108,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'ion_temperature'])]
-            temperature = u.Quantity(dset, dset.attrs['units'])
+            temperature = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return temperature
 
     @property
@@ -118,7 +118,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'density'])]
-            density = u.Quantity(dset, dset.attrs['units'])
+            density = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return density
 
     @property
@@ -129,7 +129,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity'])]
-            velocity = u.Quantity(dset, dset.attrs['units'])
+            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return velocity
 
     @property
@@ -139,7 +139,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_x'])]
-            velocity = u.Quantity(dset, dset.attrs['units'])
+            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return velocity
 
     @property
@@ -149,7 +149,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_y'])]
-            velocity = u.Quantity(dset, dset.attrs['units'])
+            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return velocity
 
     @property
@@ -159,5 +159,5 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_z'])]
-            velocity = u.Quantity(dset, dset.attrs['units'])
+            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
         return velocity

@@ -229,7 +229,7 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         with h5py.File(self.counts_file, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
-            units = u.Unit(hf[channel['name']].attrs['units'])
+            units = u.Unit(hf[channel['name']].attrs.get('unit', dset.attrs['units']))
 
         hpc_coordinates = self.total_coordinates
         dz = np.diff(bin_range.z)[0].cgs / bins.z * (1. * u.pixel)

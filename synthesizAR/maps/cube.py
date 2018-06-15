@@ -159,10 +159,10 @@ class EMCube(MapCube):
         """
         with h5py.File(filename, 'x') as hf:
             dset_data = hf.create_dataset('emission_measure', data=self.as_array())
-            dset_data.attrs['units'] = self[0].meta['bunit']
+            dset_data.attrs['unit'] = self[0].meta['bunit']
             dset_temperature_bin_edges = hf.create_dataset(
                 'temperature_bin_edges', data=self.temperature_bin_edges.value)
-            dset_temperature_bin_edges.attrs['units'] = self.temperature_bin_edges.unit.to_string()
+            dset_temperature_bin_edges.attrs['unit'] = self.temperature_bin_edges.unit.to_string()
             meta_group = hf.create_group('meta')
             for key in self[0].meta:
                 meta_group.attrs[key] = self[0].meta[key]
@@ -174,9 +174,11 @@ class EMCube(MapCube):
         """
         header = MetaDict()
         with h5py.File(filename, 'r') as hf:
-            data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs['units'])
+            data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs.get(
+                'unit', hf['emission_measure'].attrs['units']))
             temperature_bin_edges = u.Quantity(
-                hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs['units'])
+                hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs.get(
+                    'unit', hf['temperature_bin_edges'].attrs['units']))
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
 
@@ -330,9 +332,9 @@ Wavelength dimension : {len(self.wavelength)}'''
             for key in self.meta:
                 meta_group.attrs[key] = self.meta[key]
             dset_wvl = hf.create_dataset('wavelength', data=self.wavelength.value)
-            dset_wvl.attrs['units'] = self.wavelength.unit.to_string()
+            dset_wvl.attrs['unit'] = self.wavelength.unit.to_string()
             dset_intensity = hf.create_dataset('intensity', data=self.data, **dset_save_kwargs)
-            dset_intensity.attrs['units'] = self.data.unit.to_string()
+            dset_intensity.attrs['unit'] = self.data.unit.to_string()
 
     def _save_to_fits(self, filename, **kwargs):
         """
@@ -379,8 +381,10 @@ Wavelength dimension : {len(self.wavelength)}'''
         with h5py.File(filename, 'r') as hf:
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
-            wavelength = np.array(hf['wavelength'])*u.Unit(hf['wavelength'].attrs['units'])
-            data = np.array(hf['intensity'])*u.Unit(hf['intensity'].attrs['units'])
+            wavelength = np.array(hf['wavelength'])*u.Unit(hf['wavelength'].attrs.get(
+                'unit', hf['intensity'].attrs['units']))
+            data = np.array(hf['intensity'])*u.Unit(hf['intensity'].attrs.get(
+                'unit', hf['intensity'].attrs['units']))
 
         return data, header, wavelength
 

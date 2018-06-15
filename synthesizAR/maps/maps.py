@@ -31,12 +31,16 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
                                             weights=visible)
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
-            i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
+            i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs.get(
+                'unit', hf['time'].attrs['units'])) == time)[0][0]
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
-        v_x = u.Quantity(hf['velocity_x'][i_time, :], hf['velocity_x'].attrs['units'])
-        v_y = u.Quantity(hf['velocity_y'][i_time, :], hf['velocity_y'].attrs['units'])
-        v_z = u.Quantity(hf['velocity_z'][i_time, :], hf['velocity_z'].attrs['units'])
+        v_x = u.Quantity(hf['velocity_x'][i_time, :], hf['velocity_x'].attrs.get(
+            'unit', hf['velocity_x']['units']))
+        v_y = u.Quantity(hf['velocity_y'][i_time, :], hf['velocity_y'].attrs.get(
+            'unit', hf['velocity_y']['units']))
+        v_z = u.Quantity(hf['velocity_z'][i_time, :], hf['velocity_z'].attrs.get(
+            'unit', hf['velocity_z']['units']))
         v_los = instr.los_velocity(v_x, v_y, v_z)
 
     hist, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
@@ -72,11 +76,13 @@ def make_temperature_map(time: u.s, field, instr, **kwargs):
                                             weights=visible)
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
-            i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
+            i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs.get(
+                'unit', hf['time']['units'])) == time)[0][0]
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
         weights = np.array(hf['electron_temperature'][i_time, :])
-        units = u.Unit(hf['electron_temperature'].attrs['units'])
+        units = u.Unit(hf['electron_temperature'].attrs.get('unit',
+                                                            hf['electron_temperature']['units']))
     hist, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
                                 instr.total_coordinates.Ty.value,
                                 bins=(bins.x.value, bins.y.value),
@@ -120,13 +126,15 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     # read unbinned temperature and density
     with h5py.File(instr.counts_file, 'r') as hf:
         try:
-            i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs['units']) == time)[0][0]
+            i_time = np.where(np.array(hf['time'])*u.Unit(hf['time'].attrs.get(
+                'unit', hf['time'].attrs['units'])) == time)[0][0]
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
         unbinned_temperature = np.array(hf['electron_temperature'][i_time, :])
-        temperature_unit = u.Unit(hf['electron_temperature'].attrs['units'])
+        temperature_unit = u.Unit(hf['electron_temperature'].attrs.get(
+            'unit', hf['electron_temperature'].attrs['units']))
         unbinned_density = np.array(hf['density'][i_time, :])
-        density_unit = u.Unit(hf['density'].attrs['units'])
+        density_unit = u.Unit(hf['density'].attrs.get('unit', hf['density'].attrs['units']))
 
     # setup bin edges and weights
     if temperature_bin_edges is None:

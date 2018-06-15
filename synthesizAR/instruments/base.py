@@ -57,7 +57,7 @@ class InstrumentBase(object):
         with h5py.File(self.counts_file, 'a') as hf:
             if 'time' not in hf:
                 dset = hf.create_dataset('time', data=self.observing_time.value)
-                dset.attrs['units'] = self.observing_time.unit.to_string()
+                dset.attrs['unit'] = self.observing_time.unit.to_string()
             for dn in dset_names:
                 if dn not in hf:
                     hf.create_dataset(dn, dset_shape, chunks=chunks)
@@ -71,7 +71,8 @@ class InstrumentBase(object):
             raise AttributeError(f'''No counts file found for {self.name}. Build it first
                                      using Observer.build_detector_files''')
         with h5py.File(self.counts_file, 'r') as hf:
-            total_coordinates = u.Quantity(hf['coordinates'], hf['coordinates'].attrs['units'])
+            dset = hf['coordinates']
+            total_coordinates = u.Quantity(dset, dset.attrs.get('unit', dset.attrs['units']))
 
         coords = SkyCoord(x=total_coordinates[:, 0], y=total_coordinates[:, 1],
                           z=total_coordinates[:, 2], frame=HeliographicStonyhurst,
@@ -133,8 +134,8 @@ class InstrumentBase(object):
 
     @staticmethod
     def commit(y, dset, start_index):
-        if 'units' not in dset.attrs:
-            dset.attrs['units'] = y.unit.to_string()
+        if 'unit' not in dset.attrs:
+            dset.attrs['unit'] = y.unit.to_string()
         dset[:, start_index:(start_index + y.shape[1])] = y.value
 
     @staticmethod
@@ -144,7 +145,7 @@ class InstrumentBase(object):
         """
         with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[dset_name][i_time, :])
-            units = u.Unit(hf[dset_name].attrs['units'])
+            units = u.Unit(hf[dset_name].attrs.get('unit', hf[dset_name].attrs['units']))
             coordinates = np.array(hf['coordinates'][:, :2])
         hc, _ = np.histogramdd(coordinates, bins=bins[:2], range=bin_range[:2])
         h, _ = np.histogramdd(coordinates, bins=bins[:2], range=bin_range[:2], weights=weights)
