@@ -24,7 +24,7 @@ except ImportError:
     warnings.warn('Dask distributed scheduler required for parallel execution')
 
 import synthesizAR
-from synthesizAR.util import SpatialPair, is_visible
+from synthesizAR.util import SpatialPair, is_visible, get_keys
 from synthesizAR.instruments import InstrumentBase
 
 
@@ -229,7 +229,7 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         with h5py.File(self.counts_file, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
-            units = u.Unit(hf[channel['name']].attrs.get('unit', dset.attrs.get('units')))
+            units = u.Unit(get_keys(hf[channel['name']].attrs, ('unit', 'units')))
 
         hpc_coordinates = self.total_coordinates
         dz = np.diff(bin_range.z)[0].cgs / bins.z * (1. * u.pixel)

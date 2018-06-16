@@ -12,6 +12,7 @@ import h5py
 import fiasco
 
 from .chianti import Element
+from synthesizAR.util import get_keys
 
 
 class EmissionModel(fiasco.IonCollection):
@@ -120,9 +121,9 @@ class EmissionModel(fiasco.IonCollection):
             # NOTE: check for 'units' vs 'unit' is because of inconsistencies in metadata
             # across datasets
             ds = hf['/'.join([ion.ion_name, 'wavelength'])]
-            wavelength = u.Quantity(ds, ds.attrs.get('unit', ds.attrs.get('units')))
+            wavelength = u.Quantity(ds, get_keys(ds.attrs, ('unit', 'units')))
             ds = hf['/'.join([ion.ion_name, 'emissivity'])]
-            emissivity = u.Quantity(ds, ds.attrs.get('unit', ds.attrs.get('units')))
+            emissivity = u.Quantity(ds, get_keys(ds.attrs, ('unit', 'units')))
             
         return wavelength, emissivity
 
@@ -193,7 +194,7 @@ class EmissionModel(fiasco.IonCollection):
         with h5py.File(self.ionization_fraction_savefile, 'r') as hf:
             dset = hf['/'.join([loop.name, ion.element_name])]
             ionization_fraction = u.Quantity(dset[:, :, ion.charge_state],
-                                             dset.attrs.get('unit', ds.attrs.get('units')))
+                                             get_keys(dset.attrs, ('unit', 'units')))
 
         return ionization_fraction
 

@@ -13,6 +13,8 @@ from sunpy.map import Map, MapCube, GenericMap
 from sunpy.util.metadata import MetaDict
 from sunpy.io.fits import get_header
 
+from synthesizAR.util import get_keys
+
 __all__ = ['EMCube', 'EISCube']
 
 
@@ -174,11 +176,11 @@ class EMCube(MapCube):
         """
         header = MetaDict()
         with h5py.File(filename, 'r') as hf:
-            data = u.Quantity(hf['emission_measure'], hf['emission_measure'].attrs.get(
-                'unit', hf['emission_measure'].attrs.get('units')))
+            data = u.Quantity(hf['emission_measure'],
+                              get_keys(hf['emission_measure'].attrs, ('unit', 'units')))
             temperature_bin_edges = u.Quantity(
-                hf['temperature_bin_edges'], hf['temperature_bin_edges'].attrs.get(
-                    'unit', hf['temperature_bin_edges'].attrs.get('units')))
+                hf['temperature_bin_edges'],
+                get_keys(hf['temperature_bin_edges'].attrs, ('unit', 'units')))
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
 
@@ -381,10 +383,9 @@ Wavelength dimension : {len(self.wavelength)}'''
         with h5py.File(filename, 'r') as hf:
             for key in hf['meta'].attrs:
                 header[key] = hf['meta'].attrs[key]
-            wavelength = np.array(hf['wavelength'])*u.Unit(hf['wavelength'].attrs.get(
-                'unit', hf['intensity'].attrs.get('units')))
-            data = np.array(hf['intensity'])*u.Unit(hf['intensity'].attrs.get(
-                'unit', hf['intensity'].attrs.get('units')))
+            wavelength = u.Quantity(hf['wavelength'],
+                                    get_keys(hf['wavelength'].attrs, ('unit', 'units')))
+            data = u.Quantity(hf['intensity'], get_keys(hf['intensity'].attrs, ('unit', 'units')))
 
         return data, header, wavelength
 

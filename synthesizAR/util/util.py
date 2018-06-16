@@ -8,7 +8,7 @@ import numpy as np
 import astropy.units as u
 from sunpy.sun import constants
 
-__all__ = ['SpatialPair', 'is_visible']
+__all__ = ['SpatialPair', 'is_visible', 'get_keys']
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
@@ -34,3 +34,21 @@ def is_visible(coords, observer):
     in_front_of_disk = distance - observer.radius < 0.
 
     return np.any(np.stack([off_disk, in_front_of_disk], axis=1), axis=1)
+
+
+def get_keys(dictionary, keys, default=None):
+    """
+    Check a dictionary for multiple keys before returning the default value
+
+    Parameters
+    ----------
+    dictionary: `dict`
+    keys: `tuple`
+    default: optional
+    """
+    for k in keys:
+        v = dictionary.get(k)
+        if v is not None:
+            return v
+    else:
+        return default

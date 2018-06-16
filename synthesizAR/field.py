@@ -15,6 +15,7 @@ import h5py
 
 from synthesizAR import Loop
 from synthesizAR.extrapolate import peek_fieldlines
+from synthesizAR.util import get_keys
 
 
 class Field(object):
@@ -99,16 +100,16 @@ Magnetogram Info:
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
-                x = u.Quantity(grp['coordinates'][0, :], grp['coordinates'].attrs.get(
-                    'unit', grp['coordinates'].attrs.get('units')))
-                y = u.Quantity(grp['coordinates'][1, :], grp['coordinates'].attrs.get(
-                    'unit', grp['coordinates'].attrs.get('units')))
-                z = u.Quantity(grp['coordinates'][2, :], grp['coordinates'].attrs.get(
-                    'unit', grp['coordinates'].attrs.get('units')))
+                x = u.Quantity(grp['coordinates'][0, :], 
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                y = u.Quantity(grp['coordinates'][1, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                z = u.Quantity(grp['coordinates'][2, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
                 coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
                                        representation='cartesian')
-                field_strength = u.Quantity(grp['field_strength'], grp['field_strength'].attrs.get(
-                    'unit', grp['field_strength'].attrs.get('units')))
+                field_strength = u.Quantity(
+                    grp['field_strength'], get_keys(grp['field_strength'].attrs, ('unit', 'units')))
                 fieldlines.append({'index': grp.attrs['index'],
                                    'parameters_savefile': grp.attrs['parameters_savefile'],
                                    'coordinates': coordinates, 'field_strength': field_strength})

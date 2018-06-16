@@ -14,7 +14,7 @@ from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
 from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
 
-from synthesizAR.util import SpatialPair
+from synthesizAR.util import SpatialPair, get_keys
 
 
 class InstrumentBase(object):
@@ -72,7 +72,7 @@ class InstrumentBase(object):
                                      using Observer.build_detector_files''')
         with h5py.File(self.counts_file, 'r') as hf:
             dset = hf['coordinates']
-            total_coordinates = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            total_coordinates = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
 
         coords = SkyCoord(x=total_coordinates[:, 0], y=total_coordinates[:, 1],
                           z=total_coordinates[:, 2], frame=HeliographicStonyhurst,
@@ -145,7 +145,7 @@ class InstrumentBase(object):
         """
         with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[dset_name][i_time, :])
-            units = u.Unit(hf[dset_name].attrs.get('unit', hf[dset_name].attrs.get('units')))
+            units = u.Unit(get_keys(hf[dset_name].attrs, ('unit', 'units')))
             coordinates = np.array(hf['coordinates'][:, :2])
         hc, _ = np.histogramdd(coordinates, bins=bins[:2], range=bin_range[:2])
         h, _ = np.histogramdd(coordinates, bins=bins[:2], range=bin_range[:2], weights=weights)

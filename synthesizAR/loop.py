@@ -9,6 +9,8 @@ import astropy.units as u
 from sunpy.coordinates import HeliographicStonyhurst
 import h5py
 
+from synthesizAR.util import get_keys
+
 
 class Loop(object):
     """
@@ -88,7 +90,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'time'])]
-            time = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            time = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return time
 
     @property
@@ -98,7 +100,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'electron_temperature'])]
-            temperature = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            temperature = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return temperature
 
     @property
@@ -108,7 +110,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'ion_temperature'])]
-            temperature = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            temperature = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return temperature
 
     @property
@@ -118,7 +120,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'density'])]
-            density = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            density = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return density
 
     @property
@@ -129,7 +131,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity'])]
-            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
 
     @property
@@ -139,7 +141,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_x'])]
-            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
 
     @property
@@ -149,7 +151,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_y'])]
-            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
 
     @property
@@ -159,5 +161,5 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         with h5py.File(self.parameters_savefile, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_z'])]
-            velocity = u.Quantity(dset, dset.attrs.get('unit', dset.attrs.get('units')))
+            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity

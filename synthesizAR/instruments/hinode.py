@@ -19,7 +19,7 @@ import h5py
 import plasmapy
 import dask
 
-from synthesizAR.util import SpatialPair
+from synthesizAR.util import SpatialPair, get_keys
 from synthesizAR.instruments import InstrumentBase
 from synthesizAR.maps import EISCube
 
@@ -152,7 +152,8 @@ class InstrumentHinodeEIS(InstrumentBase):
                                          range=[self.bin_range.x, self.bin_range.y, self.bin_range.z],
                                          weights=np.array(dset[i_time, :]))
             emiss = np.dot(hist, np.diff(edges[2])).T
-            emiss = np.expand_dims(emiss, axis=2)*u.Unit(dset.attrs.get('unit', dset.attrs.get('units')))*self.total_coordinates.unit
+            emiss = (np.expand_dims(emiss, axis=2)
+                     * u.Unit(get_keys(dset.attrs, ('unit', 'units')))*self.total_coordinates.unit)
             intensity = emiss*response_y/np.sqrt(2.*np.pi*line_width)
             intensity *= np.exp(-((response_x - wavelength - doppler_shift)**2)/(2.*line_width))
             if not hasattr(counts, 'unit'):
@@ -274,7 +275,7 @@ class InstrumentHinodeXRT(InstrumentBase):
         """
         with h5py.File(counts_filename, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
-            units = u.Unit(hf[channel['name']].attrs.get('unit', dset.attrs.get('units')))
+            units = u.Unit(get_keys(hf[channel['name']].attrs, ('unit', 'units')))
 
         hpc_coordinates = self.total_coordinates
         dz = np.diff(bin_range.z).cgs[0] / bins.z * (1. * u.pixel)

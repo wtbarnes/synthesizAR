@@ -19,6 +19,8 @@ try:
 except ImportError:
     warnings.warn('Dask distributed scheduler required for parallel execution')
 
+from synthesizAR.util import get_keys
+
 
 class Observer(object):
     """
@@ -193,8 +195,8 @@ class Observer(object):
         for instr in self.instruments:
             bins, bin_range = instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
-                reference_time = u.Quantity(hf['time'], hf['time'].attrs.get(
-                    'unit', hf['time'].attrs.get('units')))
+                reference_time = u.Quantity(hf['time'],
+                                            get_keys(hf['time'].attrs, ('unit', 'units')))
             indices_time = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
             for channel in instr.channels:
                 header = instr.make_fits_header(self.field, channel)
