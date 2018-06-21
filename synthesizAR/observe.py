@@ -223,7 +223,7 @@ class ObserverParallel(ObserverSerial):
                     m = client.submit(instr.detect, channel, i_time, header, bins, bin_range)
                     file_path = file_path_template.format(instr.name, channel['name'], i_time)
                     futures[instr.name][channel['name']].append(
-                        client.submit(self.assemble_map, m, file_path,))
+                        client.submit(self.assemble_map, m, file_path, time))
                 distributed.client.wait(futures[instr.name][channel['name']])
 
         return futures
