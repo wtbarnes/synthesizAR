@@ -211,20 +211,19 @@ class ObserverParallel(ObserverSerial):
         for instr in self.instruments:
             bins, bin_range = instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
-                reference_time = u.Quantity(hf['time'],
-                                            get_keys(hf['time'].attrs, ('unit', 'units')))
-            indices_time = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
+                reference_time = u.Quantity(hf['time'], get_keys(hf['time'].attrs, ('unit', 'units')))
             for channel in instr.channels:
                 header = instr.make_fits_header(self.field, channel)
-                file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
-                              for i_time in indices_time]
-                if not os.path.exists(os.path.dirname(file_paths[0])):
-                    os.makedirs(os.path.dirname(file_paths[0]))
-                partial_detect = toolz.curry(instr.detect)(
-                    channel, header=header, bins=bins, bin_range=bin_range)
-                map_futures = client.map(partial_detect, indices_time)
-                futures[instr.name][channel['name']] = client.map(
-                    self.assemble_map, map_futures, file_paths, instr.observing_time)
+                dirname = os.path.dirname(file_path_template.format(instr.name, channel['name'], 0))
+                if not os.path.exists(dirname):
+                    os.makedirs(dirname)
+                futures[instr.name][channel['name']] = []
+                for time in instr.observing_time:
+                    i_time = np.where(reference_time == time)[0][0]
+                    m = client.submit(instr.detect, channel, i_time, header, bins, bin_range)
+                    file_path = file_path_template.format(instr.name, channel['name'], i_time)
+                    futures[instr.name][channel['name']].append(
+                        client.submit(self.assemble_map, m, file_path,))
                 distributed.client.wait(futures[instr.name][channel['name']])
 
         return futures
