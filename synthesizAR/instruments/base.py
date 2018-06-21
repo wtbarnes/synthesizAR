@@ -4,6 +4,7 @@ Base class for instrument objects.
 
 import os
 import pickle
+import warnings
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -13,6 +14,10 @@ import h5py
 from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
 from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
+try:
+    import distributed
+except ImportError:
+    warnings.warn('Dask distributed scheduler required for parallel execution')
 
 from synthesizAR.util import SpatialPair, get_keys
 
@@ -94,10 +99,9 @@ class InstrumentBase(object):
         # NOTE: Negative sign to be consistent with convention v_los > 0 away from observer
         return -v_los
 
-    def interpolate_and_store(self, y, loop, interp_s, start_index=None, save_dir=False,
-                              dset_name=None):
+    def interpolate(self, y, loop, interp_s):
         """
-        Interpolate in time and space and write to HDF5 file.
+        Interpolate in time and space and.
         """
         if type(y) is str:
             y = getattr(loop, y)
@@ -111,26 +115,16 @@ class InstrumentBase(object):
         else:
             f_t = interp1d(loop.time.value, y_s, axis=0, kind='linear', fill_value='extrapolate')
             interpolated_y = f_t(self.observing_time.value)
-        if save_dir:
-            save_path = os.path.join(save_dir, f'{loop.name}_{self.name}_{dset_name}.pkl')
-            with open(save_path, 'wb') as f:
-                pickle.dump((interpolated_y, y.unit.to_string(), start_index, dset_name), f)
-            return save_path
-        else:
-            return interpolated_y * y.unit
+        return interpolated_y * y.unit
 
-    @staticmethod
-    def assemble_arrays(interp_files, savefile):
+    def write_to_hdf5(self, value, start_index, dset_name):
         """
-        Assemble interpolated results into single file
+        Write quantity for a single loop to a block in an HDF5 dataset
         """
-        with h5py.File(savefile, 'a', driver=None) as hf:
-            for filename in interp_files:
-                with open(filename, 'rb') as f:
-                    y, units, start_index, dset_name = pickle.load(f)
-                tmp = u.Quantity(y, units)
-                InstrumentBase.commit(tmp, hf[dset_name], start_index)
-        return interp_files
+        lock = distributed.Lock(f'hdf5_{self.name}')
+        with lock:
+            with h5py.File(self.counts_file, 'a') as hf:
+                self.commit(value, hf[dset_name], start_index)
 
     @staticmethod
     def commit(y, dset, start_index):

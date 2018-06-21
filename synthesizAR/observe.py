@@ -35,94 +35,11 @@ class Observer(object):
     Examples
     --------
     """
-    def __init__(self, *args, parallel=False, **kwargs):
+    def __new__(cls, *args, parallel=False, **kwargs):
         if parallel:
             return ObserverParallel(*args, **kwargs)
         else:
             return ObserverSerial(*args, **kwargs)
-
-
-class ObserverParallel(ObserverSerial):
-
-    def flatten_detector_counts(self, **kwargs):
-        """
-        Build custom Dask graph interpolating quantities for each in loop in time and space.
-        """
-        client = distributed.get_client()
-        emission_model = kwargs.get('emission_model', None)
-        interpolate_hydro_quantities = kwargs.get('interpolate_hydro_quantities', True)
-        futures = {}
-        start_indices = np.insert(np.array(
-            [s.shape[0] for s in self._interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
-        for instr in self.instruments:
-            # Create temporary files where interpolated results will be written
-            tmp_dir = os.path.join(os.path.dirname(instr.counts_file), 'tmp_parallel_files')
-            if not os.path.exists(tmp_dir):
-                os.makedirs(tmp_dir)
-            interp_futures = []
-            if interpolate_hydro_quantities:
-                for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
-                          'ion_temperature', 'density']:
-                    partial_interp = toolz.curry(instr.interpolate_and_store)(
-                        q, save_dir=tmp_dir, dset_name=q)
-                    loop_futures = client.map(partial_interp, self.field.loops,
-                                              self._interpolated_loop_coordinates, start_indices)
-                    # Block until complete
-                    distributed.client.wait([loop_futures])
-                    interp_futures += loop_futures
-
-            # Calculate and interpolate channel counts for instrument
-            counts_futures = instr.flatten_parallel(self.field.loops,
-                                                    self._interpolated_loop_coordinates,
-                                                    tmp_dir, emission_model=emission_model)
-            # Assemble into file and clean up
-            assemble_future = client.submit(instr.assemble_arrays, interp_futures+counts_futures,
-                                            instr.counts_file)
-            futures[f'{instr.name}'] = client.submit(self._cleanup, assemble_future)
-
-        return futures
-
-    @staticmethod
-    def _cleanup(filenames):
-        for f in filenames:
-            os.remove(f)
-        os.rmdir(os.path.dirname(f))
-
-    def bin_detector_counts(self, savedir, **kwargs):
-        """
-        Assemble pipelines for building maps at each timestep.
-
-        Build pipeline for computing final synthesized data products. This can be done
-        either in serial or parallel.
-
-        Parameters
-        ----------
-        savedir : `str`
-            Top level directory to save data products in
-        """
-        futures = {instr.name: {} for instr in self.instruments}
-        client = distributed.get_client()
-        file_path_template = os.path.join(savedir, '{}', '{}', 'map_t{:06d}.fits')
-        for instr in self.instruments:
-            bins, bin_range = instr.make_detector_array(self.field)
-            with h5py.File(instr.counts_file, 'r') as hf:
-                reference_time = u.Quantity(hf['time'],
-                                            get_keys(hf['time'].attrs, ('unit', 'units')))
-            indices_time = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
-            for channel in instr.channels:
-                header = instr.make_fits_header(self.field, channel)
-                file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
-                              for i_time in indices_time]
-                if not os.path.exists(os.path.dirname(file_paths[0])):
-                    os.makedirs(os.path.dirname(file_paths[0]))
-                partial_detect = toolz.curry(instr.detect)(
-                    channel, header=header, bins=bins, bin_range=bin_range)
-                map_futures = client.map(partial_detect, indices_time)
-                futures[instr.name][channel['name']] = client.map(
-                    self.assemble_map, map_futures, file_paths, instr.observing_time)
-                distributed.client.wait(futures[instr.name][channel['name']])
-
-        return futures
 
 
 class ObserverSerial(object):
@@ -131,7 +48,7 @@ class ObserverSerial(object):
         self.field = field
         self.instruments = instruments
         self._channels_setup()
-        
+
     def _channels_setup(self):
         """
         Tell each channel of each detector which wavelengths fall in it.
@@ -201,7 +118,7 @@ class ObserverSerial(object):
                     for interp_s, loop in zip(self._interpolated_loop_coordinates, self.field.loops):
                         for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                                   'ion_temperature', 'density']:
-                            val = instr.interpolate_and_store(q, loop, interp_s)
+                            val = instr.interpolate(q, loop, interp_s)
                             instr.commit(val, hf[q], start_index)
                         start_index += interp_s.shape[0]
                 instr.flatten_serial(self.field.loops, self._interpolated_loop_coordinates, hf,
@@ -241,3 +158,73 @@ class ObserverSerial(object):
                     raw_map = instr.detect(channel, i_time, header, bins, bin_range)
                     file_path = file_path_template.format(instr.name, channel['name'], i_time)
                     self.assemble_map(raw_map, file_path, time)
+
+
+class ObserverParallel(ObserverSerial):
+
+    def flatten_detector_counts(self, **kwargs):
+        """
+        Build custom Dask graph interpolating quantities for each in loop in time and space.
+        """
+        client = distributed.get_client()
+        emission_model = kwargs.get('emission_model', None)
+        interpolate_hydro_quantities = kwargs.get('interpolate_hydro_quantities', True)
+        futures = {}
+        start_indices = np.insert(np.array(
+            [s.shape[0] for s in self._interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
+        for instr in self.instruments:
+            interp_futures = []
+            if interpolate_hydro_quantities:
+                for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
+                          'ion_temperature', 'density']:
+                    loop_futures = []
+                    for i, loop in enumerate(self.field.loops):
+                        y = client.submit(instr.interpolate, q, loop, self._interpolated_loop_coordinates[i])
+                        loop_futures.append(client.submit(instr.write_to_hdf5, y, start_indices[i], q))
+                    # Block until complete
+                    distributed.client.wait(loop_futures)
+                    interp_futures += loop_futures
+
+            # Calculate and interpolate channel counts for instrument
+            counts_futures = instr.flatten_parallel(self.field.loops,
+                                                    self._interpolated_loop_coordinates,
+                                                    emission_model=emission_model)
+            futures[f'{instr.name}'] = interp_futures + counts_futures
+
+        return futures
+
+    def bin_detector_counts(self, savedir, **kwargs):
+        """
+        Assemble pipelines for building maps at each timestep.
+
+        Build pipeline for computing final synthesized data products. This can be done
+        either in serial or parallel.
+
+        Parameters
+        ----------
+        savedir : `str`
+            Top level directory to save data products in
+        """
+        futures = {instr.name: {} for instr in self.instruments}
+        client = distributed.get_client()
+        file_path_template = os.path.join(savedir, '{}', '{}', 'map_t{:06d}.fits')
+        for instr in self.instruments:
+            bins, bin_range = instr.make_detector_array(self.field)
+            with h5py.File(instr.counts_file, 'r') as hf:
+                reference_time = u.Quantity(hf['time'],
+                                            get_keys(hf['time'].attrs, ('unit', 'units')))
+            indices_time = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
+            for channel in instr.channels:
+                header = instr.make_fits_header(self.field, channel)
+                file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
+                              for i_time in indices_time]
+                if not os.path.exists(os.path.dirname(file_paths[0])):
+                    os.makedirs(os.path.dirname(file_paths[0]))
+                partial_detect = toolz.curry(instr.detect)(
+                    channel, header=header, bins=bins, bin_range=bin_range)
+                map_futures = client.map(partial_detect, indices_time)
+                futures[instr.name][channel['name']] = client.map(
+                    self.assemble_map, map_futures, file_paths, instr.observing_time)
+                distributed.client.wait(futures[instr.name][channel['name']])
+
+        return futures

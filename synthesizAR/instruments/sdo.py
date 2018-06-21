@@ -171,11 +171,11 @@ class InstrumentSDOAIA(InstrumentBase):
                 flattened_emissivities = self.flatten_emissivities(channel, emission_model)
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
                 c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
-                y = self.interpolate_and_store(c, loop, interp_s)
+                y = self.interpolate(c, loop, interp_s)
                 self.commit(y, dset, start_index)
                 start_index += interp_s.shape[0]
 
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, tmp_dir, emission_model=None):
+    def flatten_parallel(self, loops, interpolated_loop_coordinates, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument
         and appropriate spatial scale. Returns a dask task.
@@ -195,17 +195,14 @@ class InstrumentSDOAIA(InstrumentBase):
             # Flatten emissivities for appropriate channel
             if emission_model is not None:
                 flat_emiss = self.flatten_emissivities(channel, emission_model)
-            # Create partial functions
-            partial_counts = toolz.curry(calculate_counts)(
-                channel, emission_model=emission_model, flattened_emissivities=flat_emiss)
-            partial_interp = toolz.curry(self.interpolate_and_store)(
-                save_dir=tmp_dir, dset_name=channel['name'])
-            # Map functions to iterables
-            y_futures = client.map(partial_counts, loops)
-            loop_futures = client.map(partial_interp, y_futures, loops,
-                                      interpolated_loop_coordinates, start_indices)
+            loop_futures = []
+            for i, loop in enumerate(loops):
+                y = client.submit(calculate_counts, channel, loop, emission_model, flat_emiss)
+                y_interp = client.submit(self.interpolate, y, loop, interpolated_loop_coordinates[i])
+                loop_futures.append(client.submit(self.write_to_hdf5, y_interp, start_indices[i],
+                                                  channel['name']))
             # Block until complete
-            distributed.client.wait([loop_futures])
+            distributed.client.wait(loop_futures)
             futures += loop_futures
 
         return futures
