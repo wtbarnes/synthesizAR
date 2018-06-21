@@ -1,6 +1,8 @@
 """
-Fancy reading and writing of XML files, mainly for EBTEL configuration.
+Utility functions for configuring ebtel++ simulations
 """
+import os
+import subprocess
 import warnings
 from collections import OrderedDict
 import xml.etree.ElementTree as ET
@@ -8,7 +10,31 @@ import xml.dom.minidom as xdm
 
 import numpy as np
 
-__all__ = ['read_xml', 'write_xml']
+__all__ = ['run_ebtel', 'read_xml', 'write_xml']
+
+
+class EbtelPlusPlusError(Exception):
+    """
+    Raise this exception when there's an ebtel++ error
+    """
+    pass
+
+
+def run_ebtel(ebtel_dir, loop):
+    """
+    Launch an ebtel++ simulation
+
+    Parameters
+    ----------
+    ebtel_dir: `str`
+        Path to directory containing ebtel++ source code.
+    loop: `~synthesizAR.Loop`
+    """
+    cmd = subprocess.run([os.path.join(ebtel_dir, 'bin/ebtel++.run'),
+                          '-c', loop.hydro_configuration['config_filename']],
+                         shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
+    if cmd.stderr:
+        raise EbtelException(f"{cmd.stderr.decode('utf-8')}")
 
 
 def read_xml(input_filename,):

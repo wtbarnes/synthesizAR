@@ -15,8 +15,8 @@ try:
 except ImportError:
     warnings.warn('Dask library required for NEI calculation')
 
-from synthesizAR.util import write_xml
 from synthesizAR.atomic import Element
+from .util import write_xml
 
 
 class EbtelInterface(object):
