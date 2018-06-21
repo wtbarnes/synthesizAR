@@ -91,13 +91,13 @@ class InstrumentSDOAIA(InstrumentBase):
             y = aia_info[channel['name']]['response_y']
             channel['wavelength_response_spline'] = splrep(x, y)
 
-    def build_detector_file(self, file_template, dset_shape, chunks, *args, parallel=False):
+    def build_detector_file(self, file_template, dset_shape, chunks, *args):
         """
         Allocate space for counts data.
         """
         additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
         super().build_detector_file(file_template, dset_shape, chunks, *args,
-                                    additional_fields=additional_fields, parallel=parallel)
+                                    additional_fields=additional_fields)
         
     @staticmethod
     def calculate_counts_simple(channel, loop, *args, **kwargs):
