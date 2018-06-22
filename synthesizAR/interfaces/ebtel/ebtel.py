@@ -136,12 +136,11 @@ class EbtelInterface(object):
             el = Element(el_name, temperature)
             rate_matrix = el._rate_matrix()
             ioneq = el.equilibrium_ionization(rate_matrix=rate_matrix)
-            partial_nei = toolz.curry(EbtelInterface.compute_nei)(
-                el, rate_matrix=rate_matrix, initial_condition=ioneq)
-            partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
-                element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
-            nei = client.map(partial_nei, field.loops)
-            futures[el_name] = client.map(partial_write, nei, field.loops)
+            futures[el_name] = []
+            for loop in field.loops:
+                nei = client.submit(EbtelInterface.compute_nei, el, loop, rate_matrix, ioneq)
+                futures[el_name] += client.submit(EbtelInterface.write_to_hdf5, nei, loop, el_name,
+                                                  emission_model.ionization_fraction_savefile)
             distributed.wait(futures[el_name])
 
         return futures
@@ -149,11 +148,12 @@ class EbtelInterface(object):
     @staticmethod
     def compute_nei(element, loop, rate_matrix, initial_condition):
         """
-        Compute and save NEI populations for a given element and loop
+        Compute NEI populations for a given element and loop
         """
         y = element.non_equilibrium_ionization(
             loop.time, loop.electron_temperature[:, 0], loop.density[:, 0], rate_matrix,
             initial_condition)
+        # Fake a spatial axis by tiling the same result at each s coordinate
         return np.repeat(y.value[:, np.newaxis, :], loop.field_aligned_coordinate.shape[0], axis=1)
 
     @staticmethod
