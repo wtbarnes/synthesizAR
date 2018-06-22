@@ -226,7 +226,7 @@ class ObserverParallel(ObserverSerial):
                     channel, header=header, bins=bins, bin_range=bin_range)
                 # Map times to detect and save functions
                 maps = client.map(partial_detect, time_indices)
-                futures[instr.name][channel['name']] = client.maps(
+                futures[instr.name][channel['name']] = client.map(
                     self.assemble_map, maps, file_paths, instr.observing_time)
                 distributed.client.wait(futures[instr.name][channel['name']])
 
