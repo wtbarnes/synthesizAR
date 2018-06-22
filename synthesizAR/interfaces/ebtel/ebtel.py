@@ -139,8 +139,9 @@ class EbtelInterface(object):
             futures[el_name] = []
             for loop in field.loops:
                 nei = client.submit(EbtelInterface.compute_nei, el, loop, rate_matrix, ioneq)
-                futures[el_name] += client.submit(EbtelInterface.write_to_hdf5, nei, loop, el_name,
-                                                  emission_model.ionization_fraction_savefile)
+                futures[el_name].append(client.submit(
+                    EbtelInterface.write_to_hdf5, nei, loop, el_name,
+                    emission_model.ionization_fraction_savefile))
             distributed.wait(futures[el_name])
 
         return futures
