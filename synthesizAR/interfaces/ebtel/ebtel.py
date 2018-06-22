@@ -135,7 +135,7 @@ class EbtelInterface(object):
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             rate_matrix = el._rate_matrix()
-            ioneq = el.equilibrium_ionization(rate_matrix)
+            ioneq = el.equilibrium_ionization(rate_matrix=rate_matrix)
             partial_nei = toolz.curry(EbtelInterface.compute_and_save_nei)(
                 el, rate_matrix=rate_matrix, initial_condition=ioneq)
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
