@@ -212,18 +212,22 @@ class ObserverParallel(ObserverSerial):
             bins, bin_range = instr.make_detector_array(self.field)
             with h5py.File(instr.counts_file, 'r') as hf:
                 reference_time = u.Quantity(hf['time'], get_keys(hf['time'].attrs, ('unit', 'units')))
+            time_indices = [np.where(reference_time == time)[0][0] for time in instr.observing_time]
             for channel in instr.channels:
+                # Pre-compute header and paths to save files
                 header = instr.make_fits_header(self.field, channel)
                 dirname = os.path.dirname(file_path_template.format(instr.name, channel['name'], 0))
                 if not os.path.exists(dirname):
                     os.makedirs(dirname)
-                futures[instr.name][channel['name']] = []
-                for time in instr.observing_time:
-                    i_time = np.where(reference_time == time)[0][0]
-                    m = client.submit(instr.detect, channel, i_time, header, bins, bin_range)
-                    file_path = file_path_template.format(instr.name, channel['name'], i_time)
-                    futures[instr.name][channel['name']].append(
-                        client.submit(self.assemble_map, m, file_path, time))
+                file_paths = [file_path_template.format(instr.name, channel['name'], i_time)
+                              for i_time in time_indices]
+                # Curry detect function
+                partial_detect = toolz.curry(instr.detect)(
+                    channel, header=header, bins=bins, bin_range=bin_range)
+                # Map times to detect and save functions
+                maps = client.map(partial_detect, time_indices)
+                futures[instr.name][channel['name']] = client.maps(
+                    self.assemble_map, maps, file_paths, instr.observing_time)
                 distributed.client.wait(futures[instr.name][channel['name']])
 
         return futures
