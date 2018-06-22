@@ -128,56 +128,43 @@ class EbtelInterface(object):
         future : `~distributed.client.Future`
         """
         client = distributed.get_client()
-        tmpdir = os.path.join(os.path.dirname(emission_model.ionization_fraction_savefile),
-                              'tmp_nei')
-        if not os.path.exists(tmpdir):
-            os.makedirs(tmpdir)
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
-   
-        el_futures = []
+
+        futures = {}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             rate_matrix = el._rate_matrix()
             ioneq = el.equilibrium_ionization(rate_matrix)
             partial_nei = toolz.curry(EbtelInterface.compute_and_save_nei)(
-                el, rate_matrix=rate_matrix, initial_condition=ioneq, save_dir=tmpdir)
-            loop_futures = client.map(partial_nei, field.loops)
-            distributed.wait(loop_futures)
-            el_futures += loop_futures
+                el, rate_matrix=rate_matrix, initial_condition=ioneq)
+            partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
+                element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
+            nei = client.map(partial_nei, field.loops)
+            futures[el_name] = client.map(partial_write, nei, field.loops)
+            distributed.wait(futures[el_name])
 
-        store_future = client.submit(EbtelInterface.slice_and_store, el_futures,
-                                     emission_model.ionization_fraction_savefile)
-        future = client.submit(EbtelInterface._cleanup, store_future)
-
-        return future
+        return futures
 
     @staticmethod
-    def compute_and_save_nei(element, loop, rate_matrix, initial_condition, save_dir):
+    def compute_nei(element, loop, rate_matrix, initial_condition):
         """
         Compute and save NEI populations for a given element and loop
         """
-        y_nei = element.non_equilibrium_ionization(loop.time, loop.electron_temperature[:, 0],
-                                                   loop.density[:, 0], rate_matrix,
-                                                   initial_condition)
-        save_path = os.path.join(save_dir, f'{element.element_name}_{loop.name}.pkl')
-        with open(save_path, 'wb') as f:
-            pickle.dump((y_nei.value, loop.field_aligned_coordinate.shape[0],
-                         element.element_name, loop.name), f)
-
-        return save_path
+        y = element.non_equilibrium_ionization(
+            loop.time, loop.electron_temperature[:, 0], loop.density[:, 0], rate_matrix,
+            initial_condition)
+        return np.repeat(y.value[:, np.newaxis, :], loop.field_aligned_coordinate.shape[0], axis=1)
 
     @staticmethod
-    def slice_and_store(filenames, savefile):
+    def write_to_hdf5(data, loop, element_name, savefile):
         """
         Collect and store all NEI populations in a single HDF5 file
         """
-        with h5py.File(savefile, 'a') as hf:
-            for fn in filenames:
-                with open(fn, 'rb') as f:
-                    y_nei, n_s, element_name, loop_name = pickle.load(f)
-                grp = hf.create_group(loop_name) if loop_name not in hf else hf[loop_name]
-                data = np.repeat(y_nei[:, np.newaxis, :], n_s, axis=1)
+        lock = distributed.Lock('hdf5_ebtel_nei')
+        with lock:
+            with h5py.File(savefile, 'a') as hf:
+                grp = hf.create_group(loop.name) if loop.name not in hf else hf[loop.name]
                 if element_name not in grp:
                     dset = grp.create_dataset(element_name, data=data)
                 else:
@@ -187,9 +174,3 @@ class EbtelInterface(object):
                 dset.attrs['description'] = 'non-equilibrium ionization fractions'
 
         return filenames
-
-    @staticmethod
-    def _cleanup(filenames):
-        for f in filenames:
-            os.remove(f)
-        os.rmdir(os.path.dirname(f))
