@@ -136,13 +136,12 @@ class EbtelInterface(object):
             el = Element(el_name, temperature)
             rate_matrix = el._rate_matrix()
             ioneq = el.equilibrium_ionization(rate_matrix=rate_matrix)
-            futures[el_name] = []
-            for loop in field.loops:
-                nei = client.submit(EbtelInterface.compute_nei, el, loop, rate_matrix, ioneq)
-                futures[el_name].append(client.submit(
-                    EbtelInterface.write_to_hdf5, nei, loop, el_name,
-                    emission_model.ionization_fraction_savefile))
-            distributed.wait(futures[el_name])
+            partial_compute = toolz.curry(EbtelInterface.compute_nei)(
+                el, rate_matrix=rate_matrix, initial_condition=ioneq)
+            partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
+                element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
+            nei = client.map(partial_compute, field.loops)
+            futures[el_name] = client.map(partial_write, nei, field.loops)
 
         return futures
 
