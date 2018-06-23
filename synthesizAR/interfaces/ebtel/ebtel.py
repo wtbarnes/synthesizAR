@@ -173,5 +173,3 @@ class EbtelInterface(object):
                     dset[:, :, :] = data
                 dset.attrs['unit'] = ''
                 dset.attrs['description'] = 'non-equilibrium ionization fractions'
-
-        return filenames
