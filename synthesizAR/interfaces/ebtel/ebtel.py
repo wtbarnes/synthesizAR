@@ -142,6 +142,7 @@ class EbtelInterface(object):
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
             nei = client.map(partial_compute, field.loops)
             futures[el_name] = client.map(partial_write, nei, field.loops)
+            distributed.wait(futures[el_name])
 
         return futures
 
