@@ -141,10 +141,10 @@ class EbtelInterface(object):
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
             nei = client.map(partial_compute, field.loops)
-            _futures = client.map(partial_write, nei, field.loops)
-            distributed.wait(_futures)
+            futures += client.map(partial_write, nei, field.loops)
+            #distributed.wait(_futures)
             # Append only futures without complete status
-            futures += [f for f in _futures if f.status != 'finished']
+            #futures += [f for f in _futures if f.status != 'finished']
 
         return futures
 
