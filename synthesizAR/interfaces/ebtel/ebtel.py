@@ -131,7 +131,7 @@ class EbtelInterface(object):
         unique_elements = list(set([ion.element_name for ion in emission_model]))
         temperature = kwargs.get('temperature', emission_model.temperature)
 
-        futures = {}
+        futures = []
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             rate_matrix = el._rate_matrix()
@@ -141,8 +141,10 @@ class EbtelInterface(object):
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
             nei = client.map(partial_compute, field.loops)
-            futures[el_name] = client.map(partial_write, nei, field.loops)
-            distributed.wait(futures[el_name])
+            _futures = client.map(partial_write, nei, field.loops)
+            distributed.wait(_futures)
+            # Append only futures without complete status
+            futures += [f for f in _futures if f.status != 'finished']
 
         return futures
 
