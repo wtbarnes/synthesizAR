@@ -140,9 +140,10 @@ class EbtelInterface(object):
                 el, rate_matrix=rate_matrix, initial_condition=ioneq)
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
-            nei = client.map(partial_compute, field.loops)
-            futures[el_name] = client.map(partial_write, nei, field.loops)
-            distributed.client.wait(futures[el_name])
+            nei = client.map(partial_compute, field.loops, pure=False)
+            _futures = client.map(partial_write, nei, field.loops, pure=False)
+            distributed.client.wait(_futures)
+            futures[el_name] = _futures
 
         return futures
 
