@@ -135,7 +135,7 @@ class EbtelInterface(object):
         for el_name in unique_elements:
             el = Element(el_name, temperature)
             rate_matrix = client.scatter(el._rate_matrix())
-            ioneq = client.scatter(el.equilibrium_ionization(rate_matrix=rate_matrix))
+            ioneq = client.scatter(el.equilibrium_ionization())
             _futures = []
             for loop in field.loops:
                 y = client.submit(EbtelInterface.compute_nei, el, loop, rate_matrix, ioneq,
