@@ -134,11 +134,11 @@ class EbtelInterface(object):
         futures = {}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
-            rate_matrix = el._rate_matrix()
-            ioneq = el.equilibrium_ionization(rate_matrix=rate_matrix)
+            rate_matrix = client.scatter(el._rate_matrix())
+            ioneq = client.scatter(el.equilibrium_ionization(rate_matrix=rate_matrix))
             _futures = []
             for loop in field.loops:
-                y = client.submit(EbtelInterface.compute_nei, el, loop, rate_matrix, ioneq, 
+                y = client.submit(EbtelInterface.compute_nei, el, loop, rate_matrix, ioneq,
                                   pure=False)
                 _futures.append(client.submit(
                     EbtelInterface.write_to_hdf5, y, loop, el_name,
