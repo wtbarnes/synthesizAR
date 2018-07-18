@@ -241,4 +241,4 @@ class InstrumentSDOAIA(InstrumentBase):
         if self.apply_psf:
             counts = gaussian_filter(hist.T, (channel['gaussian_width']['y'].value,
                                               channel['gaussian_width']['x'].value))
-        return Map(counts.astype(np.float16), header)
+        return Map(counts.astype(np.float32), header)
