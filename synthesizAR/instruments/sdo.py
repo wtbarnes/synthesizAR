@@ -195,12 +195,13 @@ class InstrumentSDOAIA(InstrumentBase):
             # Flatten emissivities for appropriate channel
             if emission_model is not None:
                 flat_emiss = self.flatten_emissivities(channel, emission_model)
-            loop_futures = []
-            for i, loop in enumerate(loops):
-                y = client.submit(calculate_counts, channel, loop, emission_model, flat_emiss)
-                y_interp = client.submit(self.interpolate, y, loop, interpolated_loop_coordinates[i])
-                loop_futures.append(client.submit(self.write_to_hdf5, y_interp, start_indices[i],
-                                                  channel['name']))
+            # Map each loop to worker
+            partial_counts = toolz.curry(calculate_counts)(channel, emission_model=emission_model,
+                                                           flattenend_emissivities=flat_emiss)
+            partial_write = toolz.curry(self.write_to_hdf5)(dset_name=channel['name'])
+            y = client.map(partial_counts, loops)
+            y_interp = client.map(self.interpolate, y, loops, interpolated_loop_coordinates)
+            loop_futures = client.map(partial_write, y_interp, start_indices)
             # Block until complete
             distributed.client.wait(loop_futures)
             futures += loop_futures
@@ -240,4 +241,4 @@ class InstrumentSDOAIA(InstrumentBase):
         if self.apply_psf:
             counts = gaussian_filter(hist.T, (channel['gaussian_width']['y'].value,
                                               channel['gaussian_width']['x'].value))
-        return Map(counts, header)
+        return Map(counts.astype(np.float16), header)

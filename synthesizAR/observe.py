@@ -177,10 +177,10 @@ class ObserverParallel(ObserverSerial):
             if interpolate_hydro_quantities:
                 for q in ['velocity_x', 'velocity_y', 'velocity_z', 'electron_temperature',
                           'ion_temperature', 'density']:
-                    loop_futures = []
-                    for i, loop in enumerate(self.field.loops):
-                        y = client.submit(instr.interpolate, q, loop, self._interpolated_loop_coordinates[i])
-                        loop_futures.append(client.submit(instr.write_to_hdf5, y, start_indices[i], q))
+                    partial_interp = toolz.curry(instr.interpolate)(q)
+                    partial_write = toolz.curry(instr.write_to_hdf5)(dset_name=q)
+                    y = client.map(partial_interp, self.field.loops, self._interpolated_loop_coordinates)
+                    loop_futures = client.map(partial_write, y, start_indices)
                     # Block until complete
                     distributed.client.wait(loop_futures)
                     interp_futures += loop_futures
