@@ -10,7 +10,7 @@ dependencies:
 - matplotlib
 - h5py
 - astropy
-- sunpy
+- sunpy>=0.9.1
 - dask
 - distributed
 - ipywidgets

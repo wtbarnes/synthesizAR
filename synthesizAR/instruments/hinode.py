@@ -288,13 +288,8 @@ class InstrumentHinodeXRT(InstrumentBase):
 
         if apply_psf:
             counts = InstrumentHinodeXRT.psf_smooth(hist.T, header)
-        # FIXME: stopgap because SunPy XRT reader throws in Nan for wavelnth which is an invalid
-        # FITS keyword. This is fixed in the latest version.
-        m = Map(counts, header)
-        if 'wavelnth' in m.meta:
-            m.meta['wavelnth'] = f"{m.meta['wavelnth']}"
-        return m
-
+        return Map(counts, header)
+        
     def detect(self, channel, i_time, field, parallel=False):
         header = self.make_fits_header(field, channel)
         parameters = (self.counts_file, self.observer_coordinate, channel, i_time, header, 

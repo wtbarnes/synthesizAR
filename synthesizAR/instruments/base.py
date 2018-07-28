@@ -82,11 +82,7 @@ class InstrumentBase(object):
         coords = SkyCoord(x=total_coordinates[:, 0], y=total_coordinates[:, 1],
                           z=total_coordinates[:, 2], frame=HeliographicStonyhurst,
                           representation='cartesian')
-        # This extra transform-to is due to a bug where to convert out of an HEEQ frame
-        # one must first transform to a polar HGS frame
-        # FIXME:  once this is fixed upstream in SunPy, this can be removed
-        return coords.transform_to(HeliographicStonyhurst).transform_to(
-            Helioprojective(observer=self.observer_coordinate))
+        return coords.transform_to(Helioprojective(observer=self.observer_coordinate))
 
     def los_velocity(self, v_x, v_y, v_z):
         """
@@ -185,10 +181,10 @@ class InstrumentBase(object):
         original AR map and the loop coordinates in HPC.
         """
         # Check magnetogram FOV
-        left_corner = (ar_map.bottom_left_coord.transform_to(HeliographicStonyhurst)
-                       .transform_to(Helioprojective(observer=self.observer_coordinate)))
-        right_corner = (ar_map.top_right_coord.transform_to(HeliographicStonyhurst)
-                        .transform_to(Helioprojective(observer=self.observer_coordinate)))
+        left_corner = (ar_map.bottom_left_coord.transform_to(
+            Helioprojective(observer=self.observer_coordinate)))
+        right_corner = (ar_map.top_right_coord.transform_to(
+            Helioprojective(observer=self.observer_coordinate)))
         # Set bounds to include all loops and original magnetogram FOV (with some padding)
         loop_coords = self.total_coordinates
         if 'gaussian_width' in self.channels[0]:

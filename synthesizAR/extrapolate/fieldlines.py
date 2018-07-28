@@ -223,14 +223,7 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
     # Lines
     line_frequency = kwargs.get('line_frequency', 5)
     for line in fieldlines[::line_frequency]:
-        try:
-            coord = line.transform_to(magnetogram.coordinate_frame)
-        except AttributeError:
-            # This try-catch is due to a bug where to convert out of an HEEQ frame
-            # one must first transform to a polar HGS frame
-            # FIXME:  once this is fixed upstream in SunPy, this can be removed
-            coord = line.transform_to(HeliographicStonyhurst).transform_to(
-                magnetogram.coordinate_frame)
+        coord = line.transform_to(magnetogram.coordinate_frame)
         # Mask lines behind the solar disk
         i_visible = np.where(is_visible(coord, magnetogram.observer_coordinate))
         coord_visible = SkyCoord(Tx=coord.Tx[i_visible], Ty=coord.Ty[i_visible],
