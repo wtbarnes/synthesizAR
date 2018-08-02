@@ -50,8 +50,10 @@ def plot_fieldlines(*coords, lon=0*u.deg, lat=0*u.deg, **kwargs):
     })
     dummy_map = GenericMap(data, meta)
     # Plot coordinates
-    fig = plt.figure(figsize=kwargs.get('figsize', None))
-    ax = fig.gca(projection=dummy_map)
+    if 'fig' not in kwargs:
+        fig = plt.figure(figsize=kwargs.get('figsize', None))
+    if 'ax' not in kwargs:
+        ax = fig.gca(projection=dummy_map)
     dummy_map.plot(alpha=0, extent=[-1000, 1000, -1000, 1000], title=False)
     plot_kwargs = kwargs.get('plot_kwargs', {})
     for coord in coords:
