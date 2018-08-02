@@ -254,8 +254,12 @@ def from_pfsspack(pfss_fieldlines):
     """
     # Fieldline coordinates
     num_fieldlines = pfss_fieldlines['ptr'].shape[0]
-    hgc_frame = HeliographicCarrington(
-        obstime=sunpy.time.parse_time(pfss_fieldlines['now'].decode('utf-8')))
+    # Use HGC frame if possible
+    try:
+        frame = HeliographicCarrington(
+            obstime=sunpy.time.parse_time(pfss_fieldlines['now'].decode('utf-8')))
+    except ValueError:
+        frame = HeliographicStonyhurst()
     fieldlines = []
     for i in range(num_fieldlines):
         # NOTE: For an unknown reason, there are a number of invalid points for each line output
@@ -264,7 +268,7 @@ def from_pfsspack(pfss_fieldlines):
         lon = (pfss_fieldlines['ptph'][i, :] * u.radian).to(u.deg)[:n_valid]
         lat = 90 * u.deg - (pfss_fieldlines['ptth'][i, :] * u.radian).to(u.deg)[:n_valid]
         radius = ((pfss_fieldlines['ptr'][i, :]) * const.R_sun.to(u.cm))[:n_valid]
-        coord = SkyCoord(lon=lon, lat=lat, radius=radius, frame=hgc_frame)
+        coord = SkyCoord(lon=lon, lat=lat, radius=radius, frame=frame)
         fieldlines.append(coord)
         
     # Magnetic field strengths
