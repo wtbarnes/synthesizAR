@@ -259,6 +259,7 @@ def from_pfsspack(pfss_fieldlines):
         frame = HeliographicCarrington(
             obstime=sunpy.time.parse_time(pfss_fieldlines['now'].decode('utf-8')))
     except ValueError:
+        warnings.warn('Assuming HGS frame because no date available for HGC frame')
         frame = HeliographicStonyhurst()
     fieldlines = []
     for i in range(num_fieldlines):
