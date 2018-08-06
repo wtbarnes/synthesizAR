@@ -15,7 +15,7 @@ from astropy.coordinates import SkyCoord
 import sunpy.map
 from sunpy.util.metadata import MetaDict
 
-__all__ = ['DistributedAIACube']
+__all__ = ['DistributedAIACube', 'DistributedAIACollection', 'AIATimelags']
 
 
 def validate_dtype_shape(head):
@@ -127,7 +127,7 @@ class DistributedAIACube(object):
         cube = self.rechunk(chunks)
         # FIXME: should this be a weighted average? How to calculate the weights?
         # FIXME: should we modify any of the metadata before taking an average?
-        return sunpy.map.Map(cube.mean(axis=0,dtype=np.float64), self.maps[0].meta.copy())
+        return sunpy.map.Map(cube.mean(axis=0, dtype=np.float64), self.maps[0].meta.copy())
 
     def prep(self,):
         """
@@ -222,9 +222,9 @@ class AIATimeLags(DistributedAIACollection):
         """
         Create Dask task graph to compute cross-correlation using FFT for each pixel in an AIA map
         """
-        chunks = kwargs.get('chunks',(self[channel_a].shape[0],
-                                      self[channel_a].shape[1]//10,
-                                      self[channel_a].shape[2]//10))
+        chunks = kwargs.get('chunks', (self[channel_a].shape[0],
+                                       self[channel_a].shape[1]//10,
+                                       self[channel_a].shape[2]//10))
         cube_a = self[channel_a].rechunk(chunks)[::-1, :, :]
         cube_b = self[channel_b].rechunk(chunks)
         # Normalize

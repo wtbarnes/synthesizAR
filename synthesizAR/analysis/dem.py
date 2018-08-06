@@ -23,6 +23,8 @@ class EMCube(MapCube):
     """
     Container for the emission measure at each pixel of a map for a range of temperatures.
 
+    #TODO: refactor to use NDCube
+
     Parameters
     ----------
     data : `~astropy.units.Quantity`
