@@ -168,7 +168,7 @@ class DistributedAIACollection(object):
         return self._cubes[channel]
 
 
-class AIATimeLags(DistributedAIACollection):
+class AIATimelags(DistributedAIACollection):
     """
     Compute AIA timelag maps in a distributed way
     """
