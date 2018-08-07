@@ -60,6 +60,7 @@ class DistributedAIACube(object):
         if not all([m.data.dtype == maps[0].data.dtype for m in maps]):
             raise ValueError('All maps must have same dtype')
         self.maps = maps
+        self.time = self._get_time()
 
     @classmethod
     def from_files(cls, read_template):
@@ -88,12 +89,11 @@ class DistributedAIACube(object):
             raise ValueError('All maps must have same shape and dtype')
         return dtypes[0]
 
-    @property
-    def time(self,):
+    def _get_time(self,):
         """
-        Create time array
+        Retrieve time array
         """
-        # Simulations just store the seconds, should probably fix that
+        # FIXME: Simulations just store the seconds, should probably fix that
         if 'tunit' in self.maps[0].meta:
             return u.Quantity([m.meta['t_obs'] for m in self.maps], self.maps[0].meta['tunit'])
         else:
