@@ -201,7 +201,8 @@ class AIATimelags(DistributedAIACollection):
         t_interp = self._interpolate_time
         def wrap_np_interp(y):
             return np.interp(time, y, axis=0, kind='linear')(t_interp)
-        return da.map_blocks(wrap_np_interp, cube, chunks=t_interp.shape+cube.cunks[1:], dtype=cube.dtype)
+        return da.map_blocks(wrap_np_interp, cube, chunks=t_interp.shape+cube.chunks[1:],
+                             dtype=cube.dtype)
 
     def make_timeseries(self, channel, left_corner, right_corner, **kwargs):
         tmp = self[channel].maps[0]
