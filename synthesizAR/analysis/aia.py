@@ -134,13 +134,13 @@ class DistributedAIACube(object):
         """
         Lazily apply a prep operation to all maps and return a new distributed cube object
         """
-        pass
+        raise NotImplementedError('TODO')
 
     def derotate(self, reference_date):
         """
         Lazily apply a derotation to all maps and return a new distributed cube object
         """
-        pass
+        raise NotImplementedError('TODO')
 
 
 class DistributedAIACollection(object):
@@ -177,19 +177,19 @@ class AIATimelags(DistributedAIACollection):
     """
     @property
     def needs_interpolation(self,):
+        """
+        Must interpolate in time if the observing times are not aligned
+        or some times are missing
+        """
         if not all([c.shape[0] == self[0].shape[0] for c in self]):
             return True
         return ~np.all([u.allclose(c.time, self[0].time) for c in self])
 
     @property
     def timelags(self):
-        if needs_interpolation:
-            t_interp = self._interpolate_time()
-            delta_t = np.diff(t_interp.value).cumsum()
-            return np.hstack([-delta_t[::-1], np.array([0]), delta_t]) * t_interp.unit
-        else:
-            delta_t = np.diff(self[0].time.value).cumsum()
-            return np.hstack([-delta_t[::-1], np.array([0]), delta_t]) * self[0].time.unit
+        time = self._interpolate_time if self.needs_interpolation else self[0].time
+        delta_t = np.diff(time.value).cumsum()
+        return np.hstack([-delta_t[::-1], np.array([0]), delta_t]) * time.unit
     
     @property
     def _interpolate_time(self,):
@@ -200,9 +200,9 @@ class AIATimelags(DistributedAIACollection):
     
     def _interpolate(self, time, cube):
         t_interp = self._interpolate_time
-        def wrap_np_interp(y):
+        def interp_wrapper(y):
             return interp1d(time, y, axis=0, kind='linear')(t_interp)
-        return da.map_blocks(wrap_np_interp, cube, chunks=t_interp.shape+cube.chunks[1:],
+        return da.map_blocks(interp_wrapper, cube, chunks=t_interp.shape+cube.chunks[1:],
                              dtype=cube.dtype)
 
     def make_timeseries(self, channel, left_corner, right_corner, **kwargs):
@@ -216,7 +216,9 @@ class AIATimelags(DistributedAIACollection):
     def correlation_1d(self, channel_a, channel_b, left_corner, right_corner, **kwargs):
         ts_a = self.make_timeseries(channel_a, left_corner, right_corner, **kwargs)
         ts_b = self.make_timeseries(channel_b, left_corner, right_corner, **kwargs)
-        # FIXME: interpolate here if needed
+        if self.needs_interpolation:
+            ts_a = self._interpolate(self[channel_a].time, ts_a)
+            ts_b = self._interpolate(self[channel_b].time, ts_b)
         ts_a = (ts_a - ts_a.mean()) / ts_a.std()
         ts_b = (ts_b - ts_b.mean()) / ts_b.std()
         cc = da.fft.irfft(da.fft.rfft(ts_a[::-1], n=self.timelags.shape[0])
@@ -230,9 +232,13 @@ class AIATimelags(DistributedAIACollection):
         chunks = kwargs.get('chunks', (self[channel_a].shape[0],
                                        self[channel_a].shape[1]//10,
                                        self[channel_a].shape[2]//10))
-        cube_a = self[channel_a].rechunk(chunks)[::-1, :, :]
+        cube_a = self[channel_a].rechunk(chunks)
         cube_b = self[channel_b].rechunk(chunks)
-        # FIXME: interpolate here if needed
+        if self.needs_interpolation:
+            cube_a = self._interpolate(self[channel_a].time, cube_a)
+            cube_b = self._interpolate(self[channel_b].time, cube_b)
+        # Reverse the first timeseries
+        cube_a = cube_a[::-1, :, :]
         # Normalize
         std_a = cube_a.std(axis=0)
         std_a = da.where(std_a == 0, 1, std_a)
