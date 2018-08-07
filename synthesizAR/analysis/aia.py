@@ -161,9 +161,11 @@ class DistributedAIACollection(object):
             # Will interpolate later to account for this
             raise warnings.warn('Time dimensions are not all equal length')
         self._cubes = {f"{a.maps[0].meta['wavelnth']}": a for a in args}
-        self.channels = list(self._cubes.keys())
+        self.channels = sorted(list(self._cubes.keys()), key=lambda x: int(x))
 
     def __getitem__(self, channel):
+        if type(channel) is int:
+            channel = self.channels[channel]
         channel = f'{channel}'
         return self._cubes[channel]
 
@@ -173,33 +175,33 @@ class AIATimelags(DistributedAIACollection):
     Compute AIA timelag maps in a distributed way
     """
     @property
+    def needs_interpolation(self,):
+        if not all([c.shape[0] == self[0].shape[0] for c in self]):
+            return True
+        return ~np.all([u.allclose(c.time, self[0].time) for c in self])
+
+    @property
     def timelags(self):
-        if np.all([np.all(self[c].time == self[self.channels[0]].time) for c in self.channels]):
-            delta_t = np.diff(self[self.channels[0]].time.value).cumsum()
-            return np.hstack([-delta_t[::-1], np.array([0]), delta_t]) * self[self.channels[0]].time.unit
-        else:
+        if needs_interpolation:
             t_interp = self._interpolate_time()
             delta_t = np.diff(t_interp.value).cumsum()
             return np.hstack([-delta_t[::-1], np.array([0]), delta_t]) * t_interp.unit
+        else:
+            delta_t = np.diff(self[0].time.value).cumsum()
+            return np.hstack([-delta_t[::-1], np.array([0]), delta_t]) * self[0].time.unit
     
     @property
     def _interpolate_time(self,):
-        min_t = min([self[c].time.min() for c in self.channels])
-        max_t = max([self[c].time.max() for c in self.channels])
-        n_t = max([self[c].time.shape[0] for c in self.channels])
+        min_t = min([c.time.min() for c in self])
+        max_t = max([c.time.max() for c in self])
+        n_t = max([c.time.shape[0] for c in self])
         return np.linspace(min_t, max_t, n_t)
     
-    def _interpolate(self, cube, time):
-        #t_interp = self._interpolate_time
-        #return da.apply_along_axis(self._wrap_numpy_interp, 0, cube, time, t_interp)
-        # FIXME: issues with applying np interp
-        pass
-        
-    @staticmethod
-    def _wrap_numpy_interp(array, time, new_time):
-        print(time.shape)
-        print(array.shape)
-        return np.interp(new_time, time, array)
+    def _interpolate(self, time, cube):
+        t_interp = self._interpolate_time
+        def wrap_np_interp(y):
+            return np.interp(time, y, axis=0, kind='linear')(t_interp)
+        return da.map_blocks(wrap_np_interp, cube, chunks=cube.cunks, dtype=cube.dtype)
 
     def make_timeseries(self, channel, left_corner, right_corner, **kwargs):
         tmp = self[channel].maps[0]
