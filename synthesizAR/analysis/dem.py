@@ -1,5 +1,5 @@
 """
-Containers for multidimensional data
+Analyze differential emission measure data
 """
 
 import os
