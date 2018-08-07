@@ -223,7 +223,8 @@ class AIATimelags(DistributedAIACollection):
         ts_b = (ts_b - ts_b.mean()) / ts_b.std()
         cc = da.fft.irfft(da.fft.rfft(ts_a[::-1], n=self.timelags.shape[0])
                           * da.fft.rfft(ts_b, n=self.timelags.shape[0]), n=self.timelags.shape[0])
-        return cc
+        # Normalize by length of timeseries
+        return cc / ts_a.shape[0]
 
     def correlation_2d(self, channel_a, channel_b, **kwargs):
         """
@@ -250,7 +251,9 @@ class AIATimelags(DistributedAIACollection):
         fft_a = da.fft.rfft(v_a, axis=0, n=self.timelags.shape[0])
         fft_b = da.fft.rfft(v_b, axis=0, n=self.timelags.shape[0])
         # Inverse of product of FFTS to get cross-correlation (by convolution theorem)
-        return da.fft.irfft(fft_a * fft_b, axis=0, n=self.timelags.shape[0])
+        cc = da.fft.irfft(fft_a * fft_b, axis=0, n=self.timelags.shape[0])
+        # Normalize by the length of the timeseries
+        return cc / cube_a.shape[0]
 
     def make_correlation_map(self, channel_a, channel_b, **kwargs):
         """
