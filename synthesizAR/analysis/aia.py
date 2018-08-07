@@ -230,11 +230,11 @@ class AIATimelags(DistributedAIACollection):
         """
         Create Dask task graph to compute cross-correlation using FFT for each pixel in an AIA map
         """
-        chunks = kwargs.get('chunks', (self[channel_a].shape[0],
-                                       self[channel_a].shape[1]//10,
+        # Shape must be the same in spatial direction
+        chunks = kwargs.get('chunks', (self[channel_a].shape[1]//10,
                                        self[channel_a].shape[2]//10))
-        cube_a = self[channel_a].rechunk(chunks)
-        cube_b = self[channel_b].rechunk(chunks)
+        cube_a = self[channel_a].rechunk(self[channel_a].shape[:1]+chunks)
+        cube_b = self[channel_b].rechunk(self[channel_b].shape[:1]+chunks)
         if self.needs_interpolation:
             cube_a = self._interpolate(self[channel_a].time, cube_a)
             cube_b = self._interpolate(self[channel_b].time, cube_b)
