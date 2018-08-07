@@ -159,7 +159,7 @@ class DistributedAIACollection(object):
         if not all([a.shape[0] == args[0].shape[0] for a in args]):
             # Not an error because may have missing timesteps in observations
             # Will interpolate later to account for this
-            raise warnings.warn('Time dimensions are not all equal length')
+            warnings.warn('Time dimensions are not all equal length')
         self._cubes = {f"{a.maps[0].meta['wavelnth']}": a for a in args}
         self.channels = sorted(list(self._cubes.keys()), key=lambda x: int(x))
 
