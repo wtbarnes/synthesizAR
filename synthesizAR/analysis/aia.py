@@ -4,6 +4,7 @@ Analyze AIA data efficiently
 import warnings
 
 import numpy as np
+from scipy.interpolate import interp1d
 import dask.bytes
 import dask.array as da
 import distributed
@@ -200,7 +201,7 @@ class AIATimelags(DistributedAIACollection):
     def _interpolate(self, time, cube):
         t_interp = self._interpolate_time
         def wrap_np_interp(y):
-            return np.interp(time, y, axis=0, kind='linear')(t_interp)
+            return interp1d(time, y, axis=0, kind='linear')(t_interp)
         return da.map_blocks(wrap_np_interp, cube, chunks=t_interp.shape+cube.chunks[1:],
                              dtype=cube.dtype)
 
