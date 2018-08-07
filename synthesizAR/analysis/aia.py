@@ -201,7 +201,7 @@ class AIATimelags(DistributedAIACollection):
         t_interp = self._interpolate_time
         def wrap_np_interp(y):
             return np.interp(time, y, axis=0, kind='linear')(t_interp)
-        return da.map_blocks(wrap_np_interp, cube, chunks=cube.cunks, dtype=cube.dtype)
+        return da.map_blocks(wrap_np_interp, cube, chunks=t_interp.shape+cube.cunks[1:], dtype=cube.dtype)
 
     def make_timeseries(self, channel, left_corner, right_corner, **kwargs):
         tmp = self[channel].maps[0]
@@ -214,6 +214,7 @@ class AIATimelags(DistributedAIACollection):
     def correlation_1d(self, channel_a, channel_b, left_corner, right_corner, **kwargs):
         ts_a = self.make_timeseries(channel_a, left_corner, right_corner, **kwargs)
         ts_b = self.make_timeseries(channel_b, left_corner, right_corner, **kwargs)
+        # FIXME: interpolate here if needed
         ts_a = (ts_a - ts_a.mean()) / ts_a.std()
         ts_b = (ts_b - ts_b.mean()) / ts_b.std()
         cc = da.fft.irfft(da.fft.rfft(ts_a[::-1], n=self.timelags.shape[0])
@@ -229,6 +230,7 @@ class AIATimelags(DistributedAIACollection):
                                        self[channel_a].shape[2]//10))
         cube_a = self[channel_a].rechunk(chunks)[::-1, :, :]
         cube_b = self[channel_b].rechunk(chunks)
+        # FIXME: interpolate here if needed
         # Normalize
         std_a = cube_a.std(axis=0)
         std_a = da.where(std_a == 0, 1, std_a)
