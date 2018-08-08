@@ -161,13 +161,16 @@ class DistributedAIACollection(object):
             # Not an error because may have missing timesteps in observations
             # Will interpolate later to account for this
             warnings.warn('Time dimensions are not all equal length')
-        self._cubes = {f"{a.maps[0].meta['wavelnth']}": a for a in args}
-        self.channels = sorted(list(self._cubes.keys()), key=lambda x: int(x))
+        self._cubes = {a.maps[0].meta['wavelnth']: a for a in args}
+        self.channels = sorted(list(self._cubes.keys()), key=lambda x: x)
 
     def __getitem__(self, channel):
-        if type(channel) is int:
+        # Index
+        if type(channel) is int and channel not in self.channels:
             channel = self.channels[channel]
-        channel = f'{channel}'
+        # Convert from string
+        if type(channel) is str:
+            channel = float(channel)
         return self._cubes[channel]
 
 
