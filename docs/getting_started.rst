@@ -29,7 +29,7 @@ See the following section for an easier way to install all of the needed depende
 
 Install
 -------
-To download synthesizAR and install all the needed dependencies (with `conda`), and then install all of the needed dependencies,
+To download synthesizAR, first clone the GitHub repository,
 
 .. code-block:: bash
 
@@ -43,7 +43,7 @@ The easiest way to grab all of the dependencies is to create a new conda-environ
    $ conda env create -f conda_environment.yml
    $ source activate synthesizar
 
-This will create a new `conda environment <http://conda.pydata.org/docs/using/envs.html>`_ with the needed dependencies and activate the environment. Finally, to install synthesizAR,
+This will create a new `conda environment <http://conda.pydata.org/docs/using/envs.html>`_ with the needed dependencies and activate the environment. Alternatively, you can install all of the packages listed in the above section manually. Finally, to install synthesizAR,
 
 .. code-block:: bash
 
