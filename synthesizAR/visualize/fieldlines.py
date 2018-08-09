@@ -24,6 +24,13 @@ def plot_fieldlines(*coords, lon=0*u.deg, lat=0*u.deg, **kwargs):
         Heliographic longitude of observer
     lat : `~astropy.units.Quantity`
         Heliographic latitude of observer
+
+    Other Parameters
+    ----------------
+    plot_kwargs : `dict`
+        Additional parameters to pass to `~matplotlib.pyplot.plot`
+    grid_kwargs : `dict`
+        Additional parameters to pass to `~sunpy.map.Map.draw_grid`
     """
     # Dummy map
     data = np.ones((10, 10))

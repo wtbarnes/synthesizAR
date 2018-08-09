@@ -1,7 +1,6 @@
 """
-Analyze differential emission measure data
+Very simple tools for analyzing differential emission measure data
 """
-
 import os
 
 import numpy as np
@@ -23,7 +22,7 @@ class EMCube(MapCube):
     """
     Container for the emission measure at each pixel of a map for a range of temperatures.
 
-    #TODO: refactor to use NDCube
+    .. warning:: This object will be likely be moved out of this package in the near future.
 
     Parameters
     ----------
@@ -40,6 +39,7 @@ class EMCube(MapCube):
 
     @u.quantity_input
     def __init__(self, data, header, temperature_bin_edges: u.K, **kwargs):
+        # TODO: refactor to use NDCube
         self.temperature_bin_edges = temperature_bin_edges
         # sanitize header
         meta_base = header.copy()
@@ -191,7 +191,7 @@ class EMCube(MapCube):
 
 
 @u.quantity_input
-def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None, **kwargs):
+def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None, **kwargs) -> EMCube:
     """
     Compute true emission meausure in each pixel as a function of electron temperature.
 
@@ -205,10 +205,6 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     Other Parameters
     ----------------
     plot_settings : `dict`
-
-    Returns
-    -------
-    `~synthesizAR.maps.EMCube`
     """
     plot_settings = {'cmap': cm.get_cmap('magma'),
                      'norm': colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}

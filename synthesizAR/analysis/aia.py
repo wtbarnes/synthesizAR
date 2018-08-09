@@ -46,16 +46,23 @@ class DelayedFITS:
 
 class DistributedAIACube(object):
     """
-    Load sequence of AIA images for a single channel and operate on them in a distributed and
-    parallelized way.
-    
-    Object for dealing efficiently with large out-of-core AIA datacubes.
-    Nearly all of this is inspired by work done by Stuart Mumford, in particular how to handle
-    FITS files in Dask.
+    Lazy load a sequence of AIA images for a single channel with Dask
 
-    #TODO: Refactor this to use ndcube instead
+    .. warning:: This object is unstable and will likely be moved out of this package in the near future
+        
+    .. note:: Nearly all of the early work was  done by Stuart Mumford, in particular how to handle FITS files in Dask.
+
+    Parameters
+    ----------
+    maps : `list`
+        List of `~sunpy.map.Map` objects
+
+    See Also
+    --------
+    DistributedAIACube.from_files : Create a cube from a list of FITS files
     """
     def __init__(self, maps):
+        #TODO: Refactor this to use ndcube instead
         if not all([m.data.shape == maps[0].data.shape for m in maps]):
             raise ValueError('All maps must have same dimensions')
         if not all([m.data.dtype == maps[0].data.dtype for m in maps]):
@@ -64,8 +71,34 @@ class DistributedAIACube(object):
         self.time = self._get_time()
 
     @classmethod
-    def from_files(cls, read_template):
-        openfiles = dask.bytes.open_files(read_template)
+    def from_files(cls, fits_files):
+        """
+        Create a `DistributedAIACube` object from a list of FITS files
+
+        Parameters
+        ----------
+        fits_files : `list` or `str`
+            Can either be a list of filenames or a glob pattern
+
+        Examples
+        --------
+        >>> from synthesizAR.analysis import DistributedAIACube
+        >>> from sunpy.map import Map
+        >>> m1 = Map('/path/to/data/map01.fits') #doctest: +SKIP
+        >>> m2 = Map('/path/to/data/map02.fits') #doctest: +SKIP
+        # Directly from maps
+        >>> c = DistributedAIACube([m1, m2]) #doctest: +SKIP
+        # From filenames
+        >>> c = DistributedAIACube.from_files(['/path/to/data/map01.fits', '/path/to/data/map02.fits']) #doctest: +SKIP
+        # Or from glob pattern
+        >>> c = DistributedAIACube.from_files('/path/to/data/map*.fits') #doctest: +SKIP
+
+        See Also
+        --------
+        dask.bytes.open_files
+        """
+
+        openfiles = dask.bytes.open_files(fits_files)
         headers = cls._get_headers(openfiles)
         dtype, shape = cls._get_dtype_and_shape(headers)
         maps = cls._get_maps(openfiles, headers, dtype, shape)
@@ -122,7 +155,7 @@ class DistributedAIACube(object):
     
     def average(self, **kwargs):
         """
-        Time-average in each pixel
+        Compute average in time for each pixel
         """
         chunks = kwargs.get('chunks', (self.shape[0], self.shape[1]//10, self.shape[2]//10))
         cube = self.rechunk(chunks)
@@ -133,27 +166,34 @@ class DistributedAIACube(object):
     def prep(self,):
         """
         Lazily apply a prep operation to all maps and return a new distributed cube object
+
+        See Also
+        --------
+        sunpy.instr.aia.aia_prep
         """
         raise NotImplementedError('TODO')
 
     def derotate(self, reference_date):
         """
         Lazily apply a derotation to all maps and return a new distributed cube object
+
+        See Also
+        --------
+        sunpy.physics.diffrot_map
         """
         raise NotImplementedError('TODO')
 
 
 class DistributedAIACollection(object):
     """
-    A collection of distributed AIA images over multiple wavelengths
+    A collection of `~DistributedAIACube` objects for multiple AIA channels
 
-    #TODO: refactor this to use ndcube sequence
-    #TODO: figure out useful methods to add here
-    #TODO: Add a check for data being aligned?
-    #NOTE: It is assumed that the data in this container are all aligned, i.e. prepped and derotated
+    .. warning:: It is assumed that the data in this container are all aligned, i.e. prepped and derotated
     """
 
     def __init__(self, *args, **kwargs):
+        # TODO: refactor this to use ndcube sequence
+        # TODO: Add a check for data being aligned?
         # Check all spatial and time shapes the same
         if not all([a.shape[1:] == args[0].shape[1:] for a in args]):
             raise ValueError('All spatial dimensions must be the same')
@@ -176,13 +216,12 @@ class DistributedAIACollection(object):
 
 class AIATimelags(DistributedAIACollection):
     """
-    Compute AIA timelag maps in a distributed way
+    Lazily compute cross-correlations and time delays over a `DistributedAIACube`
     """
     @property
     def needs_interpolation(self,):
         """
-        Must interpolate in time if the observing times are not aligned
-        or some times are missing
+        Check if observing times for all `DistributedAIACube` are the same
         """
         if not all([c.shape[0] == self[0].shape[0] for c in self]):
             return True
@@ -209,14 +248,30 @@ class AIATimelags(DistributedAIACollection):
                              dtype=cube.dtype)
 
     def make_timeseries(self, channel, left_corner, right_corner, **kwargs):
+        """
+        Return a timeseries for a given channel and spatial selection
+        
+        Parameters
+        ----------
+        channel : `int`, `float`, or `str`
+        left_corner : `tuple`
+        right_corner : `tuple`
+        chunks : `tuple`, optional
+        """
+
         tmp = self[channel].maps[0]
         x_l, y_l = tmp.world_to_pixel(SkyCoord(*left_corner, frame=tmp.coordinate_frame))
         x_u, y_u = tmp.world_to_pixel(SkyCoord(*right_corner, frame=tmp.coordinate_frame))
         x_l, y_l, x_u, y_u = np.round([x_l.value, y_l.value, x_u.value, y_u.value]).astype(np.int)
-        chunks = kwargs.get('chunks', (self[channel].shape[0], self[channel].shape[1]//10, self[channel].shape[2]//10))
+        chunks = kwargs.get('chunks', (
+            self[channel].shape[0], self[channel].shape[1]//10, self[channel].shape[2]//10))
         return (self[channel].rechunk(chunks)[:, y_l:y_u, x_l:x_u].mean(axis=(1, 2)))
 
     def correlation_1d(self, channel_a, channel_b, left_corner, right_corner, **kwargs):
+        """
+        Lazily compute cross-correlation for two channels for a single pixel or an average of pixels.
+        """
+
         ts_a = self.make_timeseries(channel_a, left_corner, right_corner, **kwargs)
         ts_b = self.make_timeseries(channel_b, left_corner, right_corner, **kwargs)
         if self.needs_interpolation:
@@ -231,7 +286,7 @@ class AIATimelags(DistributedAIACollection):
 
     def correlation_2d(self, channel_a, channel_b, **kwargs):
         """
-        Create Dask task graph to compute cross-correlation using FFT for each pixel in an AIA map
+        Lazily compute cross-correlation in each pixel of an AIA map
         """
         # Shape must be the same in spatial direction
         chunks = kwargs.get('chunks', (self[channel_a].shape[1]//10,
@@ -289,10 +344,8 @@ class AIATimelags(DistributedAIACollection):
 
     def make_timelag_map(self, channel_a, channel_b, **kwargs):
         """
-        Compute map of timelag associated with maximum cross-correlation between
+        Lazily compute map of delay corresponding to maximum cross-correlation value between
         two channels in each pixel of an AIA map.
-
-        #NOTE: Extra block for computing correlation map is to save time
         """
         cc = self.correlation_2d(channel_a, channel_b, **kwargs)
         bounds = kwargs.get('timelag_bounds', None)
@@ -304,6 +357,7 @@ class AIATimelags(DistributedAIACollection):
         else:
             start = 0
             stop = self.timelags.shape[0] + 1
+        # NOTE: Extra block for computing correlation map is to save time
         if kwargs.get('return_correlation_map'):
             _cc = cc.compute()
             max_cc = _cc[start:stop, :, :].max(axis=0)
@@ -322,7 +376,8 @@ class AIATimelags(DistributedAIACollection):
         plot_settings = {'cmap': 'RdBu_r', 'vmin': self.timelags[start:stop].value.min(),
                          'vmax': self.timelags[start:stop].value.max()}
         plot_settings.update(kwargs.get('plot_settings', {}))
-        timelag_map = sunpy.map.GenericMap(max_timelag, meta.copy(), plot_settings=plot_settings.copy())
+        timelag_map = sunpy.map.GenericMap(max_timelag, meta.copy(),
+                                           plot_settings=plot_settings.copy())
         if kwargs.get('return_correlation_map'):
             meta['bunit'] = ''
             meta['comment'] = f'{channel_a}-{channel_b} cross-correlation'
