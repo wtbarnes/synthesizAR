@@ -31,7 +31,7 @@ env:
         - NUMPY_VERSION=stable
         - ASTROPY_VERSION=stable
         - MAIN_CMD='python setup.py'
-        - PIP_DEPENDENCIES='plasmapy git+git://github.com/wtbarnes/fiasco.git'
+        - PIP_DEPENDENCIES='sphinx-astropy plasmapy git+git://github.com/wtbarnes/fiasco.git'
         - CONDA_DEPENDENCIES='dask distributed h5py matplotlib scipy sunpy yt numba pytest'
         - PYTEST_VERSION=3.6.4
         #- SPHINX_VERSION=1.5.6

@@ -15,6 +15,7 @@ dependencies:
 - sunpy
 - yt
 - pip:
+  - sphinx-astropy
   - plasmapy
   - git+git://github.com/wtbarnes/fiasco.git
   

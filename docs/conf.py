@@ -42,12 +42,13 @@ except ImportError:
             sys.path.insert(1, a_h_path)
 
 # Load all of the global Astropy configuration
-from astropy_helpers.sphinx.conf import *
+from sphinx_astropy.conf import *
 
 # Add some stuff to the intersphinx mapping
 intersphinx_mapping['sunpy'] = ('http://docs.sunpy.org/en/stable/', None)
 intersphinx_mapping['yt'] = ('http://yt-project.org/doc/', None)
 intersphinx_mapping['fiasco'] = ('http://fiasco.readthedocs.io/en/latest/', None)
+intersphinx_mapping['dask'] = ('http://dask.readthedocs.io/en/latest', None)
 
 # Get configuration information from setup.cfg
 try:
@@ -172,7 +173,7 @@ man_pages = [('index', project.lower(), project + u' Documentation',
 # -- Options for the edit_on_github extension ---------------------------------
 
 if eval(setup_cfg.get('edit_on_github')):
-    extensions += ['astropy_helpers.sphinx.ext.edit_on_github']
+    extensions += ['sphinx_astropy.ext.edit_on_github']
 
     versionmod = __import__(setup_cfg['package_name'] + '.version')
     edit_on_github_project = setup_cfg['github_project']
