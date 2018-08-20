@@ -197,7 +197,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 flat_emiss = self.flatten_emissivities(channel, emission_model)
             # Map each loop to worker
             partial_counts = toolz.curry(calculate_counts)(channel, emission_model=emission_model,
-                                                           flattenend_emissivities=flat_emiss)
+                                                           flattened_emissivities=flat_emiss)
             partial_write = toolz.curry(self.write_to_hdf5)(dset_name=channel['name'])
             y = client.map(partial_counts, loops)
             y_interp = client.map(self.interpolate, y, loops, interpolated_loop_coordinates)
