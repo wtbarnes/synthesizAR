@@ -29,7 +29,7 @@ def validate_dtype_shape(head):
 def get_header(fn, hdu=0):
     with fn as fi:
         return MetaDict(sunpy.io.fits.get_header(fi)[hdu])
-    
+
 
 class DelayedFITS:
     def __init__(self, file, shape, dtype, hdu=0):
@@ -37,19 +37,19 @@ class DelayedFITS:
         self.dtype = dtype
         self.file = file
         self.hdu = hdu
-    
+
     def __getitem__(self, item):
         with self.file as fi:
             with fits.open(fi) as hdul:
                 return hdul[self.hdu].section[item]
-            
+
 
 class DistributedAIACube(object):
     """
     Lazy load a sequence of AIA images for a single channel with Dask
 
     .. warning:: This object is unstable and will likely be moved out of this package in the near future
-        
+
     .. note:: Nearly all of the early work was  done by Stuart Mumford, in particular how to handle FITS files in Dask.
 
     Parameters
@@ -62,7 +62,7 @@ class DistributedAIACube(object):
     DistributedAIACube.from_files : Create a cube from a list of FITS files
     """
     def __init__(self, maps):
-        #TODO: Refactor this to use ndcube instead
+        # TODO: Refactor this to use ndcube instead
         if not all([m.data.shape == maps[0].data.shape for m in maps]):
             raise ValueError('All maps must have same dimensions')
         if not all([m.data.dtype == maps[0].data.dtype for m in maps]):
@@ -133,7 +133,7 @@ class DistributedAIACube(object):
         else:
             return u.Quantity([(Time(m.meta['t_obs']) - Time(self.maps[0].meta['t_obs'])).to(u.s) 
                                for m in self.maps])
-            
+
     @property
     def shape(self,):
         return self.time.shape + self.maps[0].data.shape
@@ -152,7 +152,7 @@ class DistributedAIACube(object):
 
     def rechunk(self, shape):
         return self.stacked_data.rechunk(shape)
-    
+
     def average(self, **kwargs):
         """
         Compute average in time for each pixel
@@ -182,6 +182,12 @@ class DistributedAIACube(object):
         sunpy.physics.diffrot_map
         """
         raise NotImplementedError('TODO')
+
+    def submap(self, *args, **kwargs):
+        """
+        Return a new `DistributedAIACube` with lazily-evaluated submap of each map.
+        """
+        return DistributedAIACube([m.submap(*args, **kwargs) for m in self.maps])
 
 
 class DistributedAIACollection(object):
@@ -250,7 +256,7 @@ class AIATimelags(DistributedAIACollection):
     def make_timeseries(self, channel, left_corner, right_corner, **kwargs):
         """
         Return a timeseries for a given channel and spatial selection
-        
+
         Parameters
         ----------
         channel : `int`, `float`, or `str`
@@ -269,7 +275,7 @@ class AIATimelags(DistributedAIACollection):
 
     def correlation_1d(self, channel_a, channel_b, left_corner, right_corner, **kwargs):
         """
-        Lazily compute cross-correlation for two channels for a single pixel or an average of pixels.
+        Lazily compute cross-correlation between two channels of an average over multiple pixels.
         """
 
         ts_a = self.make_timeseries(channel_a, left_corner, right_corner, **kwargs)
@@ -298,14 +304,14 @@ class AIATimelags(DistributedAIACollection):
             cube_b = self._interpolate(self[channel_b].time, cube_b)
         # Reverse the first timeseries
         cube_a = cube_a[::-1, :, :]
-        # Normalize
+        # Normalize by mean and standard deviation
         std_a = cube_a.std(axis=0)
         std_a = da.where(std_a == 0, 1, std_a)
         v_a = (cube_a - cube_a.mean(axis=0)[np.newaxis, :, :]) / std_a[np.newaxis, :, :]
         std_b = cube_b.std(axis=0)
         std_b = da.where(std_b == 0, 1, std_b)
         v_b = (cube_b - cube_b.mean(axis=0)[np.newaxis, :, :]) / std_b[np.newaxis, :, :]
-        # Fast Fourier Transform of both channels
+        # FFT of both channels
         fft_a = da.fft.rfft(v_a, axis=0, n=self.timelags.shape[0])
         fft_b = da.fft.rfft(v_b, axis=0, n=self.timelags.shape[0])
         # Inverse of product of FFTS to get cross-correlation (by convolution theorem)
@@ -315,7 +321,8 @@ class AIATimelags(DistributedAIACollection):
 
     def make_correlation_map(self, channel_a, channel_b, **kwargs):
         """
-        Build map of max correlation value between two AIA channels
+        Compute map of delay maximum cross-correlation value between two channels in each pixel of
+        an AIA map.
         """
         cc = self.correlation_2d(channel_a, channel_b, **kwargs)
         bounds = kwargs.get('timelag_bounds', None)
@@ -328,14 +335,12 @@ class AIATimelags(DistributedAIACollection):
             start = 0
             stop = self.timelags.shape[0] + 1
         max_cc = cc[start:stop, :, :].max(axis=0).compute()
-        # Metadata
         meta = self[channel_a].maps[0].meta.copy()
         del meta['instrume']
         del meta['t_obs']
         del meta['wavelnth']
         meta['bunit'] = ''
         meta['comment'] = f'{channel_a}-{channel_b} cross-correlation'
-
         plot_settings = {'cmap': 'plasma'}
         plot_settings.update(kwargs.get('plot_settings', {}))
         correlation_map = sunpy.map.GenericMap(max_cc, meta, plot_settings=plot_settings)
@@ -344,7 +349,7 @@ class AIATimelags(DistributedAIACollection):
 
     def make_timelag_map(self, channel_a, channel_b, **kwargs):
         """
-        Lazily compute map of delay corresponding to maximum cross-correlation value between
+        Compute map of delay corresponding to maximum cross-correlation value between
         two channels in each pixel of an AIA map.
         """
         cc = self.correlation_2d(channel_a, channel_b, **kwargs)
@@ -357,16 +362,8 @@ class AIATimelags(DistributedAIACollection):
         else:
             start = 0
             stop = self.timelags.shape[0] + 1
-        # NOTE: Extra block for computing correlation map is to save time
-        if kwargs.get('return_correlation_map'):
-            _cc = cc.compute()
-            max_cc = _cc[start:stop, :, :].max(axis=0)
-            i_max_cc = _cc[start:stop, :, :].argmax(axis=0)
-            del _cc
-        else:
-            i_max_cc = cc[start:stop, :, :].argmax(axis=0).compute()
+        i_max_cc = cc[start:stop, :, :].argmax(axis=0).compute()
         max_timelag = self.timelags[start:stop][i_max_cc]
-        # Metadata
         meta = self[channel_a].maps[0].meta.copy()
         del meta['instrume']
         del meta['t_obs']
@@ -378,13 +375,4 @@ class AIATimelags(DistributedAIACollection):
         plot_settings.update(kwargs.get('plot_settings', {}))
         timelag_map = sunpy.map.GenericMap(max_timelag, meta.copy(),
                                            plot_settings=plot_settings.copy())
-        if kwargs.get('return_correlation_map'):
-            meta['bunit'] = ''
-            meta['comment'] = f'{channel_a}-{channel_b} cross-correlation'
-            plot_settings['cmap'] = 'plasma'
-            del plot_settings['vmin']
-            del plot_settings['vmax']
-            correlation_map = sunpy.map.GenericMap(max_cc, meta, plot_settings=plot_settings)
-            return timelag_map, correlation_map
-        else:
-            return timelag_map
+        return timelag_map
