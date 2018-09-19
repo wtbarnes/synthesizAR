@@ -2,6 +2,7 @@
 Very simple tools for analyzing differential emission measure data
 """
 import os
+import warnings
 
 import numpy as np
 from matplotlib import cm, colors
@@ -58,6 +59,10 @@ class EMCube(MapCube):
         super().__init__(map_list)
 
     @property
+    def temperature_bin_centers(self,):
+        return (self.temperature_bin_edges[1:] + self.temperature_bin_edges[:-1])/2.
+
+    @property
     def total_emission(self):
         """
         Sum the emission measure over all temperatures.
@@ -83,16 +88,14 @@ class EMCube(MapCube):
 
         return u.Quantity(em_list, u.Unit(self[0].meta['bunit']))
 
-    def make_slope_map(self, temperature_bounds=None, em_threshold=None, rsquared_tolerance=0.5):
+    def make_slope_map(self, temperature_bounds=None, em_threshold=None, rsquared_tolerance=0.5,
+                       full=False):
         """
         Calculate emission measure slope :math:`a` in each pixel
 
         Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a
         given temperature range. Only those pixels for which the minimum :math:`\mathrm{EM}`
         across all temperature bins is above some threshold value.
-
-        .. warning:: This method provides no measure of the goodness of the fit. Some slope values
-                     may not provide an accurate fit to the data.
 
         Parameters
         ----------
@@ -101,6 +104,9 @@ class EMCube(MapCube):
             Mask emission measure below this value
         rsquared_tolerance : `float`
             Throw away slopes with :math:`r^2` below this value
+        full : `bool`
+            If True, return all coefficients and :math:`r^2` values
+
         """
         if temperature_bounds is None:
             temperature_bounds = u.Quantity((1e6, 4e6), u.K)
@@ -113,6 +119,8 @@ class EMCube(MapCube):
             temperature_bin_centers >= temperature_bounds[0],
             temperature_bin_centers <= temperature_bounds[1]))
         temperature_fit = temperature_bin_centers[index_temperature_bounds].value
+        if temperature_fit.size < 3:
+            warnings.warn(f'Fitting to fewer than 3 points in temperature space: {temperature_fit}')
         # unwrap to 2D and threshold
         data = self.as_array()*u.Unit(self[0].meta['bunit'])
         flat_data = data.reshape(np.prod(data.shape[:2]), temperature_bin_centers.shape[0])
@@ -124,8 +132,11 @@ class EMCube(MapCube):
             np.log10(temperature_fit), np.log10(flat_data_threshold.T), 0, full=True)
         coefficients, rss, _, _, _ = np.polyfit(
             np.log10(temperature_fit), np.log10(flat_data_threshold.T), 1, full=True)
+        # NOTE: When the fit is exact, polyfit returns an empty residual array so just set them
+        # to zero so things don't blow up
+        rss = 0.*rss_flat if rss.size == 0 else rss
         rsquared = 1. - rss/rss_flat
-        slopes = np.where(rsquared >= rsquared_tolerance, coefficients[0], 0.)
+        slopes = np.where(rsquared >= rsquared_tolerance, coefficients[0], np.nan)
         # rebuild into a map
         slopes_flat = np.zeros(flat_data.shape[0]) * np.nan
         slopes_flat[index_data_threshold[0]] = slopes
@@ -139,7 +150,8 @@ class EMCube(MapCube):
         plot_settings = self[0].plot_settings.copy()
         plot_settings['norm'] = None
 
-        return GenericMap(slopes_2d, base_meta, plot_settings=plot_settings)
+        m = GenericMap(slopes_2d, base_meta, plot_settings=plot_settings)
+        return (m, coefficients, rsquared) if full else m
 
     def __getitem__(self, key):
         """
