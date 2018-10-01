@@ -39,9 +39,14 @@ class Field(object):
     >>> field = synthesizAR.Field(m, fieldlines) # doctest: +SKIP
     """
 
-    def __init__(self, magnetogram, fieldlines):
+    def __init__(self, magnetogram, fieldlines=None, loops=None):
         self.magnetogram = sunpy.map.Map(magnetogram)
-        self.loops = self._make_loops(fieldlines)
+        if fieldlines:
+            self.loops = self._make_loops(fieldlines)
+        elif loops:
+            self.loops = loops
+        else:
+            raise ValueError('Must specify either fieldline coordinates or pass in a list of `Loop` objects')
 
     def _make_loops(self, fieldlines):
         """
@@ -96,7 +101,8 @@ Magnetogram Info:
         >>> import synthesizAR
         >>> restored_field = synthesizAR.Field.restore('/path/to/restored/field/dir') # doctest: +SKIP
         """
-        fieldlines = []
+        loops = []
+        indices = []
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
@@ -110,16 +116,15 @@ Magnetogram Info:
                                        representation='cartesian')
                 field_strength = u.Quantity(
                     grp['field_strength'], get_keys(grp['field_strength'].attrs, ('unit', 'units')))
-                fieldlines.append({'index': grp.attrs['index'],
-                                   'parameters_savefile': grp.attrs['parameters_savefile'],
-                                   'coordinates': coordinates, 'field_strength': field_strength})
-
-        fieldlines = sorted(fieldlines, key=lambda x: x['index'])
+                l = Loop(grp_name, coordinates, field_strength)
+                if grp.attrs['parameters_savefile']:
+                    l.parameters_savefile = grp.attrs['parameters_savefile']
+                loops.append(l)
+                indices.append(grp.attrs['index'])
+        # NOTE: this to make sure the loops are in the same order as before
+        loops, _ = zip(*sorted(zip(loops, indices), key=lambda x: x[1]))
         magnetogram = sunpy.map.Map(os.path.join(savedir, 'magnetogram.fits'))
-        field = cls(magnetogram, [(f['coordinates'], f['field_strength']) for f in fieldlines])
-        for f in fieldlines:
-            if f['parameters_savefile']:
-                field.loops[f['index']].parameters_savefile = f['parameters_savefile']
+        field = cls(magnetogram, loops=loops)
 
         return field
 

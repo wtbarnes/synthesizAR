@@ -40,7 +40,7 @@ def fieldlines(magnetogram):
 
 @pytest.fixture
 def field(magnetogram, fieldlines):
-    return synthesizAR.Field(magnetogram, fieldlines)
+    return synthesizAR.Field(magnetogram, fieldlines=fieldlines)
 
 
 def test_field_magnetogram(field):
