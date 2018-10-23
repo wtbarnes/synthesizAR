@@ -32,16 +32,19 @@ def get_header(fn, hdu=0):
 
 
 class DelayedFITS:
-    def __init__(self, file, shape, dtype, hdu=0):
+    def __init__(self, file, shape, dtype, hdu=0, verify=False):
         self.shape = shape
         self.dtype = dtype
         self.file = file
         self.hdu = hdu
+        self.verify = verify
 
     def __getitem__(self, item):
         with self.file as fi:
-            with fits.open(fi) as hdul:
-                return hdul[self.hdu].section[item]
+            with fits.open(fi, memmap=True) as hdul:
+                if self.verify:
+                    hdul.verify('silentfix+warn')
+                return hdul[self.hdu].data[item]
 
 
 class DistributedAIACube(object):
@@ -97,23 +100,24 @@ class DistributedAIACube(object):
         --------
         dask.bytes.open_files
         """
-        hdu = kwargs.get('hdu', 0)
         openfiles = dask.bytes.open_files(fits_files)
-        headers = cls._get_headers(openfiles, hdu)
+        headers = cls._get_headers(openfiles, **kwargs)
         dtype, shape = cls._get_dtype_and_shape(headers)
-        maps = cls._get_maps(openfiles, headers, dtype, shape, hdu)
+        maps = cls._get_maps(openfiles, headers, dtype, shape, **kwargs)
         return cls(maps)
 
     @staticmethod
-    def _get_maps(openfiles, headers, dtype, shape, hdu):
-        arrays = [da.from_array(DelayedFITS(f, shape=shape, dtype=dtype, hdu=hdu),
-                                chunks=shape) for f in openfiles]
+    def _get_maps(openfiles, headers, dtype, shape, **kwargs):
+        hdu = kwargs.get('hdu', 0)
+        verify = kwargs.get('verify', False)
+        arrays = [da.from_array(DelayedFITS(f, shape, dtype, hdu=hdu, verify=verify), chunks=shape)
+                  for f in openfiles]
         return [sunpy.map.Map(a, h) for a, h in zip(arrays, headers)]
 
     @staticmethod
-    def _get_headers(openfiles, hdu):
+    def _get_headers(openfiles, **kwargs):
         client = distributed.get_client()
-        futures = client.map(get_header, openfiles, hdu=hdu)
+        futures = client.map(get_header, openfiles, hdu=kwargs.get('hdu', 0))
         return client.gather(futures)
 
     @staticmethod
