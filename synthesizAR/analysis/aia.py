@@ -71,7 +71,7 @@ class DistributedAIACube(object):
         self.time = self._get_time()
 
     @classmethod
-    def from_files(cls, fits_files):
+    def from_files(cls, fits_files, **kwargs):
         """
         Create a `DistributedAIACube` object from a list of FITS files
 
@@ -97,23 +97,23 @@ class DistributedAIACube(object):
         --------
         dask.bytes.open_files
         """
-
+        hdu = kwargs.get('hdu', 0)
         openfiles = dask.bytes.open_files(fits_files)
-        headers = cls._get_headers(openfiles)
+        headers = cls._get_headers(openfiles, hdu)
         dtype, shape = cls._get_dtype_and_shape(headers)
-        maps = cls._get_maps(openfiles, headers, dtype, shape)
+        maps = cls._get_maps(openfiles, headers, dtype, shape, hdu)
         return cls(maps)
 
     @staticmethod
-    def _get_maps(openfiles, headers, dtype, shape):
-        arrays = [da.from_array(DelayedFITS(f, shape=shape, dtype=dtype, hdu=0),
+    def _get_maps(openfiles, headers, dtype, shape, hdu):
+        arrays = [da.from_array(DelayedFITS(f, shape=shape, dtype=dtype, hdu=hdu),
                                 chunks=shape) for f in openfiles]
         return [sunpy.map.Map(a, h) for a, h in zip(arrays, headers)]
 
     @staticmethod
-    def _get_headers(openfiles):
+    def _get_headers(openfiles, hdu):
         client = distributed.get_client()
-        futures = client.map(get_header, openfiles)
+        futures = client.map(get_header, openfiles, hdu=hdu)
         return client.gather(futures)
 
     @staticmethod
