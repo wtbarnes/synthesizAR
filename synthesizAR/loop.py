@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
 import h5py
 
@@ -40,11 +41,14 @@ class Loop(object):
     """
 
     @u.quantity_input
-    def __init__(self, name, coordinates, field_strength: u.gauss):
+    def __init__(self, name, coordinates=None, field_strength=None, coords_savefile=None):
         self.name = name
-        self._coordinates = coordinates.transform_to(HeliographicStonyhurst)
-        self._coordinates.representation = 'cartesian'
-        self._field_strength = field_strength.to(u.gauss)
+        if coordinates is not None:
+            self._coordinates = coordinates.transform_to(HeliographicStonyhurst)
+            self._coordinates.representation = 'cartesian'
+        if field_strength is not None:
+            self._field_strength = field_strength.to(u.gauss)
+        self.coords_savefile = coords_savefile
 
     def __repr__(self):
         f0 = f'{self.coordinates.x[0]:.3g},{self.coordinates.y[0]:.3g},{self.coordinates.z[0]:.3g}'
@@ -59,14 +63,32 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         World coordinates of loop
         """
-        return self._coordinates
+        if hasattr(self, '_coordinates'):
+            return self._coordinates
+        else:
+            with h5py.File(self.coords_savefile, 'r') as hf:
+                grp = hf[self.name]
+                x = u.Quantity(grp['coordinates'][0, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                y = u.Quantity(grp['coordinates'][1, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                z = u.Quantity(grp['coordinates'][2, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                return SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
+                                representation='cartesian')
 
     @property
     def field_strength(self):
         """
         Magnetic field strength as a function of the field-aligned coordinate
         """
-        return self._field_strength
+        if hasattr(self, '_field_strength'):
+            return self._field_strength
+        else:
+            with h5py.File(self.coords_savefile, 'r') as hf:
+                grp = hf[self.name]
+                return u.Quantity(grp['field_strength'],
+                                  get_keys(grp['field_strength'].attrs, ('unit', 'units')))
 
     @property
     def field_aligned_coordinate(self):

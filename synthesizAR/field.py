@@ -92,9 +92,16 @@ Magnetogram Info:
                 ds.attrs['unit'] = loop.field_strength.unit.to_string()
 
     @classmethod
-    def restore(cls, savedir):
+    def restore(cls, savedir, lazy=False):
         """
         Restore the field from a set of serialized files
+
+        Parameters
+        ----------
+        savedir: `str`
+            Path to directory that contains savefiles
+        lazy: `bool`, optional
+            If True, the loop coordinates and field strengths are loaded lazily
 
         Examples
         --------
@@ -106,17 +113,21 @@ Magnetogram Info:
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
-                x = u.Quantity(grp['coordinates'][0, :], 
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                y = u.Quantity(grp['coordinates'][1, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                z = u.Quantity(grp['coordinates'][2, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
-                                       representation='cartesian')
-                field_strength = u.Quantity(
-                    grp['field_strength'], get_keys(grp['field_strength'].attrs, ('unit', 'units')))
-                l = Loop(grp_name, coordinates, field_strength)
+                if lazy:
+                    l = Loop(grp_name, coords_savefile=os.path.join(savedir, 'loops.h5'))
+                else:
+                    x = u.Quantity(grp['coordinates'][0, :],
+                                   get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                    y = u.Quantity(grp['coordinates'][1, :],
+                                   get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                    z = u.Quantity(grp['coordinates'][2, :],
+                                   get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                    coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst, 
+                                           representation='cartesian')
+                    field_strength = u.Quantity(
+                        grp['field_strength'],
+                        get_keys(grp['field_strength'].attrs, ('unit', 'units')))
+                    l = Loop(grp_name, coordinates=coordinates, field_strength=field_strength)
                 if grp.attrs['parameters_savefile']:
                     l.parameters_savefile = grp.attrs['parameters_savefile']
                 loops.append(l)
