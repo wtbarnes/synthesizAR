@@ -116,7 +116,7 @@ class DistributedAIACube(object):
 
     @staticmethod
     def _get_headers(openfiles, **kwargs):
-        client = distributed.get_client()
+        client = distributed.Client.current()
         futures = client.map(get_header, openfiles, hdu=kwargs.get('hdu', 0))
         return client.gather(futures)
 
@@ -338,8 +338,8 @@ class AIATimelags(DistributedAIACollection):
         else:
             start = 0
             stop = self.timelags.shape[0] + 1
-        client = distributed.get_client()
-        max_cc = client.compute(cc[start:stop, :, :].max(axis=0))
+        client = distributed.Client.current()
+        max_cc = cc[start:stop, :, :].max(axis=0).compute(client=client)
         meta = self[channel_a].maps[0].meta.copy()
         del meta['instrume']
         del meta['t_obs']
@@ -367,8 +367,8 @@ class AIATimelags(DistributedAIACollection):
         else:
             start = 0
             stop = self.timelags.shape[0] + 1
-        client = distributed.get_client()
-        i_max_cc = client.compute(cc[start:stop, :, :].argmax(axis=0))
+        client = distributed.Client.current()
+        i_max_cc = cc[start:stop, :, :].argmax(axis=0).compute(client=client)
         max_timelag = self.timelags[start:stop][i_max_cc]
         meta = self[channel_a].maps[0].meta.copy()
         del meta['instrume']
