@@ -11,7 +11,7 @@ import numpy as np
 from scipy.interpolate import splrep, splev, interp1d
 from scipy.ndimage.filters import gaussian_filter
 from sunpy.util.metadata import MetaDict
-from sunpy.map import Map, MapCube, GenericMap
+from sunpy.map import Map, GenericMap
 from sunpy.io.fits import get_header
 import sunpy.cm
 import astropy.units as u

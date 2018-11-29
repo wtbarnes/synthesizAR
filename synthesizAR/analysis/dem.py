@@ -10,7 +10,7 @@ import h5py
 import astropy.io.fits
 import astropy.units as u
 import sunpy.cm
-from sunpy.map import Map, MapCube, GenericMap
+from sunpy.map import Map, MapSequence, GenericMap
 from sunpy.util.metadata import MetaDict
 from sunpy.io.fits import get_header
 
@@ -19,7 +19,7 @@ from synthesizAR.util import is_visible, get_keys
 __all__ = ['EMCube', 'make_emission_measure_map']
 
 
-class EMCube(MapCube):
+class EMCube(MapSequence):
     """
     Container for the emission measure at each pixel of a map for a range of temperatures.
 
