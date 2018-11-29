@@ -338,8 +338,7 @@ class AIATimelags(DistributedAIACollection):
         else:
             start = 0
             stop = self.timelags.shape[0] + 1
-        client = distributed.get_client()
-        max_cc = client.persist(cc[start:stop, :, :].max(axis=0))
+        max_cc = cc[start:stop, :, :].max(axis=0)
         meta = self[channel_a].maps[0].meta.copy()
         del meta['instrume']
         del meta['t_obs']
@@ -369,7 +368,7 @@ class AIATimelags(DistributedAIACollection):
             stop = self.timelags.shape[0] + 1
         client = distributed.get_client()
         i_max_cc = cc[start:stop, :, :].argmax(axis=0)
-        max_timelag = client.persist(self.timelags[start:stop][i_max_cc])
+        max_timelag = self.timelags[start:stop][i_max_cc]
         meta = self[channel_a].maps[0].meta.copy()
         del meta['instrume']
         del meta['t_obs']
