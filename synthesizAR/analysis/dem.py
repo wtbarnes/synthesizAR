@@ -118,7 +118,8 @@ class EMCube(MapSequence):
         index_temperature_bounds = np.where(np.logical_and(
             self.temperature_bin_centers >= temperature_bounds[0],
             self.temperature_bin_centers <= temperature_bounds[1]))
-        temperature_fit = np.log10(temperature_bin_centers[index_temperature_bounds].to(u.K).value)
+        temperature_fit = np.log10(
+            self.temperature_bin_centers[index_temperature_bounds].to(u.K).value)
         if temperature_fit.size < 3:
             warnings.warn(f'Fitting to fewer than 3 points in temperature space: {temperature_fit}')
         # Cut on temperature
