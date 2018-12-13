@@ -94,63 +94,62 @@ class EMCube(MapSequence):
         Calculate emission measure slope :math:`a` in each pixel
 
         Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a
-        given temperature range. Only those pixels for which the minimum :math:`\mathrm{EM}`
-        across all temperature bins is above some threshold value.
+        given temperature range. A slope is masked if an value between the `temperature_bounds`
+        is less than :math:`\mathrm{EM}`. Additionally, the "goodness-of-fit" is evaluated using
+        the correlation coefficient, :math:`r^2=1 - R_1/R_0`, where :math:`R_1` and :math:`R_0`
+        are the residuals from the first and zeroth order polynomial fits, respectively. We mask
+        the slope if :math:`r^2` is less than `rsquared_tolerance`.
 
         Parameters
         ----------
         temperature_bounds : `~astropy.units.Quantity`, optional
         em_threshold : `~astropy.units.Quantity`, optional
-            Mask emission measure below this value
+            Mask slope if any emission measure in the fit interval is below this value
         rsquared_tolerance : `float`
-            Throw away slopes with :math:`r^2` below this value
+            Mask any slopes with a correlation coefficient, :math:`r^2`, below this value
         full : `bool`
-            If True, return all coefficients and :math:`r^2` values
-
+            If True, return maps of the intercept and :math:`r^2` values as well
         """
         if temperature_bounds is None:
             temperature_bounds = u.Quantity((1e6, 4e6), u.K)
         if em_threshold is None:
             em_threshold = u.Quantity(1e25, u.cm**(-5))
-        # cut on temperature
-        temperature_bin_centers = (self.temperature_bin_edges[:-1]
-                                   + self.temperature_bin_edges[1:])/2.
+        # Get temperature fit array
         index_temperature_bounds = np.where(np.logical_and(
-            temperature_bin_centers >= temperature_bounds[0],
-            temperature_bin_centers <= temperature_bounds[1]))
-        temperature_fit = temperature_bin_centers[index_temperature_bounds].value
+            self.temperature_bin_centers >= temperature_bounds[0],
+            self.temperature_bin_centers <= temperature_bounds[1]))
+        temperature_fit = np.log10(temperature_bin_centers[index_temperature_bounds].to(u.K).value)
         if temperature_fit.size < 3:
             warnings.warn(f'Fitting to fewer than 3 points in temperature space: {temperature_fit}')
-        # unwrap to 2D and threshold
+        # Cut on temperature
         data = self.as_array()*u.Unit(self[0].meta['bunit'])
-        flat_data = data.reshape(np.prod(data.shape[:2]), temperature_bin_centers.shape[0])
-        index_data_threshold = np.where(np.min(
-            flat_data[:, index_temperature_bounds[0]], axis=1) >= em_threshold)
-        flat_data_threshold = flat_data.value[index_data_threshold[0], :][:, index_temperature_bounds[0]]
-        # very basic but vectorized fitting
-        _, rss_flat, _, _, _ = np.polyfit(
-            np.log10(temperature_fit), np.log10(flat_data_threshold.T), 0, full=True)
-        coefficients, rss, _, _, _ = np.polyfit(
-            np.log10(temperature_fit), np.log10(flat_data_threshold.T), 1, full=True)
-        # NOTE: When the fit is exact, polyfit returns an empty residual array so just set them
-        # to zero so things don't blow up
-        rss = 0.*rss_flat if rss.size == 0 else rss
+        data = data[:, :, index_temperature_bounds]
+        # Create mask from EM threshold
+        em_mask = np.any(data < em_threshold, axis=2)
+        # Get EM fit array
+        em_fit = np.log10(data.value.reshape((np.prod(data.shape[:2]),) + data.shape[2:]).T)
+        em_fit[np.where(np.isinf(em_fit))] = 0.0  # Filter infs before fitting
+        # Fit to first-order polynomial
+        coefficients, rss, _, _, _ = np.polyfit(temperature_fit, em_fit, 1, full=True)
+        # Create mask from correlation coefficient
+        _, rss_flat, _, _, _ = np.polyfit(temperature_fit, em_fit, 0, full=True)
+        rss = 0.*rss_flat if rss.size == 0 else rss  # returns empty residual when fit is exact
         rsquared = 1. - rss/rss_flat
-        slopes = np.where(rsquared >= rsquared_tolerance, coefficients[0], np.nan)
-        # rebuild into a map
-        slopes_flat = np.zeros(flat_data.shape[0]) * np.nan
-        slopes_flat[index_data_threshold[0]] = slopes
-        slopes_2d = np.reshape(slopes_flat, data.shape[:2])
+        rsquared_mask = rsquared.reshape(data.shape[:2]) < rsquared_tolerance
+        # Combined mask
+        mask = np.stack((em_mask, rsquared_mask), axis=2).any(axis=2)
+        # Rebuild into a map
         base_meta = self[0].meta.copy()
-        base_meta['temp_a'] = temperature_fit[0]
-        base_meta['temp_b'] = temperature_fit[-1]
+        base_meta['temp_a'] = 10.**temperature_fit[0]
+        base_meta['temp_b'] = 10.**temperature_fit[-1]
         base_meta['bunit'] = ''
         base_meta['detector'] = 'EM slope'
         base_meta['comment'] = 'Linear fit to log-transformed LOS EM'
         plot_settings = self[0].plot_settings.copy()
         plot_settings['norm'] = None
+        m = GenericMap(coefficients[0, :].reshape(data.shape[:2]), base_meta, mask=mask,
+                       plot_settings=plot_settings)
 
-        m = GenericMap(slopes_2d, base_meta, plot_settings=plot_settings)
         return (m, coefficients, rsquared) if full else m
 
     def __getitem__(self, key):
@@ -203,7 +202,8 @@ class EMCube(MapSequence):
 
 
 @u.quantity_input
-def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None, **kwargs) -> EMCube:
+def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None,
+                              **kwargs) -> EMCube:
     """
     Compute true emission meausure in each pixel as a function of electron temperature.
 
