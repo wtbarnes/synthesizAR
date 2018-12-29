@@ -3,17 +3,16 @@ channels:
 - defaults
 - conda-forge
 dependencies:
-- python=3.6
+- python
 - numpy
 - numba
 - scipy
 - matplotlib
 - h5py
 - astropy
-- sunpy>=0.9.1
+- sunpy
 - dask
 - distributed
-- ipywidgets
 - yt
 - pip:
   - plasmapy
