@@ -32,15 +32,6 @@ import sys
 ON_RTD = os.environ.get('READTHEDOCS') == 'True'
 ON_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
-try:
-    import astropy_helpers
-except ImportError:
-    # Building from inside the docs/ directory?
-    if os.path.basename(os.getcwd()) == 'docs':
-        a_h_path = os.path.abspath(os.path.join('..', 'astropy_helpers'))
-        if os.path.isdir(a_h_path):
-            sys.path.insert(1, a_h_path)
-
 # Load all of the global Astropy configuration
 from sphinx_astropy.conf import *
 
@@ -124,8 +115,6 @@ try:
     html_theme = "sphinx_rtd_theme"
     import sphinx_rtd_theme
     html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-    #from sunpy_sphinx_theme.conf import *
-    #html_sidebars = {'**': ['docsidebar.html']}
 except ImportError:
     html_theme = 'default'
 
