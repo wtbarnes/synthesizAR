@@ -2,6 +2,8 @@
 Interface between loop object and scaling law calculations by Martens
 """
 
+__all__ = ['MartensInterface']
+
 
 class MartensInterface(object):
 
@@ -9,4 +11,4 @@ class MartensInterface(object):
         ...
 
     def load_results(self, loop):
-        return time, electron_temperature, ion_temperature, density, velocity
+        ...
