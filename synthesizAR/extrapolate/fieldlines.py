@@ -340,4 +340,4 @@ def circular_loop(length: u.cm, theta0=0*u.deg, phi0=0*u.deg, n_points=1000):
     y = u.Quantity(r.shape[0]*[0*u.cm])
     z = r.to(u.cm)*np.cos(phi.to(u.radian))
 
-    return SkyCoord(x=x, y=y, z=z, frame=hcc_frame).to('heliographic_stonyhurst')
+    return SkyCoord(x=x, y=y, z=z, frame=hcc_frame).transform_to('heliographic_stonyhurst')
