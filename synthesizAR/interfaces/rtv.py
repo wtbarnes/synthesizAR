@@ -11,19 +11,19 @@ __all__ = ['RTVInterface']
 
 class RTVInterface(object):
     """
-    Calculate loop temperatures and densities using the RTV scaling laws.
-    
+    Interface to the RTV scaling laws.
+
     Parameters
     ----------
     plasma_beta : `float`, optional
         Ratio of plasma to magnetic pressure
     rtv_kwargs : `dict`, optional
-        Keyword arguments to `synthesizAR.physics.RTVScalingLaws
+        Keyword arguments to `synthesizAR.physics.RTVScalingLaws`
 
     See Also
     --------
-    synthesizAR.physics.MartensScalingLaws
-    synthesizAR.physics.RTVScalingLaws
+    synthesizAR.physics.MartensScalingLaws :
+    synthesizAR.physics.RTVScalingLaws :
     """
 
     def __init__(self, plasma_beta=0.001, rtv_kwargs=None):

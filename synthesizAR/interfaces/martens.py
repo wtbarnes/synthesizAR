@@ -12,10 +12,10 @@ __all__ = ['MartensInterface']
 
 class MartensInterface(object):
     """
-    Calculate loop temperatures and densities using the Martens scaling laws.
+    Interface to the Martens scaling laws.
 
     The maximum temperature is determined using the RTV scaling laws.
-    
+
     Parameters
     ----------
     plasma_beta : `float`, optional
@@ -23,12 +23,12 @@ class MartensInterface(object):
     martens_kwargs : `dict`, optional
         Keyword arguments to `synthesizAR.physics.MartensScalingLaws`
     rtv_kwargs : `dict`, optional
-        Keyword arguments to `synthesizAR.physics.RTVScalingLaws
+        Keyword arguments to `synthesizAR.physics.RTVScalingLaws`
 
     See Also
     --------
-    synthesizAR.physics.MartensScalingLaws
-    synthesizAR.physics.RTVScalingLaws
+    synthesizAR.physics.MartensScalingLaws :
+    synthesizAR.physics.RTVScalingLaws :
     """
 
     def __init__(self, plasma_beta=0.001, martens_kwargs=None, rtv_kwargs=None):

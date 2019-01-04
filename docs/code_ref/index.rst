@@ -11,5 +11,6 @@ API Reference
    synthesizar_extrapolate
    synthesizar_instruments
    synthesizar_interfaces
+   synthesizar_physics
    synthesizar_util
    synthesizar_visualize
