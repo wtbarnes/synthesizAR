@@ -40,7 +40,7 @@ The easiest way to grab all of the dependencies is to create a new conda-environ
 
 .. code-block:: bash
 
-   $ conda env create -f conda_environment.yml
+   $ conda env create -f environment.yml
    $ source activate synthesizar
 
 This will create a new `conda environment <http://conda.pydata.org/docs/using/envs.html>`_ with the needed dependencies and activate the environment. Alternatively, you can install all of the packages listed in the above section manually. Finally, to install synthesizAR,
