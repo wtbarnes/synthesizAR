@@ -1,9 +1,6 @@
 """
 Class for an individual loop structure that is part of a larger active region.
 """
-
-import os
-
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -78,7 +75,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
                                 representation='cartesian')
 
     @property
-    def field_strength(self):
+    @u.quantity_input
+    def field_strength(self) -> u.G:
         """
         Magnetic field strength as a function of the field-aligned coordinate
         """
@@ -91,7 +89,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
                                   get_keys(grp['field_strength'].attrs, ('unit', 'units')))
 
     @property
-    def field_aligned_coordinate(self):
+    @u.quantity_input
+    def field_aligned_coordinate(self) -> u.cm:
         """
         Field-aligned coordinate :math:`s` such that :math:`0<s<L`
         """
@@ -99,14 +98,16 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
                                             axis=0).cumsum()) * self.coordinates.cartesian.xyz.unit
 
     @property
-    def full_length(self):
+    @u.quantity_input
+    def full_length(self) -> u.cm:
         """
         Loop full-length :math:`2L`, from footpoint to footpoint
         """
         return np.diff(self.field_aligned_coordinate).sum()
 
     @property
-    def time(self):
+    @u.quantity_input
+    def time(self) -> u.s:
         """
         Simulation time
         """
@@ -116,7 +117,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return time
 
     @property
-    def electron_temperature(self):
+    @u.quantity_input
+    def electron_temperature(self) -> u.K:
         """
         Loop electron temperature as function of coordinate and time.
         """
@@ -126,7 +128,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return temperature
 
     @property
-    def ion_temperature(self):
+    @u.quantity_input
+    def ion_temperature(self) -> u.K:
         """
         Loop ion temperature as function of coordinate and time.
         """
@@ -136,7 +139,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return temperature
 
     @property
-    def density(self):
+    @u.quantity_input
+    def density(self) -> u.cm**(-3):
         """
         Loop density as a function of coordinate and time.
         """
@@ -146,7 +150,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return density
 
     @property
-    def velocity(self):
+    @u.quantity_input
+    def velocity(self) -> u.cm/u.s:
         """
         Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
         time.
@@ -157,7 +162,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return velocity
 
     @property
-    def velocity_x(self):
+    @u.quantity_input
+    def velocity_x(self) -> u.cm/u.s:
         """
         X-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
@@ -167,7 +173,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return velocity
 
     @property
-    def velocity_y(self):
+    @u.quantity_input
+    def velocity_y(self) -> u.cm/u.s:
         """
         Y-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
@@ -177,7 +184,8 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         return velocity
 
     @property
-    def velocity_z(self):
+    @u.quantity_input
+    def velocity_z(self) -> u.cm/u.s:
         """
         Z-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
