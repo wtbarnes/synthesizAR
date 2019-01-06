@@ -1,6 +1,5 @@
 """
-Active region object definition. This object holds all the important information about our
-synthesized active region.
+The Field object holds all the information about the loops the comprise the magnetic skeleton
 """
 import os
 import datetime
@@ -24,7 +23,7 @@ class Field(object):
 
     Parameters
     ----------
-    magnetogram : `sunpy.map.Map`
+    magnetogram : `~sunpy.map.Map`
         Magnetogram map for the active region
     fieldlines : `list`
         List of tuples, coordinates and field strengths for each loop
@@ -160,13 +159,13 @@ Magnetogram Info:
         """
         Load in loop parameters from hydrodynamic results.
         """
-        notebook = kwargs.get('notebook', True)
         with h5py.File(savefile, 'w') as hf:
-            with ProgressBar(len(self.loops), ipython_widget=notebook) as progress:
+            with ProgressBar(len(self.loops),
+                             ipython_widget=kwargs.get('notebook', True),) as progress:
                 for loop in self.loops:
                     # Load in parameters from interface
                     (time, electron_temperature, ion_temperature,
-                     density, velocity) = interface.load_results(loop, **kwargs)
+                     density, velocity) = interface.load_results(loop)
                     # convert velocity to loop coordinate system
                     grad_xyz = np.gradient(loop.coordinates.cartesian.xyz.value, axis=1)
                     s_hat = grad_xyz / np.linalg.norm(grad_xyz, axis=0)
