@@ -11,7 +11,7 @@
 synthesizAR is a Python package for forward modeling emission from solar active regions using hydrodynamic simulations of coronal loops
 
 ## Dependencies
-The easiest way to install these packages is with the [Anaconda Python distribution](https://www.anaconda.com/distribution/). To create a new environment with all of the needed dependencies, use the [environment file included in this repo](conda_environment.yml).
+The easiest way to install these packages is with the [Anaconda Python distribution](https://www.anaconda.com/distribution/). To create a new environment with all of the needed dependencies, use the [environment file included in this repo](environment.yml).
 ```
 $ conda env create -f environment.yml
 $ source activate synthesizar
