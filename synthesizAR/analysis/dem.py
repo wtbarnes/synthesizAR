@@ -1,18 +1,14 @@
 """
 Very simple tools for analyzing differential emission measure data
 """
-import os
 import warnings
 
 import numpy as np
 from matplotlib import cm, colors
 import h5py
-import astropy.io.fits
 import astropy.units as u
-import sunpy.cm
-from sunpy.map import Map, MapSequence, GenericMap
+from sunpy.map import MapSequence, GenericMap
 from sunpy.util.metadata import MetaDict
-from sunpy.io.fits import get_header
 
 from synthesizAR.util import is_visible, get_keys
 
@@ -94,7 +90,7 @@ class EMCube(MapSequence):
         Calculate emission measure slope :math:`a` in each pixel
 
         Create map of emission measure slopes by fitting :math:`\mathrm{EM}\sim T^a` for a
-        given temperature range. A slope is masked if an value between the `temperature_bounds`
+        given temperature range. A slope is masked if a value between the `temperature_bounds`
         is less than :math:`\mathrm{EM}`. Additionally, the "goodness-of-fit" is evaluated using
         the correlation coefficient, :math:`r^2=1 - R_1/R_0`, where :math:`R_1` and :math:`R_0`
         are the residuals from the first and zeroth order polynomial fits, respectively. We mask
@@ -127,7 +123,7 @@ class EMCube(MapSequence):
                           self[0].meta['bunit'])
         # Get EM fit array
         em_fit = np.log10(data.value.reshape((np.prod(data.shape[:2]),) + data.shape[2:]).T)
-        em_fit[np.where(np.isinf(em_fit))] = 0.0  # Filter infs before fitting
+        em_fit[np.logical_or(np.isinf(em_fit), np.isnan(em_fit))] = 0.0  # Filter before fitting
         # Fit to first-order polynomial
         coefficients, rss, _, _, _ = np.polyfit(temperature_fit, em_fit, 1, full=True)
         # Create masks from EM threshold and correlation coefficient
