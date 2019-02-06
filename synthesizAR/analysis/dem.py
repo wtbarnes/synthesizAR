@@ -225,7 +225,6 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
         except IndexError:
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
         unbinned_temperature = np.array(hf['electron_temperature'][i_time, :])
-        temperature_unit = u.Unit(get_keys(hf['electron_temperature'].attrs, ('unit', 'units')))
         unbinned_density = np.array(hf['density'][i_time, :])
         density_unit = u.Unit(get_keys(hf['density'].attrs, ('unit', 'units')))
 
@@ -253,7 +252,6 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     del meta_base['waveunit']
     meta_base['detector'] = r'Emission measure'
     meta_base['comment'] = 'LOS Emission Measure distribution'
-    em_unit = density_unit * density_unit * dh.unit
-    data = np.transpose(hist, (1, 0, 2)) * em_unit
+    data = np.transpose(hist, (1, 0, 2)) * density_unit * density_unit * dh.unit
 
     return EMCube(data, meta_base, temperature_bin_edges, plot_settings=plot_settings)
