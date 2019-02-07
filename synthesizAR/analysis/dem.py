@@ -125,13 +125,13 @@ class EMCube(MapSequence):
         em_fit = np.log10(data.value.reshape((np.prod(data.shape[:2]),) + data.shape[2:]).T)
         em_fit[np.logical_or(np.isinf(em_fit), np.isnan(em_fit))] = 0.0  # Filter before fitting
         # Fit to first-order polynomial
-        weights = np.where(em_fit < np.log10(em_threshold.to(data.unit).value), 0, 1)
-        coefficients, rss, _, _, _ = np.polyfit(temperature_fit, em_fit, 1, full=True, w=weights)
-        # Create mask from correlation coefficient
-        _, rss_flat, _, _, _ = np.polyfit(temperature_fit, em_fit, 0, full=True, w=weights)
+        coefficients, rss, _, _, _ = np.polyfit(temperature_fit, em_fit, 1, full=True,)
+        # Create mask from correlation coefficient EM threshold
+        _, rss_flat, _, _, _ = np.polyfit(temperature_fit, em_fit, 0, full=True,)
         rss = 0.*rss_flat if rss.size == 0 else rss  # returns empty residual when fit is exact
         rsquared = 1. - rss/rss_flat
-        mask = rsquared.reshape(data.shape[:2]) < rsquared_tolerance
+        rsquared_mask = rsquared.reshape(data.shape[:2]) < rsquared_tolerance
+        em_mask = np.any(data < em_threshold, axis=2)
         # Rebuild into a map
         base_meta = self[0].meta.copy()
         base_meta['temp_a'] = 10.**temperature_fit[0]
@@ -144,7 +144,7 @@ class EMCube(MapSequence):
         m = GenericMap(
             coefficients[0, :].reshape(data.shape[:2]),
             base_meta,
-            mask=mask,
+            mask=np.stack((em_mask, rsquared_mask), axis=2).any(axis=2),
             plot_settings=plot_settings
         )
 
