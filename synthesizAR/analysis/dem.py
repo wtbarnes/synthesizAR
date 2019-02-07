@@ -179,7 +179,11 @@ class EMCube(MapSequence):
             dset_temperature_bin_edges.attrs['unit'] = self.temperature_bin_edges.unit.to_string()
             meta_group = hf.create_group('meta')
             for key in self[0].meta:
-                meta_group.attrs[key] = self[0].meta[key]
+                # Try-except because HDF5 cannot serialize some stuff, .e.g. dictionaries
+                try:
+                    meta_group.attrs[key] = self[0].meta[key]
+                except TypeError:
+                    warnings.warn(f'Could not save metadata for entry {key}')
 
     @classmethod
     def restore(cls, filename, **kwargs):
