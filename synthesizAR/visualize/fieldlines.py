@@ -34,7 +34,7 @@ def plot_fieldlines(*coords, lon=0*u.deg, lat=0*u.deg, **kwargs):
     """
     # Dummy map
     data = np.ones((10, 10))
-    time_now = Time.now()
+    time_now = kwargs.get('obstime', Time.now())
     meta = MetaDict({
         'ctype1': 'HPLN-TAN',
         'ctype2': 'HPLT-TAN',
