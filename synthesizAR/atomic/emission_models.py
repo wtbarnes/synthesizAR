@@ -23,7 +23,6 @@ class EmissionModel(fiasco.IonCollection):
     @u.quantity_input
     def __init__(self, density: u.cm**(-3), *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.temperature = self[0].temperature
         self.density = density
         self.resolved_wavelengths = kwargs.get('resolved_wavelengths', {})
         # Cannot have empty abundances so replace them as needed
