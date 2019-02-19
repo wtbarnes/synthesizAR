@@ -158,7 +158,7 @@ class EmissionModel(fiasco.IonCollection):
         unique_elements = list(set([ion.element_name for ion in self]))
         # Calculate ionization equilibrium for each element and interpolate to each loop
         notebook = kwargs.get('notebook', True)
-        with h5py.File(self.ionization_fraction_savefile, 'a') as hf:
+        with h5py.File(self.ionization_fraction_savefile, 'w') as hf:
             with ProgressBar(len(unique_elements) * len(field.loops), ipython_widget=notebook) as progress:
                 for el_name in unique_elements:
                     element = Element(el_name, temperature)
