@@ -128,7 +128,7 @@ class ObserverSerial(object):
     def assemble_map(observed_map, filename, time):
         observed_map.meta['tunit'] = time.unit.to_string()
         observed_map.meta['t_obs'] = time.value
-        observed_map.save(filename)
+        observed_map.save(filename, overwrite=True)
 
     def bin_detector_counts(self, savedir, **kwargs):
         """
