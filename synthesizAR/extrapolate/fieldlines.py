@@ -2,7 +2,6 @@
 Functions for generating, tracing, filtering, and converting fieldlines
 """
 import warnings
-import functools
 
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
@@ -25,7 +24,7 @@ __all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_f
 
 @u.quantity_input
 def filter_streamlines(streamline, domain_width, close_threshold=0.05,
-                       loop_length_range: u.cm =[2.e+9, 5.e+10]*u.cm, **kwargs):
+                       loop_length_range: u.cm = [2.e+9, 5.e+10]*u.cm, **kwargs):
     """
     Check extracted loop to make sure it fits given criteria. Return True if it passes.
 
@@ -271,7 +270,7 @@ def from_pfsspack(pfss_fieldlines):
         radius = ((pfss_fieldlines['ptr'][i, :]) * const.R_sun.to(u.cm))[:n_valid]
         coord = SkyCoord(lon=lon, lat=lat, radius=radius, frame=frame)
         fieldlines.append(coord)
-        
+
     # Magnetic field strengths
     lon_grid = (pfss_fieldlines['phi'] * u.radian - np.pi * u.radian).to(u.deg).value
     lat_grid = (np.pi / 2. * u.radian - pfss_fieldlines['theta'] * u.radian).to(u.deg).value
@@ -296,7 +295,7 @@ def from_pfsspack(pfss_fieldlines):
         b_lat = B_lat_interpolator(points)
         b_lon = B_lon_interpolator(points)
         field_strengths.append(np.sqrt(b_r**2 + b_lat**2 + b_lon**2) * u.Gauss)
-    
+
     return [(l, b) for l, b in zip(fieldlines, field_strengths)]
 
 
@@ -319,8 +318,10 @@ def circular_loop(length: u.cm, theta0=0*u.deg, phi0=0*u.deg, n_points=1000):
     # Compute loop radius from loop length
     # NOTE: Resulting expression is transcendental, hence the bisection technique
     r_1 = const.R_sun
+
     def func(x):
         return np.arccos(0.5*x/r_1.to(u.cm).value) - np.pi + length.to(u.cm).value/2./x
+
     r_2 = bisect(func, length.to(u.cm).value/(2*np.pi), length.to(u.cm).value/np.pi) * u.cm
     alpha = np.arccos(0.5*(r_2/r_1).decompose())
     phi = np.linspace(-np.pi*u.rad + alpha, np.pi*u.rad-alpha, n_points)

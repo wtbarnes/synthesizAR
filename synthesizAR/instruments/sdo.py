@@ -3,27 +3,23 @@ Class for the SDO/AIA instrument. Holds information about the cadence and
 spatial and spectroscopic resolution.
 """
 
-import os
 import json
 import pkg_resources
 import warnings
 import toolz
 
 import numpy as np
-from scipy.interpolate import splrep, splev, interp1d
+from scipy.interpolate import splrep, splev
 from scipy.ndimage import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 import astropy.units as u
 from sunpy.map import Map
-from sunpy.util.metadata import MetaDict
-from sunpy.coordinates.frames import Helioprojective
 import h5py
 try:
     import distributed
 except ImportError:
     warnings.warn('Dask distributed scheduler required for parallel execution')
 
-import synthesizAR
 from synthesizAR.util import SpatialPair, is_visible, get_keys
 from synthesizAR.instruments import InstrumentBase
 
@@ -98,7 +94,7 @@ class InstrumentSDOAIA(InstrumentBase):
         additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
         super().build_detector_file(file_template, dset_shape, chunks, *args,
                                     additional_fields=additional_fields)
-        
+
     @staticmethod
     def calculate_counts_simple(channel, loop, *args, **kwargs):
         """
@@ -152,7 +148,7 @@ class InstrumentSDOAIA(InstrumentBase):
             counts += counts_tmp
 
         return counts
-    
+
     def flatten_serial(self, loops, interpolated_loop_coordinates, hf, emission_model=None):
         """
         Interpolate intensity in each channel to temporal resolution of the instrument

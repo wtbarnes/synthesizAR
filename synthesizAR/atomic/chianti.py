@@ -16,7 +16,7 @@ __all__ = ['Element']
 
 
 class Element(fiasco.Element):
-        
+
     @u.quantity_input
     def non_equilibrium_ionization(self, time: u.s, temperature: u.K, density: u.cm**(-3),
                                    rate_matrix=None, initial_condition=None, check_solution=True):

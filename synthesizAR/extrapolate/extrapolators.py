@@ -7,7 +7,6 @@ from matplotlib.colors import Normalize
 from scipy.interpolate import griddata
 import astropy.units as u
 import numba
-from sunpy.coordinates.frames import Heliocentric
 from astropy.utils.console import ProgressBar
 
 from synthesizAR.util import SpatialPair

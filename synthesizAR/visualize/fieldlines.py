@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import astropy.units as u
 import astropy.constants as const
 from astropy.time import Time
-from astropy.coordinates import SkyCoord
 from sunpy.util.metadata import MetaDict
 from sunpy.map import GenericMap
 

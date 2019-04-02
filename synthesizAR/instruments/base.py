@@ -2,8 +2,6 @@
 Base class for instrument objects.
 """
 
-import os
-import pickle
 import warnings
 
 import numpy as np
@@ -13,7 +11,7 @@ from astropy.coordinates import SkyCoord
 import h5py
 from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
-from sunpy.coordinates.frames import Heliocentric, Helioprojective, HeliographicStonyhurst
+from sunpy.coordinates.frames import Helioprojective, HeliographicStonyhurst
 try:
     import distributed
 except ImportError:
@@ -201,7 +199,7 @@ class InstrumentBase(object):
         max_y = max(loop_coords.Ty.max(), right_corner.Ty) + pad_y
 
         return min_x, max_x, min_y, max_y
-    
+
     def make_detector_array(self, field):
         """
         Construct bins based on desired observing area.

@@ -41,8 +41,10 @@ class AIATimelags(DistributedAIACollection):
 
     def _interpolate(self, time, cube):
         t_interp = self._interpolate_time
+
         def interp_wrapper(y):
             return interp1d(time, y, axis=0, kind='linear', fill_value='extrapolate')(t_interp)
+
         return da.map_blocks(interp_wrapper, cube, chunks=t_interp.shape+cube.chunks[1:],
                              dtype=cube.dtype)
 

@@ -2,18 +2,13 @@
 Class for Hinode/EIS instrument. Holds information about spectral, temporal, and spatial resolution
 and other instrument-specific information.
 """
-
-import os
 import json
 import pkg_resources
 
 import numpy as np
-from scipy.interpolate import splrep, splev, interp1d
+from scipy.interpolate import splrep, splev
 from scipy.ndimage.filters import gaussian_filter
-from sunpy.util.metadata import MetaDict
-from sunpy.map import Map, GenericMap
-from sunpy.io.fits import get_header
-import sunpy.cm
+from sunpy.map import Map
 import astropy.units as u
 import astropy.io.fits
 import astropy.constants as const
@@ -22,7 +17,7 @@ import h5py
 import plasmapy
 import dask
 
-from synthesizAR.util import SpatialPair, get_keys
+from synthesizAR.util import SpatialPair, get_keys, is_visible
 from synthesizAR.instruments import InstrumentBase
 from synthesizAR.analysis import EISCube
 
@@ -225,7 +220,8 @@ class InstrumentHinodeXRT(InstrumentBase):
         Allocate space for counts data.
         """
         additional_fields = [channel['name'] for channel in self.channels]
-        super().build_detector_file(file_template, dset_shape, chunks, *args, additional_fields=additional_fields, 
+        super().build_detector_file(file_template, dset_shape, chunks, *args,
+                                    additional_fields=additional_fields,
                                     parallel=parallel)
 
     @staticmethod
@@ -233,8 +229,9 @@ class InstrumentHinodeXRT(InstrumentBase):
         """
         Use temperature response to calculate XRT intensity
         """
-        response_function = (splev(np.ravel(loop.electron_temperature), channel['temperature_response_spline'])
-                             * u.count*u.cm**5/u.s/u.pixel)
+        response_function = splev(
+            np.ravel(loop.electron_temperature), channel['temperature_response_spline']
+        ) * u.count*u.cm**5/u.s/u.pixel
         counts = np.reshape(np.ravel(loop.density**2)*response_function, loop.density.shape)
         return counts
 
@@ -248,62 +245,50 @@ class InstrumentHinodeXRT(InstrumentBase):
             tasks[channel['name']] = []
             flattened_emissivities = []
             for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                y = dask.delayed(self.calculate_counts_simple)(channel, loop, emission_model, flattened_emissivities)
+                y = dask.delayed(self.calculate_counts_simple)(
+                    channel, loop, emission_model, flattened_emissivities)
                 tmp_path = save_path.format(channel['name'], loop.name)
-                task = dask.delayed(self.interpolate_and_store)(y, loop, self.observing_time, interp_s, tmp_path)
+                task = dask.delayed(self.interpolate_and_store)(
+                    y, loop, self.observing_time, interp_s, tmp_path)
                 tasks[channel['name']].append(task)
 
         return tasks
 
-    @staticmethod
-    def _detect(counts_filename, observer_coordinate, channel, i_time, header, bins, bin_range,
-                apply_psf):
+    def _detect(self, channel, i_time, header, bins, bin_range):
         """
         For a given channel and timestep, map the intensity along the loop to the 3D field and
         return the XRT data product.
 
         Parameters
         ----------
-        counts_filename : `str`
         channel : `dict`
         i_time : `int`
         header : `~sunpy.util.metadata.MetaDict`
         bins : `SpatialPair`
         bin_range : `SpatialPair`
-        apply_psf : `bool`
 
         Returns
         -------
         XRT data product : `~sunpy.Map`
         """
-        with h5py.File(counts_filename, 'r') as hf:
+        with h5py.File(self.counts_file, 'r') as hf:
             weights = np.array(hf[channel['name']][i_time, :])
             units = u.Unit(get_keys(hf[channel['name']].attrs, ('unit', 'units')))
 
         hpc_coordinates = self.total_coordinates
         dz = np.diff(bin_range.z).cgs[0] / bins.z * (1. * u.pixel)
-        visible = is_visible(hpc_coordinates, observer_coordinate)
+        visible = is_visible(hpc_coordinates, self.observer_coordinate)
         hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
                                     bins=(bins.x.value, bins.y.value),
                                     range=(bin_range.x.value, bin_range.y.value),
                                     weights=visible * weights * dz.value)
-        header['bunit'] = (units * coordinates.unit).to_string()
+        header['bunit'] = (units * dz.unit).to_string()
 
-        if apply_psf:
-            counts = InstrumentHinodeXRT.psf_smooth(hist.T, header)
+        if self.apply_psf:
+            counts = self.psf_smooth(hist.T, header)
         return Map(counts, header)
-        
-    def detect(self, channel, i_time, field, parallel=False):
-        header = self.make_fits_header(field, channel)
-        parameters = (self.counts_file, self.observer_coordinate, channel, i_time, header, 
-                      self.bins, self.bin_range, self.apply_psf)
-        if parallel:
-            return dask.delayed(self._detect)(*parameters)
-        else:
-            return self._detect(*parameters)
-    
-    @staticmethod
-    def psf_smooth(counts, header):
+
+    def psf_smooth(self, counts, header):
         """
         Apply point-spread-function smoothing to XRT image using the PSF given in [1]_
 
@@ -317,7 +302,6 @@ class InstrumentHinodeXRT(InstrumentBase):
         def point_spread_function(x, y):
             r = np.sqrt(x**2 + y**2)
             a = 1.31946
-            sigma = 2.19256
             gamma = 1.24891
             if r <= 3.4176:
                 return a*np.exp(-(r/a)**2)/(gamma**2 + r**2)

@@ -4,7 +4,6 @@ Analyze AIA data efficiently
 import warnings
 
 import numpy as np
-from scipy.interpolate import interp1d
 import dask.bytes
 import dask.array as da
 import distributed
@@ -12,11 +11,10 @@ from astropy.io import fits
 from astropy.time import Time
 import astropy.units as u
 from astropy.io.fits.hdu.base import BITPIX2DTYPE
-from astropy.coordinates import SkyCoord
 import sunpy.map
 from sunpy.util.metadata import MetaDict
 
-__all__ = ['DistributedAIACube', 'DistributedAIACollection',]
+__all__ = ['DistributedAIACube', 'DistributedAIACollection']
 
 
 def validate_dtype_shape(head):

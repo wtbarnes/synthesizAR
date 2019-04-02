@@ -3,16 +3,11 @@ Create data products from loop simulations
 """
 import os
 import warnings
-import logging
-import itertools
 import toolz
 
 import numpy as np
-from scipy.interpolate import splev, splprep, interp1d
-import scipy.ndimage
+from scipy.interpolate import splev, splprep
 import astropy.units as u
-from sunpy.sun import constants
-from sunpy.coordinates.frames import HeliographicStonyhurst
 import h5py
 try:
     import distributed
@@ -179,7 +174,8 @@ class ObserverParallel(ObserverSerial):
                           'ion_temperature', 'density']:
                     partial_interp = toolz.curry(instr.interpolate)(q)
                     partial_write = toolz.curry(instr.write_to_hdf5)(dset_name=q)
-                    y = client.map(partial_interp, self.field.loops, self._interpolated_loop_coordinates)
+                    y = client.map(partial_interp, self.field.loops,
+                                   self._interpolated_loop_coordinates)
                     loop_futures = client.map(partial_write, y, start_indices)
                     # Block until complete
                     distributed.client.wait(loop_futures)
