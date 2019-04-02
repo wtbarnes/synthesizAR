@@ -1,4 +1,4 @@
-name: synthesizar
+name: synthesizar-dev
 channels:
 - defaults
 - conda-forge
