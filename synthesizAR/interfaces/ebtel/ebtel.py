@@ -5,7 +5,6 @@ import os
 import copy
 import warnings
 import toolz
-import pickle
 
 import numpy as np
 import h5py
