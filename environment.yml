@@ -14,7 +14,10 @@ dependencies:
 - dask
 - distributed
 - yt
+- flake8
+- sphinx
 - pip:
+  - sphinx-astropy
   - plasmapy
   - git+git://github.com/wtbarnes/fiasco.git
   
