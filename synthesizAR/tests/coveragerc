@@ -1,16 +1,16 @@
 [run]
-source = {packagename}
+source = synthesizar
 omit =
-   {packagename}/_astropy_init*
-   {packagename}/conftest*
-   {packagename}/cython_version*
-   {packagename}/setup_package*
-   {packagename}/*/setup_package*
-   {packagename}/*/*/setup_package*
-   {packagename}/tests/*
-   {packagename}/*/tests/*
-   {packagename}/*/*/tests/*
-   {packagename}/version*
+   synthesizar/_astropy_init*
+   synthesizar/conftest*
+   synthesizar/cython_version*
+   synthesizar/setup_package*
+   synthesizar/*/setup_package*
+   synthesizar/*/*/setup_package*
+   synthesizar/tests/*
+   synthesizar/*/tests/*
+   synthesizar/*/*/tests/*
+   synthesizar/version*
 
 [report]
 exclude_lines =
