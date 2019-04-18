@@ -1,0 +1,10 @@
+version: 2
+conda:
+  environment: .rtd-environment.yml
+python:
+  version: 3.6
+  install:
+  - method: setuptools
+    path: .
+build:
+  image: latest
