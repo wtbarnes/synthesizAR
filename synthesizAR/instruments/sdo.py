@@ -46,20 +46,34 @@ class InstrumentSDOAIA(InstrumentBase):
         self.fits_template['waveunit'] = 'angstrom'
         self.name = 'SDO_AIA'
         self.channels = [
-            {'wavelength': 94*u.angstrom, 'telescope_number': 4,
-             'gaussian_width': {'x': 0.951*u.pixel, 'y': 0.951*u.pixel}},
-            {'wavelength': 131*u.angstrom, 'telescope_number': 1,
-             'gaussian_width': {'x': 1.033*u.pixel, 'y': 1.033*u.pixel}},
-            {'wavelength': 171*u.angstrom, 'telescope_number': 3,
-             'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}},
-            {'wavelength': 193*u.angstrom, 'telescope_number': 2,
-             'gaussian_width': {'x': 1.512*u.pixel, 'y': 1.512*u.pixel}},
-            {'wavelength': 211*u.angstrom, 'telescope_number': 2,
-             'gaussian_width': {'x': 1.199*u.pixel, 'y': 1.199*u.pixel}},
-            {'wavelength': 335*u.angstrom, 'telescope_number': 1,
-             'gaussian_width': {'x': 0.962*u.pixel, 'y': 0.962*u.pixel}}]
-        self.cadence = 10.0*u.s
-        self.resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel, y=0.600698*u.arcsec/u.pixel,
+            {'wavelength': 94*u.angstrom,
+             'telescope_number': 4,
+             'gaussian_width': {'x': 0.951*u.pixel,
+                                'y': 0.951*u.pixel}},
+            {'wavelength': 131*u.angstrom,
+             'telescope_number': 1,
+             'gaussian_width': {'x': 1.033*u.pixel,
+                                'y': 1.033*u.pixel}},
+            {'wavelength': 171*u.angstrom,
+             'telescope_number': 3,
+             'gaussian_width': {'x': 0.962*u.pixel,
+                                'y': 0.962*u.pixel}},
+            {'wavelength': 193*u.angstrom,
+             'telescope_number': 2,
+             'gaussian_width': {'x': 1.512*u.pixel,
+                                'y': 1.512*u.pixel}},
+            {'wavelength': 211*u.angstrom,
+             'telescope_number': 2,
+             'gaussian_width': {'x': 1.199*u.pixel,
+                                'y': 1.199*u.pixel}},
+            {'wavelength': 335*u.angstrom,
+             'telescope_number': 1,
+             'gaussian_width': {'x': 0.962*u.pixel,
+                                'y': 0.962*u.pixel}},
+        ]
+        self.cadence = 12.0*u.s
+        self.resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel,
+                                      y=0.600698*u.arcsec/u.pixel,
                                       z=None)
         self.apply_psf = apply_psf
         super().__init__(observing_time, observer_coordinate)
@@ -192,8 +206,8 @@ class InstrumentSDOAIA(InstrumentBase):
             if emission_model is not None:
                 flat_emiss = self.flatten_emissivities(channel, emission_model)
             # Map each loop to worker
-            partial_counts = toolz.curry(calculate_counts)(channel, emission_model=emission_model,
-                                                           flattened_emissivities=flat_emiss)
+            partial_counts = toolz.curry(calculate_counts)(
+                channel, emission_model=emission_model,flattened_emissivities=flat_emiss)
             partial_write = toolz.curry(self.write_to_hdf5)(dset_name=channel['name'])
             y = client.map(partial_counts, loops)
             y_interp = client.map(self.interpolate, y, loops, interpolated_loop_coordinates)
@@ -228,7 +242,8 @@ class InstrumentSDOAIA(InstrumentBase):
         hpc_coordinates = self.total_coordinates
         dz = np.diff(bin_range.z)[0].cgs / bins.z * (1. * u.pixel)
         visible = is_visible(hpc_coordinates, self.observer_coordinate)
-        hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
+        hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value,
+                                    hpc_coordinates.Ty.value,
                                     bins=(bins.x.value, bins.y.value),
                                     range=(bin_range.x.value, bin_range.y.value),
                                     weights=visible * weights * dz.value)
