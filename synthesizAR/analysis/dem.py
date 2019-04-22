@@ -212,7 +212,7 @@ def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=Non
     Parameters
     ----------
     time : `~astropy.units.Quantity`
-    field : `~synthesizAR.Field`
+    field : `~synthesizAR.Skeleton`
     instr : `~synthesizAR.instruments.InstrumentBase`
     temperature_bin_edges : `~astropy.units.Quantity`
 

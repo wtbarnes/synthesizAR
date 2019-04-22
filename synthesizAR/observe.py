@@ -19,11 +19,11 @@ from synthesizAR.util import get_keys
 
 class Observer(object):
     """
-    Class for assembling AR from loops and creating data products from 2D projections.
+    Class for assembling data products from 2D projections.
 
     Parameters
     ----------
-    field : `~synthesizAR.Field`
+    field : `~synthesizAR.Skeleton`
     instruments : `list`
     parallel : `bool`
 
@@ -69,7 +69,7 @@ class ObserverSerial(object):
         total_coordinates = []
         interpolated_loop_coordinates = []
         for loop in self.field.loops:
-            n_interp = int(np.ceil((loop.full_length/ds).decompose()))
+            n_interp = int(np.ceil((loop.length/ds).decompose()))
             interpolated_s = np.linspace(loop.field_aligned_coordinate.value[0],
                                          loop.field_aligned_coordinate.value[-1], n_interp)
             interpolated_loop_coordinates.append(interpolated_s)
@@ -121,8 +121,7 @@ class ObserverSerial(object):
 
     @staticmethod
     def assemble_map(observed_map, filename, time):
-        observed_map.meta['tunit'] = time.unit.to_string()
-        observed_map.meta['t_obs'] = time.value
+        observed_map.meta['date-obs'] = time.isot
         observed_map.save(filename, overwrite=True)
 
     def bin_detector_counts(self, savedir, **kwargs):
@@ -152,7 +151,7 @@ class ObserverSerial(object):
                     i_time = np.where(reference_time == time)[0][0]
                     raw_map = instr.detect(channel, i_time, header, bins, bin_range)
                     file_path = file_path_template.format(instr.name, channel['name'], i_time)
-                    self.assemble_map(raw_map, file_path, time)
+                    self.assemble_map(raw_map, file_path, time + instr.start_time)
 
 
 class ObserverParallel(ObserverSerial):
@@ -223,7 +222,7 @@ class ObserverParallel(ObserverSerial):
                 # Map times to detect and save functions
                 maps = client.map(partial_detect, time_indices)
                 futures[instr.name][channel['name']] = client.map(
-                    self.assemble_map, maps, file_paths, instr.observing_time)
+                    self.assemble_map, maps, file_paths, instr.observing_time + instr.start_time)
                 distributed.client.wait(futures[instr.name][channel['name']])
 
         return futures

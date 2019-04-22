@@ -1,11 +1,10 @@
 """
-The Field object holds all the information about the loops the comprise the magnetic skeleton
+Container for fieldlines in three-dimensional magnetic skeleton
 """
 import os
 import datetime
 
 import numpy as np
-import sunpy.map
 from sunpy.coordinates import HeliographicStonyhurst
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -17,54 +16,49 @@ from synthesizAR.extrapolate import peek_fieldlines
 from synthesizAR.util import get_keys
 
 
-class Field(object):
+class Skeleton(object):
     """
-    Construct magnetic field skeleton from magnetogram and fieldlines
+    Construct magnetic field skeleton fieldlines
 
     Parameters
     ----------
-    magnetogram : `~sunpy.map.Map`
-        Magnetogram map for the active region
-    fieldlines : `list`
-        List of tuples, coordinates and field strengths for each loop
+    loops : `list`
+        List of `Loop` objects
 
     Examples
     --------
     >>> import synthesizAR
-    >>> from sunpy.map import Map
     >>> import astropy.units as u
-    >>> m = Map('/path/to/sample_hmi.fits') # doctest: +SKIP
-    >>> fieldlines = [(SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation='cartesian'), [1e2,1e3] * u.G)]
-    >>> field = synthesizAR.Field(m, fieldlines) # doctest: +SKIP
+    >>> loop = synthesizAR.Loop('loop', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation='cartesian'), [1e2,1e3] * u.G)
+    >>> field = synthesizAR.Skeleton([loop,])
     """
 
-    def __init__(self, magnetogram, fieldlines=None, loops=None):
-        self.magnetogram = sunpy.map.Map(magnetogram)
-        if fieldlines:
-            self.loops = self._make_loops(fieldlines)
-        elif loops:
-            self.loops = loops
-        else:
-            raise ValueError('Must specify either fieldline coordinates or pass in a list of `Loop` objects')
+    def __init__(self, loops):
+        self.loops = loops
 
-    def _make_loops(self, fieldlines):
+    @classmethod
+    def from_coordinates(cls, coordinates, field_strengths):
         """
-        Make list of `Loop` objects from the extracted streamlines
+        Construct `Skeleton` from list of coordinates and field strengths
+
+        Parameters
+        ----------
+        coordinates : `list`
+            List of `~astropy.coordinates.SkyCoord` loop coordinates
+        field_strengths : `list`
+            List of `~astropy.units.Quantity` scalar magnetic field strength along the loop
         """
         loops = []
-        for i, (line, mag) in enumerate(fieldlines):
-            loops.append(Loop(f'loop{i:06d}', line, mag))
-        return loops
+        for i, (coord, mag) in enumerate(zip(coordinates, field_strengths)):
+            loops.append(Loop(f'loop{i:06d}', coord, mag))
+        return cls(loops)
 
     def __repr__(self):
         sim_type = self.simulation_type if hasattr(self, 'simulation_type') else ''
-        return f'''synthesizAR Active Region Object
+        return f'''synthesizAR Skeleton Object
 ------------------------
 Number of loops: {len(self.loops)}
-Simulation Type: {sim_type}
-Magnetogram Info:
------------------
-{self.magnetogram.__repr__()}'''
+Simulation Type: {sim_type}'''
 
     def save(self, savedir=None):
         """
@@ -75,8 +69,6 @@ Magnetogram Info:
             savedir = f'synthesizAR-{type(self).__name__}-save_{dt}'
         if not os.path.exists(savedir):
             os.makedirs(savedir)
-        if not os.path.isfile(os.path.join(savedir, 'magnetogram.fits')):
-            self.magnetogram.save(os.path.join(savedir, 'magnetogram.fits'))
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'w') as hf:
             for i, loop in enumerate(self.loops):
                 grp = hf.create_group(loop.name)
@@ -91,7 +83,7 @@ Magnetogram Info:
                 ds.attrs['unit'] = loop.field_strength.unit.to_string()
 
     @classmethod
-    def restore(cls, savedir, lazy=False):
+    def restore(cls, savedir):
         """
         Restore the field from a set of serialized files
 
@@ -99,51 +91,44 @@ Magnetogram Info:
         ----------
         savedir: `str`
             Path to directory that contains savefiles
-        lazy: `bool`, optional
-            If True, the loop coordinates and field strengths are loaded lazily
 
         Examples
         --------
         >>> import synthesizAR
-        >>> restored_field = synthesizAR.Field.restore('/path/to/restored/field/dir') # doctest: +SKIP
+        >>> restored_field = synthesizAR.Skeleton.restore('/path/to/restored/field/dir') # doctest: +SKIP
         """
         loops = []
         indices = []
         with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
             for grp_name in hf:
                 grp = hf[grp_name]
-                if lazy:
-                    l = Loop(grp_name, coords_savefile=os.path.join(savedir, 'loops.h5'))
-                else:
-                    x = u.Quantity(grp['coordinates'][0, :],
-                                   get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                    y = u.Quantity(grp['coordinates'][1, :],
-                                   get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                    z = u.Quantity(grp['coordinates'][2, :],
-                                   get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                    coordinates = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst, 
-                                           representation='cartesian')
-                    field_strength = u.Quantity(
-                        grp['field_strength'],
-                        get_keys(grp['field_strength'].attrs, ('unit', 'units')))
-                    l = Loop(grp_name, coordinates=coordinates, field_strength=field_strength)
+                x = u.Quantity(grp['coordinates'][0, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                y = u.Quantity(grp['coordinates'][1, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                z = u.Quantity(grp['coordinates'][2, :],
+                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
+                coordinates = SkyCoord(
+                    x=x, y=y, z=z, frame=HeliographicStonyhurst, representation='cartesian')
+                field_strength = u.Quantity(
+                    grp['field_strength'],
+                    get_keys(grp['field_strength'].attrs, ('unit', 'units')))
+                l = Loop(grp_name, coordinates=coordinates, field_strength=field_strength)
                 if grp.attrs['parameters_savefile']:
                     l.parameters_savefile = grp.attrs['parameters_savefile']
                 loops.append(l)
                 indices.append(grp.attrs['index'])
         # NOTE: this to make sure the loops are in the same order as before
         loops, _ = zip(*sorted(zip(loops, indices), key=lambda x: x[1]))
-        magnetogram = sunpy.map.Map(os.path.join(savedir, 'magnetogram.fits'))
-        field = cls(magnetogram, loops=loops)
 
-        return field
+        return cls(loops)
 
-    def peek(self, **kwargs):
+    def peek(self, magnetogram, **kwargs):
         """
         Show extracted fieldlines overlaid on magnetogram.
         """
         fieldlines = [loop.coordinates for loop in self.loops]
-        peek_fieldlines(self.magnetogram, fieldlines, **kwargs)
+        peek_fieldlines(magnetogram, fieldlines, **kwargs)
 
     def configure_loop_simulations(self, interface, **kwargs):
         """

@@ -136,7 +136,7 @@ class EmissionModel(fiasco.IonCollection):
 
         Parameters
         ----------
-        field : `~synthesizAR.Field`
+        field : `~synthesizAR.Skeleton`
         savefile : `str`
         interface : optional
             Hydrodynamic model interface
