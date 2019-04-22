@@ -44,7 +44,7 @@ def test_loop_field_aligned_coordinate(loop):
     assert np.all(loop.field_aligned_coordinate == s)
 
 
-def test_loop_full_length(loop):
-    assert hasattr(loop, 'full_length')
+def test_loop_length(loop):
+    assert hasattr(loop, 'length')
     dx, dy, dz = np.diff(loop.coordinates.x), np.diff(loop.coordinates.y), np.diff(loop.coordinates.z)
-    assert loop.full_length == np.sqrt(dx**2 + dy**2 + dz**2).sum()
+    assert loop.length == np.sqrt(dx**2 + dy**2 + dz**2).sum()
