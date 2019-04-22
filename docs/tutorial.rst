@@ -51,11 +51,11 @@ Building an Active Region and Tracing Fieldlines
 ------------------------------------------------
 Now that we have the 3D magnetic field, we can trace magnetic fieldlines through the volume,
 
-    >>> fieldlines = extrapolator.trace_fieldlines(B_field, 100, verbose=False, notebook=False)
+    >>> coordinates, field_strengths = extrapolator.trace_fieldlines(B_field, 100, verbose=False, notebook=False)
 
-Each entry in our fieldline list contains 1) the coordinates of the fieldline as a `~astropy.coordinates.SkyCoord` object and 2) the magnitude of the magnetic field strength. We can then use these fieldlines and the associated magnetogram to construct our `~synthesizAR.Field` object,
+Each entry in our fieldline list contains 1) the coordinates of the fieldline as a `~astropy.coordinates.SkyCoord` object and 2) the magnitude of the magnetic field strength. We can then use these fieldlines and the associated magnetogram to construct our `~synthesizAR.Skeleton` object,
 
-    >>> active_region = synthesizAR.Field(magnetogram, fieldlines)
+    >>> active_region = synthesizAR.Skeleton.from_coordinates(coordinates, field_strengths)
 
 Note that we need not construct the fieldlines in this manner. Similary, we could get the fieldlines using some other method (e.g. the `pfss package from SSW <http://www.lmsal.com/~derosa/pfsspack/>`_) and construct our active region in exactly the same way.
 
@@ -76,7 +76,7 @@ The final step in our forward modeling pipeline is to compute the synthetic inte
 First, we need to create the instrument and tell it the location of our observer. In this case, we'll use the observer coordinate define by our magnetogram: at disk center at a distance of 1 AU.
 
     >>> from synthesizAR.instruments import InstrumentSDOAIA
-    >>> aia = InstrumentSDOAIA([0,1]*u.s, active_region.magnetogram.observer_coordinate)
+    >>> aia = InstrumentSDOAIA([0,1]*u.s, magnetogram.observer_coordinate)
 
 Next, we combine our instrument object and active region into a single observer object that will compute the intensities from the temperatures and densities of each loop.
 

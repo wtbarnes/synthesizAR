@@ -33,6 +33,8 @@ class InstrumentSDOAIA(InstrumentBase):
     observing_time : `tuple`
         start and end of observing time
     observer_coordinate : `~astropy.coordinates.SkyCoord`
+    start_time : `~astropy.time.Time` or compatible datetime, optional
+        Starting time of the observation; if None, defaults to now.
     apply_psf : `bool`, optional
         If True (default), apply AIA point-spread function to images
 
@@ -40,7 +42,7 @@ class InstrumentSDOAIA(InstrumentBase):
     --------
     """
 
-    def __init__(self, observing_time, observer_coordinate, apply_psf=True):
+    def __init__(self, observing_time, observer_coordinate, start_time=None, apply_psf=True):
         self.fits_template['telescop'] = 'SDO/AIA'
         self.fits_template['detector'] = 'AIA'
         self.fits_template['waveunit'] = 'angstrom'
@@ -76,7 +78,7 @@ class InstrumentSDOAIA(InstrumentBase):
                                       y=0.600698*u.arcsec/u.pixel,
                                       z=None)
         self.apply_psf = apply_psf
-        super().__init__(observing_time, observer_coordinate)
+        super().__init__(observing_time, observer_coordinate, start_time=start_time)
         self._setup_channels()
 
     def _setup_channels(self):
@@ -207,7 +209,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 flat_emiss = self.flatten_emissivities(channel, emission_model)
             # Map each loop to worker
             partial_counts = toolz.curry(calculate_counts)(
-                channel, emission_model=emission_model,flattened_emissivities=flat_emiss)
+                channel, emission_model=emission_model, flattened_emissivities=flat_emiss)
             partial_write = toolz.curry(self.write_to_hdf5)(dset_name=channel['name'])
             y = client.map(partial_counts, loops)
             y_interp = client.map(self.interpolate, y, loops, interpolated_loop_coordinates)

@@ -8,6 +8,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.time import Time
 import h5py
 from sunpy.util.metadata import MetaDict
 from sunpy.sun import constants
@@ -35,11 +36,12 @@ class InstrumentBase(object):
     fits_template = MetaDict()
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observer_coordinate):
+    def __init__(self, observing_time: u.s, observer_coordinate, start_time=None):
         self.observing_time = np.arange(observing_time[0].to(u.s).value,
                                         observing_time[1].to(u.s).value,
                                         self.cadence.value)*u.s
         self.observer_coordinate = observer_coordinate
+        self.start_time = Time.now() if start_time is None else Time(start_time)
 
     def detect(self, *args, **kwargs):
         """
@@ -144,7 +146,7 @@ class InstrumentBase(object):
         """
         Build up FITS header with relevant instrument information.
         """
-        min_x, max_x, min_y, max_y = self._get_fov(field.magnetogram)
+        min_x, max_x, min_y, max_y = self._get_fov()
         bins, _ = self.make_detector_array(field)
         fits_header = MetaDict()
         fits_header['crval1'] = (min_x + (max_x - min_x)/2).value
@@ -155,7 +157,6 @@ class InstrumentBase(object):
         fits_header['hgln_obs'] = self.observer_coordinate.lon.to(u.deg).value
         fits_header['ctype1'] = 'HPLN-TAN'
         fits_header['ctype2'] = 'HPLT-TAN'
-        fits_header['date-obs'] = field.magnetogram.meta['date-obs']
         fits_header['dsun_obs'] = self.observer_coordinate.radius.to(u.m).value
         fits_header['rsun_obs'] = ((constants.radius
                                     / (self.observer_coordinate.radius - constants.radius))
@@ -173,30 +174,23 @@ class InstrumentBase(object):
 
         return fits_header
 
-    def _get_fov(self, ar_map):
+    def _get_fov(self):
         """
-        Find the field of view, taking into consideration the corners of the
-        original AR map and the loop coordinates in HPC.
+        Find the field of view given the loop coordinates in HPC.
         """
-        # Check magnetogram FOV
-        left_corner = (ar_map.bottom_left_coord.transform_to(
-            Helioprojective(observer=self.observer_coordinate)))
-        right_corner = (ar_map.top_right_coord.transform_to(
-            Helioprojective(observer=self.observer_coordinate)))
-        # Set bounds to include all loops and original magnetogram FOV (with some padding)
         loop_coords = self.total_coordinates
         if 'gaussian_width' in self.channels[0]:
             width_max = u.Quantity([c['gaussian_width']['x'] for c in self.channels]).max()
-            pad_x = self.resolution.x * width_max
+            pad_x = self.resolution.x * width_max * 10
             width_max = u.Quantity([c['gaussian_width']['y'] for c in self.channels]).max()
-            pad_y = self.resolution.y * width_max
+            pad_y = self.resolution.y * width_max * 10
         else:
-            pad_x = self.resolution.x * 1 * u.pixel
-            pad_y = self.resolution.y * 1 * u.pixel
-        min_x = min(loop_coords.Tx.min(), left_corner.Tx) - pad_x
-        max_x = max(loop_coords.Tx.max(), right_corner.Tx) + pad_x
-        min_y = min(loop_coords.Ty.min(), left_corner.Ty) - pad_y
-        max_y = max(loop_coords.Ty.max(), right_corner.Ty) + pad_y
+            pad_x = self.resolution.x * 10 * u.pixel
+            pad_y = self.resolution.y * 10 * u.pixel
+        min_x = loop_coords.Tx.min() - pad_x
+        max_x = loop_coords.Tx.max() + pad_x
+        min_y = loop_coords.Ty.min() - pad_y
+        max_y = loop_coords.Ty.max() + pad_y
 
         return min_x, max_x, min_y, max_y
 
@@ -205,7 +199,7 @@ class InstrumentBase(object):
         Construct bins based on desired observing area.
         """
         # Get field of view
-        min_x, max_x, min_y, max_y = self._get_fov(field.magnetogram)
+        min_x, max_x, min_y, max_y = self._get_fov()
         min_z = self.total_coordinates.distance.min()
         max_z = self.total_coordinates.distance.max()
         delta_x = max_x - min_x
@@ -216,7 +210,8 @@ class InstrumentBase(object):
 
         # NOTE: the z-quantities are used to determine the integration step along the LOS
         bins = SpatialPair(x=bins_x, y=bins_y, z=bins_z)
-        bin_range = SpatialPair(x=u.Quantity([min_x, max_x]), y=u.Quantity([min_y, max_y]),
+        bin_range = SpatialPair(x=u.Quantity([min_x, max_x]),
+                                y=u.Quantity([min_y, max_y]),
                                 z=u.Quantity([min_z, max_z]))
 
         return bins, bin_range
