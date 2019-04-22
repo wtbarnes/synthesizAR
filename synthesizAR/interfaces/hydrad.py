@@ -19,10 +19,10 @@ class HYDRADInterface(object):
 
     Configure, interpolate, and load results for HYDRAD simulations
     for each loop in the magnetic skeleton. Note that the load function
-    will also reinterpolate the loop coordinates and magnetic field 
-    strength for each loop such that the spatial resolution is 
+    will also reinterpolate the loop coordinates and magnetic field
+    strength for each loop such that the spatial resolution is
     `delta_s_uniform`.
-    
+
     Parameters
     ----------
     base_config: `dict`
@@ -38,7 +38,6 @@ class HYDRADInterface(object):
     delta_s_uniform: `~astropy.units.Quantity`
         Grid spacing of the uniform spatial grid to which all
         quantities will be interpreted
-
     """
     name = 'HYDRAD'
 
@@ -53,12 +52,11 @@ class HYDRADInterface(object):
     
     def configure_input(self, loop):
         config = self.base_config.copy()
-        # General configuration
-        config['general']['loop_length'] = loop.full_length
+        config['general']['loop_length'] = loop.length
         # This makes sure that the chromosphere does not take up the whole loop
-        config['general']['footpoint_height'] = 0.5 * min(10*u.Mm, 0.5*loop.full_length)
-        config['initial_conditions']['heating_location'] = loop.full_length / 2.
-        config['grid']['minimum_cells'] = int(loop.full_length / self.max_grid_cell)
+        config['general']['footpoint_height'] = 0.5 * min(10*u.Mm, 0.5*loop.length)
+        config['initial_conditions']['heating_location'] = loop.length / 2.
+        config['grid']['minimum_cells'] = int(loop.length / self.max_grid_cell)
         # Gravity and cross-section coefficients
         config['general']['tabulated_gravity_profile'] = self.get_gravity_coefficients(loop)
         config['general']['tabulated_cross_section_profile'] = self.get_cross_section_coefficients(loop)
@@ -70,12 +68,10 @@ class HYDRADInterface(object):
                            verbose=False)
 
     def load_results(self, loop):
-        # Create the strand
+        # Create the strand and uniform coordinate
         s = Strand(os.path.join(self.output_dir, loop.name), read_amr=False)
-        # Create uniform coordinate
         s_uniform = np.arange(
             0, s.loop_length.to(u.cm).value, self.delta_s_uniform.to(u.cm).value)*u.cm
-
         # Preallocate space for arrays
         shape = s.time.shape + s_uniform.shape
         electron_temperature = np.zeros(shape)
@@ -87,15 +83,12 @@ class HYDRADInterface(object):
         for i, _ in enumerate(s.time):
             p = s[i]
             coord = p.coordinate.to(u.cm).value
-            # Temperature
             tsk = splrep(coord, p.electron_temperature.to(u.K).value,)
             electron_temperature[i, :] = splev(s_uniform.value, tsk, ext=0)
             tsk = splrep(coord, p.ion_temperature.to(u.K).value,)
             ion_temperature[i, :] = splev(s_uniform.value, tsk, ext=0)
-            # Density
             tsk = splrep(coord, p.electron_density.to(u.cm**(-3)).value)
             density[i, :] = splev(s_uniform.value, tsk, ext=0)
-            # Velocity
             tsk = splrep(coord, p.velocity.to(u.cm/u.s).value,)
             velocity[i, :] = splev(s_uniform.value, tsk, ext=0)
 
@@ -124,11 +117,11 @@ class HYDRADInterface(object):
         )
 
     def get_cross_section_coefficients(self, loop):
-        s_norm = loop.field_aligned_coordinate / loop.full_length
+        s_norm = loop.field_aligned_coordinate / loop.length
         return np.polyfit(s_norm, loop.field_strength, 6)[::-1]
 
     def get_gravity_coefficients(self, loop):
-        s_norm = loop.field_aligned_coordinate / loop.full_length
+        s_norm = loop.field_aligned_coordinate / loop.length
         s_hat = (np.gradient(loop.coordinates.cartesian.xyz, axis=1)
                  / np.linalg.norm(np.gradient(loop.coordinates.cartesian.xyz, axis=1), axis=0))
         r_hat = u.Quantity(np.stack([

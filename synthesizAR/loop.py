@@ -1,9 +1,8 @@
 """
-Class for an individual loop structure that is part of a larger active region.
+Loop object for holding field-aligned coordinates and quantities
 """
 import numpy as np
 import astropy.units as u
-from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
 import h5py
 
@@ -38,55 +37,21 @@ class Loop(object):
     """
 
     @u.quantity_input
-    def __init__(self, name, coordinates=None, field_strength=None, coords_savefile=None):
+    def __init__(self, name, coordinates, field_strength: u.G):
+        if coordinates.shape != field_strength.shape:
+            raise ValueError('Coordinates and field strength must have same shape.')
         self.name = name
-        if coordinates is not None:
-            self._coordinates = coordinates.transform_to(HeliographicStonyhurst)
-            self._coordinates.representation = 'cartesian'
-        if field_strength is not None:
-            self._field_strength = field_strength.to(u.gauss)
-        self.coords_savefile = coords_savefile
+        self.coordinates = coordinates.transform_to(HeliographicStonyhurst)
+        self.coordinates.representation = 'cartesian'
+        self.field_strength = field_strength
 
     def __repr__(self):
         f0 = f'{self.coordinates.x[0]:.3g},{self.coordinates.y[0]:.3g},{self.coordinates.z[0]:.3g}'
         f1 = f'{self.coordinates.x[-1]:.3g},{self.coordinates.y[-1]:.3g},{self.coordinates.z[-1]:.3g}'
         return f'''Name : {self.name}
-Loop full-length, 2L : {self.full_length.to(u.Mm):.3f}
+Loop full-length, 2L : {self.length.to(u.Mm):.3f}
 Footpoints : ({f0}),({f1})
 Maximum field strength : {np.max(self.field_strength):.2f}'''
-
-    @property
-    def coordinates(self):
-        """
-        World coordinates of loop
-        """
-        if hasattr(self, '_coordinates'):
-            return self._coordinates
-        else:
-            with h5py.File(self.coords_savefile, 'r') as hf:
-                grp = hf[self.name]
-                x = u.Quantity(grp['coordinates'][0, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                y = u.Quantity(grp['coordinates'][1, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                z = u.Quantity(grp['coordinates'][2, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                return SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst,
-                                representation='cartesian')
-
-    @property
-    @u.quantity_input
-    def field_strength(self) -> u.G:
-        """
-        Magnetic field strength as a function of the field-aligned coordinate
-        """
-        if hasattr(self, '_field_strength'):
-            return self._field_strength
-        else:
-            with h5py.File(self.coords_savefile, 'r') as hf:
-                grp = hf[self.name]
-                return u.Quantity(grp['field_strength'],
-                                  get_keys(grp['field_strength'].attrs, ('unit', 'units')))
 
     @property
     @u.quantity_input
@@ -99,7 +64,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
 
     @property
     @u.quantity_input
-    def full_length(self) -> u.cm:
+    def length(self) -> u.cm:
         """
         Loop full-length :math:`2L`, from footpoint to footpoint
         """

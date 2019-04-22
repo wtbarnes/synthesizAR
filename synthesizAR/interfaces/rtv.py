@@ -33,7 +33,7 @@ class RTVInterface(object):
     def load_results(self, loop):
         pressure = loop.field_strength.mean().to(u.G).value**2 / 8 / np.pi * self.plasma_beta
         pressure = pressure * u.dyne / (u.cm**2)
-        rtv = RTVScalingLaws(loop.full_length/2, pressure=pressure, **self.rtv_kwargs)
+        rtv = RTVScalingLaws(loop.length/2, pressure=pressure, **self.rtv_kwargs)
         time = u.Quantity([0, ], 's')
         shape = time.shape+loop.field_aligned_coordinate.shape
         temperature = np.ones(shape) * rtv.max_temperature

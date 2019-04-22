@@ -41,8 +41,8 @@ class MartensInterface(object):
         # Get maximum temperature from RTV scaling laws
         pressure = loop.field_strength.mean().to(u.G).value**2 / 8 / np.pi * self.plasma_beta
         pressure = pressure * u.dyne / (u.cm**2)
-        rtv = RTVScalingLaws(loop.full_length/2, pressure=pressure, **self.rtv_kwargs)
-        s_half = np.arange(0, loop.full_length.to(u.Mm).value/2, 0.1) * u.Mm
+        rtv = RTVScalingLaws(loop.length/2, pressure=pressure, **self.rtv_kwargs)
+        s_half = np.arange(0, loop.length.to(u.Mm).value/2, 0.1) * u.Mm
         martens = MartensScalingLaws(s_half, rtv.max_temperature, **self.martens_kwargs)
         # Assume symmetric, reflect across apex
         s_full = np.concatenate((martens.s, martens.s[1:]+martens.s[-1])).value * martens.s.unit

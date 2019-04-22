@@ -56,7 +56,7 @@ class EbtelInterface(object):
         output_filename = os.path.join(self.config_dir, loop.name+'.xml')
         output_dict = copy.deepcopy(self.base_config)
         output_dict['output_filename'] = os.path.join(self.results_dir, loop.name)
-        output_dict['loop_length'] = loop.full_length.to(u.cm).value / 2.0
+        output_dict['loop_length'] = loop.length.to(u.cm).value / 2.0
         event_properties = self.heating_model.calculate_event_properties(loop)
         events = []
         for i in range(event_properties['magnitude'].shape[0]):
