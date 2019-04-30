@@ -12,6 +12,8 @@ import sunpy.sun.constants as sun_const
 from hydrad_tools.configure import Configure
 from hydrad_tools.parse import Strand
 
+__all__ = ['HYDRADInterface']
+
 
 class HYDRADInterface(object):
     """
