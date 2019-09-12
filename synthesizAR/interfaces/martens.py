@@ -30,6 +30,7 @@ class MartensInterface(object):
     synthesizAR.physics.MartensScalingLaws :
     synthesizAR.physics.RTVScalingLaws :
     """
+    name = 'Martens'
 
     def __init__(self, plasma_beta=0.001, martens_kwargs=None, rtv_kwargs=None):
         self.plasma_beta = plasma_beta

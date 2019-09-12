@@ -25,6 +25,7 @@ class RTVInterface(object):
     synthesizAR.physics.MartensScalingLaws :
     synthesizAR.physics.RTVScalingLaws :
     """
+    name = 'RTV'
 
     def __init__(self, plasma_beta=0.001, rtv_kwargs=None):
         self.plasma_beta = plasma_beta

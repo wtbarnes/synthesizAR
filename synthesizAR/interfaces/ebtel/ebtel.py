@@ -33,12 +33,12 @@ class EbtelInterface(object):
     results_dir : `str`
         Path to results file directory
     """
+    name = 'EBTEL'
 
     def __init__(self, base_config, heating_model, config_dir, results_dir):
         """
         Create EBTEL interface
         """
-        self.name = 'EBTEL'
         self.base_config = base_config
         self.heating_model = heating_model
         self.heating_model.base_config = base_config
