@@ -34,7 +34,7 @@ def run_ebtel(ebtel_dir, loop):
                           '-c', loop.hydro_configuration['config_filename']],
                          shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
     if cmd.stderr:
-        raise EbtelException(f"{cmd.stderr.decode('utf-8')}")
+        raise EbtelPlusPlusError(f"{cmd.stderr.decode('utf-8')}")
 
 
 def read_xml(input_filename,):
