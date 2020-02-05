@@ -12,14 +12,14 @@ import astropy.units as u
 import astropy.constants as const
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst, HeliographicCarrington, Heliocentric
-from sunpy.image.rescale import resample
+from sunpy.image.resample import resample
 import sunpy.time
 import yt
 
 from synthesizAR.util import is_visible
 
-__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines', 'peek_fieldlines',
-           'from_pfsspack', 'circular_loop']
+__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines',
+           'peek_fieldlines', 'from_pfsspack', 'circular_loop']
 
 
 @u.quantity_input
