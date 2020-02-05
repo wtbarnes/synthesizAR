@@ -9,8 +9,8 @@ import astropy.units as u
 import astropy.constants as const
 from astropy.coordinates import SkyCoord
 import sunpy.sun.constants as sun_const
-from hydrad_tools.configure import Configure
-from hydrad_tools.parse import Strand
+from pydrad.configure import Configure
+from pydrad.parse import Strand
 
 __all__ = ['HYDRADInterface']
 
@@ -55,18 +55,16 @@ class HYDRADInterface(object):
     def configure_input(self, loop):
         config = self.base_config.copy()
         config['general']['loop_length'] = loop.length
-        # This makes sure that the chromosphere does not take up the whole loop
-        config['general']['footpoint_height'] = 0.5 * min(10*u.Mm, 0.5*loop.length)
         config['initial_conditions']['heating_location'] = loop.length / 2.
-        config['grid']['minimum_cells'] = int(loop.length / self.max_grid_cell)
         # Gravity and cross-section coefficients
-        config['general']['tabulated_gravity_profile'] = self.get_gravity_coefficients(loop)
-        config['general']['tabulated_cross_section_profile'] = self.get_cross_section_coefficients(loop)
+        config['general']['poly_fit_gravity'] = self.get_gravity_coefficients(loop)
+        config['general']['poly_fit_magnetic_field'] = self.get_cross_section_coefficients(loop)
         # Heating configuration
         config['heating']['events'] = self.heating_model.calculate_event_properties(loop)
         # Setup configuration and generate initial conditions
         c = Configure(config)
-        c.setup_simulation(self.output_dir, base_path=self.hydrad_dir, name=loop.name,
+        c.setup_simulation(os.path.join(self.output_dir, loop.name),
+                           base_path=self.hydrad_dir,
                            verbose=False)
 
     def load_results(self, loop):
@@ -97,11 +95,11 @@ class HYDRADInterface(object):
         # Interpolate loop coordinates
         tsk, _ = splprep(loop.coordinates.cartesian.xyz.value)
         coord_xyz = splev((s_uniform/s.loop_length).decompose().value, tsk)
-        loop._coordinates = SkyCoord(
+        loop.coordinates = SkyCoord(
             x=coord_xyz[0, :]*loop.coordinates.cartesian.xyz.unit,
             y=coord_xyz[1, :]*loop.coordinates.cartesian.xyz.unit,
             z=coord_xyz[2, :]*loop.coordinates.cartesian.xyz.unit,
-            frame=loop._coordinates.frame,
+            frame=loop.coordinates.frame,
             representation='cartesian',
         )
         # Interpolate magnetic field strength
