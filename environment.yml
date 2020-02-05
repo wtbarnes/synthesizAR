@@ -4,12 +4,9 @@ channels:
 - conda-forge
 dependencies:
 - python
-- numpy
+- pip
 - numba
-- scipy
-- matplotlib
 - h5py
-- astropy
 - sunpy
 - dask
 - distributed
@@ -18,6 +15,6 @@ dependencies:
 - sphinx
 - pip:
   - sphinx-astropy
-  - plasmapy
+  - plasmapy[theory]
   - git+git://github.com/wtbarnes/fiasco.git
-  
+  - git+git://github.com/rice-solar-physics/pydrad.git
