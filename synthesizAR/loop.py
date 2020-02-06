@@ -31,44 +31,106 @@ class Loop(object):
     >>> loop = synthesizAR.Loop('coronal_loop', coordinate, field_strength)
     >>> loop
     Name : coronal_loop
-    Loop full-length, 2L : 5.196 Mm
+    Loop full-length, L : 5.196 Mm
     Footpoints : (1 Mm,2 Mm,3 Mm),(4 Mm,5 Mm,6 Mm)
     Maximum field strength : 200.00 G
     """
 
     @u.quantity_input
-    def __init__(self, name, coordinates, field_strength: u.G):
+    def __init__(self, name, coordinates, field_strength: u.G, model_results_filename=None):
         if coordinates.shape != field_strength.shape:
             raise ValueError('Coordinates and field strength must have same shape.')
         self.name = name
         self.coordinates = coordinates.transform_to(HeliographicStonyhurst)
         self.coordinates.representation = 'cartesian'
         self.field_strength = field_strength
+        self.model_results_filename = model_results_filename
 
     def __repr__(self):
         f0 = f'{self.coordinates.x[0]:.3g},{self.coordinates.y[0]:.3g},{self.coordinates.z[0]:.3g}'
         f1 = f'{self.coordinates.x[-1]:.3g},{self.coordinates.y[-1]:.3g},{self.coordinates.z[-1]:.3g}'
-        return f'''Name : {self.name}
-Loop full-length, 2L : {self.length.to(u.Mm):.3f}
+        return f'''synthesizAR Loop
+----------------
+Name : {self.name}
+Loop full-length, L : {self.length.to(u.Mm):.3f}
 Footpoints : ({f0}),({f1})
-Maximum field strength : {np.max(self.field_strength):.2f}'''
+Maximum field strength : {np.max(self.field_strength):.2f}
+Simulation Type: {self.simulation_type}'''
 
     @property
     @u.quantity_input
     def field_aligned_coordinate(self) -> u.cm:
         """
-        Field-aligned coordinate :math:`s` such that :math:`0<s<L`
+        Field-aligned coordinate :math:`s` such that :math:`0<s<L`.
+
+        Technically, the first :math:`N` cells are the left edges of
+        each grid cell and the :math:`N+1` cell is the right edge of
+        the last grid cell.
         """
         return np.append(0., np.linalg.norm(np.diff(self.coordinates.cartesian.xyz.value, axis=1),
                                             axis=0).cumsum()) * self.coordinates.cartesian.xyz.unit
 
     @property
     @u.quantity_input
+    def field_aligned_coordinate_norm(self) -> u.dimensionless_unscaled:
+        """
+        Field-aligned coordinate normalized to the total loop length
+        """
+        return self.field_aligned_coordinate / self.length
+
+    @property
+    @u.quantity_input
+    def coordinate_direction(self):
+        """
+        Unit vector indicating the direction of :math:`s` in HEEQ
+        """
+        grad_xyz = np.gradient(self.coordinates.cartesian.xyz.value, axis=1)
+        return grad_xyz / np.linalg.norm(grad_xyz, axis=0)
+
+    @property
+    @u.quantity_input
+    def field_aligned_coordinate_edge(self) -> u.cm:
+        """
+        Left cell edge of the field-aligned coordinate cells
+        """
+        return self.field_aligned_coordinate[:1]
+
+    @property
+    @u.quantity_input
+    def field_aligned_coordinate_center(self) -> u.cm:
+        """
+        Center of the field-aligned coordinate cells
+        """
+        # Avoid doing this calculation twice
+        s = self.field_aligned_coordinate
+        return (s[:-1] + s[1:])/2
+
+    @property
+    @u.quantity_input
+    def field_aligned_coordinate_width(self) -> u.cm:
+        """
+        Width of each field-aligned coordinate grid cell
+        """
+        return np.diff(self.field_aligned_coordinate)
+
+    @property
+    @u.quantity_input
     def length(self) -> u.cm:
         """
-        Loop full-length :math:`2L`, from footpoint to footpoint
+        Loop full-length :math:`L`, from footpoint to footpoint
         """
-        return np.diff(self.field_aligned_coordinate).sum()
+        return self.field_aligned_coordinate_width.sum()
+
+    @property
+    def simulation_type(self) -> str:
+        """
+        The model used to produce the field-aligned hydrodynamic quantities
+        """
+        if self.model_results_filename is None:
+            return None
+        else:
+            with h5py.File(self.model_results_filename, 'r') as hf:
+                return hf[self.name].attrs['simulation_type']
 
     @property
     @u.quantity_input
@@ -76,7 +138,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Simulation time
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'time'])]
             time = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return time
@@ -87,7 +149,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Loop electron temperature as function of coordinate and time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'electron_temperature'])]
             temperature = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return temperature
@@ -98,7 +160,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Loop ion temperature as function of coordinate and time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'ion_temperature'])]
             temperature = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return temperature
@@ -109,7 +171,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Loop density as a function of coordinate and time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'density'])]
             density = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return density
@@ -121,7 +183,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
         time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity'])]
             velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
@@ -132,7 +194,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         X-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_x'])]
             velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
@@ -143,7 +205,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Y-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_y'])]
             velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
@@ -154,7 +216,7 @@ Maximum field strength : {np.max(self.field_strength):.2f}'''
         """
         Z-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
-        with h5py.File(self.parameters_savefile, 'r') as hf:
+        with h5py.File(self.model_results_filename, 'r') as hf:
             dset = hf['/'.join([self.name, 'velocity_z'])]
             velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
         return velocity
