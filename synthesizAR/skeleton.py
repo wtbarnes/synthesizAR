@@ -25,7 +25,7 @@ class Skeleton(object):
     --------
     >>> import synthesizAR
     >>> import astropy.units as u
-    >>> loop = synthesizAR.Loop('loop', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation='cartesian'), [1e2,1e3] * u.G)
+    >>> loop = synthesizAR.Loop('loop', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation_type='cartesian'), [1e2,1e3] * u.G)
     >>> field = synthesizAR.Skeleton([loop,])
     """
 
@@ -93,6 +93,15 @@ Number of loops: {len(self.loops)}'''
                 ))
         return cls(loops)
 
+    @property
+    def all_coordinates(self):
+        """
+        Coordinates for all loops in the skeleton
+        """
+        return SkyCoord([l.coordinate for l in self.loops],
+                        frame=self.loops[0].coordinate.frame,
+                        representation_type=self.loops[0].coordinate.representation_type)
+
     def peek(self, magnetogram, **kwargs):
         """
         Show extracted fieldlines overlaid on magnetogram.
@@ -126,7 +135,7 @@ Number of loops: {len(self.loops)}'''
                     # to interpolate the direction to the cell centers for each component
                     s = loop.field_aligned_coordinate.to(u.Mm).value
                     s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
-                    s_hat = loop.coordinate_direction.value
+                    s_hat = loop.coordinate_direction
                     velocity_x = velocity * splev(s_center, splrep(s, s_hat[0, :]))
                     velocity_y = velocity * splev(s_center, splrep(s, s_hat[1, :]))
                     velocity_z = velocity * splev(s_center, splrep(s, s_hat[2, :]))
