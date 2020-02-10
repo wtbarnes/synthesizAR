@@ -4,8 +4,9 @@ Interface between loop object and scaling law calculations by Martens
 import numpy as np
 from scipy.interpolate import interp1d
 import astropy.units as u
+import astropy.constants as const
 
-from synthesizAR.physics import MartensScalingLaws, RTVScalingLaws
+from synthesizAR.physics import MartensScalingLaws
 
 __all__ = ['MartensInterface']
 
@@ -18,49 +19,45 @@ class MartensInterface(object):
 
     Parameters
     ----------
-    plasma_beta : `float`, optional
-        Ratio of plasma to magnetic pressure
-    martens_kwargs : `dict`, optional
+    temperature_cutoff : `~astropy.units.Quantity`, optional
+        Lowest possible temperature in the loop. The Martens scaling laws
+        permit temperatures of 0 K at the base of the loop which are unphysical.
+    model_parameters : `dict`, optional
         Keyword arguments to `synthesizAR.physics.MartensScalingLaws`
-    rtv_kwargs : `dict`, optional
-        Keyword arguments to `synthesizAR.physics.RTVScalingLaws`
 
     See Also
     --------
     synthesizAR.physics.MartensScalingLaws :
-    synthesizAR.physics.RTVScalingLaws :
     """
-    name = 'Martens'
+    name = 'Martens2010'
 
-    def __init__(self, plasma_beta=0.001, martens_kwargs=None, rtv_kwargs=None):
-        self.plasma_beta = plasma_beta
-        self.martens_kwargs = {} if martens_kwargs is None else martens_kwargs
-        self.rtv_kwargs = {} if rtv_kwargs is None else rtv_kwargs
+    @u.quantity_input
+    def __init__(self, heating_constant, temperature_cutoff=1e4*u.K, **model_parameters):
+        self.temperature_cutoff = temperature_cutoff
+        self.model_parameters = model_parameters
+        self.heating_constant = heating_constant
 
     def load_results(self, loop):
-        time = u.Quantity([0,], 's')
-        # Get maximum temperature from RTV scaling laws
-        pressure = loop.field_strength.mean().to(u.G).value**2 / 8 / np.pi * self.plasma_beta
-        pressure = pressure * u.dyne / (u.cm**2)
-        rtv = RTVScalingLaws(loop.length/2, pressure=pressure, **self.rtv_kwargs)
-        s_half = np.arange(0, loop.length.to(u.Mm).value/2, 0.1) * u.Mm
-        martens = MartensScalingLaws(s_half, rtv.max_temperature, **self.martens_kwargs)
+        time = u.Quantity([0, ], 's')
+        s_half = np.linspace(0, 1, 1000)*loop.length/2
+        msl = MartensScalingLaws(s_half, self.heating_constant, **self.model_parameters)
+        # Make sure there are no temperatures below specified cutoff
+        msl_temperature = np.where(msl.temperature < self.temperature_cutoff,
+                                   self.temperature_cutoff,
+                                   msl.temperature)
         # Assume symmetric, reflect across apex
-        s_full = np.concatenate((martens.s, martens.s[1:]+martens.s[-1])).value * martens.s.unit
-        T_full = (np.concatenate((martens.temperature, martens.temperature[::-1][1:])).value
-                  * martens.temperature.unit)
-        n_full = (np.concatenate((martens.density, martens.density[::-1][1:])).value
-                  * martens.density.unit)
-        # Interpolate to extrapolated field
-        temperature = interp1d(s_full.value, T_full.value, kind='slinear', bounds_error=False,
-                               fill_value=T_full[-1].value)(
-                                  loop.field_aligned_coordinate.to(s_full.unit).value)
+        s_full = np.concatenate((msl.s, msl.s[1:]+msl.s[-1])).value * msl.s.unit
+        T_full = np.concatenate((msl_temperature,
+                                 msl_temperature[::-1][1:])).value * msl_temperature.unit
+        # Interpolate to centers of extrapolated fieldline grid cells
+        s_center = loop.field_aligned_coordinate_center.to(s_full.unit).value
+        temperature = interp1d(
+            s_full.value, T_full.value, kind='slinear', bounds_error=False,
+            fill_value=T_full[-1].value)(s_center)
         temperature = temperature[np.newaxis, :] * T_full.unit
-        density = interp1d(s_full.value, n_full.value, kind='slinear', bounds_error=False,
-                           fill_value=n_full[-1].value)(
-                               loop.field_aligned_coordinate.to(s_full.unit).value)
-        density = density[np.newaxis, :] * n_full.unit
-        # Scaling laws do not provide any velocity information
-        velocity = np.ones(time.shape+loop.field_aligned_coordinate.shape) * np.nan * u.cm/u.s
+        # Martens loops are isobaric, use ideal gas law to get density
+        density = msl.pressure[0] / (2*const.k_B*temperature)
+        # NOTE: Scaling laws do not provide any velocity information
+        velocity = np.ones(time.shape+s_center.shape) * np.nan * u.cm/u.s
 
         return time, temperature, temperature, density, velocity
