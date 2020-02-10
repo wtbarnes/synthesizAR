@@ -16,17 +16,20 @@ class Loop(object):
     Parameters
     ----------
     name : `str`
-    coordinates : `astropy.coordinates.SkyCoord`
+    coordinate : `astropy.coordinates.SkyCoord`
         Loop coordinates; should be able to transform to HEEQ
     field_strength : `astropy.units.Quantity`
         Scalar magnetic field strength along the loop
+    model_results_filename : `str`, optional
+        Path to file where model results are stored. This will be set by
+        `~synthesizAR.Skeleton` when the model results are loaded.
 
     Examples
     --------
     >>> import astropy.units as u
     >>> from astropy.coordinates import SkyCoord
     >>> import synthesizAR
-    >>> coordinate = SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm, frame='heliographic_stonyhurst', representation='cartesian')
+    >>> coordinate = SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm, frame='heliographic_stonyhurst', representation_type='cartesian')
     >>> field_strength = u.Quantity([100,200], 'gauss')
     >>> loop = synthesizAR.Loop('coronal_loop', coordinate, field_strength)
     >>> loop
@@ -37,18 +40,18 @@ class Loop(object):
     """
 
     @u.quantity_input
-    def __init__(self, name, coordinates, field_strength: u.G, model_results_filename=None):
-        if coordinates.shape != field_strength.shape:
+    def __init__(self, name, coordinate, field_strength: u.G, model_results_filename=None):
+        if coordinate.shape != field_strength.shape:
             raise ValueError('Coordinates and field strength must have same shape.')
         self.name = name
-        self.coordinates = coordinates.transform_to(HeliographicStonyhurst)
-        self.coordinates.representation = 'cartesian'
+        self.coordinate = coordinate.transform_to(HeliographicStonyhurst)
+        self.coordinate.representation_type = 'cartesian'
         self.field_strength = field_strength
         self.model_results_filename = model_results_filename
 
     def __repr__(self):
-        f0 = f'{self.coordinates.x[0]:.3g},{self.coordinates.y[0]:.3g},{self.coordinates.z[0]:.3g}'
-        f1 = f'{self.coordinates.x[-1]:.3g},{self.coordinates.y[-1]:.3g},{self.coordinates.z[-1]:.3g}'
+        f0 = f'{self.coordinate.x[0]:.3g},{self.coordinate.y[0]:.3g},{self.coordinate.z[0]:.3g}'
+        f1 = f'{self.coordinate.x[-1]:.3g},{self.coordinate.y[-1]:.3g},{self.coordinate.z[-1]:.3g}'
         return f'''synthesizAR Loop
 ----------------
 Name : {self.name}
@@ -56,6 +59,15 @@ Loop full-length, L : {self.length.to(u.Mm):.3f}
 Footpoints : ({f0}),({f1})
 Maximum field strength : {np.max(self.field_strength):.2f}
 Simulation Type: {self.simulation_type}'''
+
+    @property
+    @u.quantity_input
+    def coordinate_direction(self):
+        """
+        Unit vector indicating the direction of :math:`s` in HEEQ
+        """
+        grad_xyz = np.gradient(self.coordinate.cartesian.xyz.value, axis=1)
+        return grad_xyz / np.linalg.norm(grad_xyz, axis=0)
 
     @property
     @u.quantity_input
@@ -67,8 +79,8 @@ Simulation Type: {self.simulation_type}'''
         each grid cell and the :math:`N+1` cell is the right edge of
         the last grid cell.
         """
-        return np.append(0., np.linalg.norm(np.diff(self.coordinates.cartesian.xyz.value, axis=1),
-                                            axis=0).cumsum()) * self.coordinates.cartesian.xyz.unit
+        return np.append(0., np.linalg.norm(np.diff(self.coordinate.cartesian.xyz.value, axis=1),
+                                            axis=0).cumsum()) * self.coordinate.cartesian.xyz.unit
 
     @property
     @u.quantity_input
@@ -77,15 +89,6 @@ Simulation Type: {self.simulation_type}'''
         Field-aligned coordinate normalized to the total loop length
         """
         return self.field_aligned_coordinate / self.length
-
-    @property
-    @u.quantity_input
-    def coordinate_direction(self):
-        """
-        Unit vector indicating the direction of :math:`s` in HEEQ
-        """
-        grad_xyz = np.gradient(self.coordinates.cartesian.xyz.value, axis=1)
-        return grad_xyz / np.linalg.norm(grad_xyz, axis=0)
 
     @property
     @u.quantity_input
