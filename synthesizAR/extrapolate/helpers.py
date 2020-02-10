@@ -19,7 +19,7 @@ def synthetic_magnetogram(bottom_left_coord, top_right_coord, shape: u.pixel, ce
                           sigmas: u.arcsec, amplitudes: u.Gauss, observer=None):
     """
     Compute synthetic magnetogram using 2D guassian "sunspots"
-    
+
     Parameters
     ----------
     bottom_left_coord : `~astropy.coordinates.SkyCoord`
@@ -106,15 +106,15 @@ def magnetic_field_to_yt_dataset(Bx: u.gauss, By: u.gauss, Bz: u.gauss, range_x:
     Bx = Bx.to(u.gauss)
     By = By.to(u.gauss)
     Bz = Bz.to(u.gauss)
-    data = dict(
-                Bx=(np.swapaxes(Bx.value, 0, 1), Bx.unit.to_string()),
+    data = dict(Bx=(np.swapaxes(Bx.value, 0, 1), Bx.unit.to_string()),
                 By=(np.swapaxes(By.value, 0, 1), By.unit.to_string()),
                 Bz=(np.swapaxes(Bz.value, 0, 1), Bz.unit.to_string()))
     # Uniform, rectangular grid
     bbox = np.array([range_x.to(u.cm).value,
                      range_y.to(u.cm).value,
                      range_z.to(u.cm).value])
-    return yt.load_uniform_grid(data, data['Bx'][0].shape, bbox=bbox,
+    return yt.load_uniform_grid(data, data['Bx'][0].shape,
+                                bbox=bbox,
                                 length_unit=yt.units.cm,
                                 geometry=('cartesian', ('x', 'y', 'z')))
 
@@ -139,14 +139,15 @@ def from_local(x_local: u.cm, y_local: u.cm, z_local: u.cm, center):
     """
     center = center.transform_to(sunpy.coordinates.frames.HeliographicStonyhurst)
     x_center, y_center, z_center = center.cartesian.xyz
+    rot_zy = rotate_z(center.lon) @ rotate_y(-center.lat)
     # NOTE: the coordinates are permuted because the local z-axis is parallel to the surface normal
-    coord_heeq = (rotate_z(center.lon) @ rotate_y(-center.lat)
-                  @ u.Quantity([z_local, x_local, y_local]))
+    coord_heeq = rot_zy @ u.Quantity([z_local, x_local, y_local])
 
     return SkyCoord(x=coord_heeq[0, :] + x_center,
                     y=coord_heeq[1, :] + y_center,
                     z=coord_heeq[2, :] + z_center,
-                    frame=sunpy.coordinates.HeliographicStonyhurst, representation='cartesian')
+                    frame=sunpy.coordinates.HeliographicStonyhurst,
+                    representation_type='cartesian')
 
 
 @u.quantity_input
@@ -169,8 +170,8 @@ def to_local(coord, center):
     x_heeq = xyz_heeq[0, :] - x_center
     y_heeq = xyz_heeq[1, :] - y_center
     z_heeq = xyz_heeq[2, :] - z_center
-    coord_local = (rotate_y(center.lat) @ rotate_z(-center.lon)
-                   @ u.Quantity([x_heeq, y_heeq, z_heeq]))
+    rot_yz = rotate_y(center.lat) @ rotate_z(-center.lon)
+    coord_local = rot_yz @ u.Quantity([x_heeq, y_heeq, z_heeq])
     # NOTE: the coordinates are permuted because the local z-axis is parallel to the surface normal
     return coord_local[1, :], coord_local[2, :], coord_local[0, :]
 

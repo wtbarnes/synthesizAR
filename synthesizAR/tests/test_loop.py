@@ -16,7 +16,7 @@ B_mag = u.Quantity([100, 10, 100], 'Gauss')
 
 @pytest.fixture
 def loop():
-    coords = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst, representation='cartesian')
+    coords = SkyCoord(x=x, y=y, z=z, frame=HeliographicStonyhurst, representation_type='cartesian')
     return Loop('test', coords, B_mag)
 
 

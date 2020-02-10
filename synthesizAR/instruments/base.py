@@ -79,9 +79,11 @@ class InstrumentBase(object):
             dset = hf['coordinates']
             total_coordinates = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
 
-        coords = SkyCoord(x=total_coordinates[:, 0], y=total_coordinates[:, 1],
-                          z=total_coordinates[:, 2], frame=HeliographicStonyhurst,
-                          representation='cartesian')
+        coords = SkyCoord(x=total_coordinates[:, 0],
+                          y=total_coordinates[:, 1],
+                          z=total_coordinates[:, 2],
+                          frame=HeliographicStonyhurst,
+                          representation_type='cartesian')
         return coords.transform_to(Helioprojective(observer=self.observer_coordinate))
 
     def los_velocity(self, v_x, v_y, v_z):
