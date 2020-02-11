@@ -4,9 +4,7 @@ Loop object for holding field-aligned coordinates and quantities
 import numpy as np
 import astropy.units as u
 from sunpy.coordinates import HeliographicStonyhurst
-import h5py
-
-from synthesizAR.util import get_keys
+import zarr
 
 
 class Loop(object):
@@ -132,8 +130,8 @@ Simulation Type: {self.simulation_type}'''
         if self.model_results_filename is None:
             return None
         else:
-            with h5py.File(self.model_results_filename, 'r') as hf:
-                return hf[self.name].attrs['simulation_type']
+            with zarr.open(store=self.model_results_filename, mode='r') as root:
+                return root[self.name].attrs['simuation_type']
 
     @property
     @u.quantity_input
@@ -141,10 +139,9 @@ Simulation Type: {self.simulation_type}'''
         """
         Simulation time
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'time'])]
-            time = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return time
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/time']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -152,10 +149,9 @@ Simulation Type: {self.simulation_type}'''
         """
         Loop electron temperature as function of coordinate and time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'electron_temperature'])]
-            temperature = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return temperature
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/electron_temperature']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -163,10 +159,9 @@ Simulation Type: {self.simulation_type}'''
         """
         Loop ion temperature as function of coordinate and time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'ion_temperature'])]
-            temperature = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return temperature
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/ion_temperature']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -174,10 +169,9 @@ Simulation Type: {self.simulation_type}'''
         """
         Loop density as a function of coordinate and time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'density'])]
-            density = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return density
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/density']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -186,10 +180,9 @@ Simulation Type: {self.simulation_type}'''
         Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
         time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'velocity'])]
-            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return velocity
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/velocity']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -197,10 +190,9 @@ Simulation Type: {self.simulation_type}'''
         """
         X-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'velocity_x'])]
-            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return velocity
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/velocity_x']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -208,10 +200,9 @@ Simulation Type: {self.simulation_type}'''
         """
         Y-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'velocity_y'])]
-            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return velocity
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/velocity_y']
+            return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -219,7 +210,6 @@ Simulation Type: {self.simulation_type}'''
         """
         Z-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
         """
-        with h5py.File(self.model_results_filename, 'r') as hf:
-            dset = hf['/'.join([self.name, 'velocity_z'])]
-            velocity = u.Quantity(dset, get_keys(dset.attrs, ('unit', 'units')))
-        return velocity
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/velocity_z']
+            return u.Quantity(dset, dset.attrs['unit'])

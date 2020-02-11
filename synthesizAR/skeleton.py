@@ -6,7 +6,7 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.utils.console import ProgressBar
 import asdf
-import h5py
+import zarr
 
 from synthesizAR import Loop
 from synthesizAR.extrapolate import peek_fieldlines
@@ -62,7 +62,7 @@ Number of loops: {len(self.loops)}'''
         for l in self.loops:
             tree[l.name] = {
                 'field_strength': l.field_strength,
-                'coordinates': l.coordinates,
+                'coordinate': l.coordinate,
                 'model_results_filename': l.model_results_filename,
             }
         with asdf.AsdfFile(tree) as asdf_file:
@@ -87,7 +87,7 @@ Number of loops: {len(self.loops)}'''
                 model_results_filename = af.tree[k].get('model_results_filename', None)
                 loops.append(Loop(
                     k,
-                    SkyCoord(af.tree[k]['coordinates']),
+                    SkyCoord(af.tree[k]['coordinate']),
                     af.tree[k]['field_strength'],
                     model_results_filename=model_results_filename,
                 ))
@@ -102,12 +102,18 @@ Number of loops: {len(self.loops)}'''
                         frame=self.loops[0].coordinate.frame,
                         representation_type=self.loops[0].coordinate.representation_type)
 
+    def interpolate_loop_coordinates(self):
+        """
+        Interpolate all loop coordinates to ensure each is represented by a suitable number
+        of points.
+        """
+        raise NotImplementedError
+
     def peek(self, magnetogram, **kwargs):
         """
-        Show extracted fieldlines overlaid on magnetogram.
+        Plot loop coordinates overlaid on magnetogram.
         """
-        fieldlines = [loop.coordinates for loop in self.loops]
-        peek_fieldlines(magnetogram, fieldlines, **kwargs)
+        peek_fieldlines(magnetogram, [l.coordinate for l in self.loops], **kwargs)
 
     def configure_loop_simulations(self, interface, **kwargs):
         """
@@ -122,53 +128,58 @@ Number of loops: {len(self.loops)}'''
         """
         Load in loop parameters from hydrodynamic results.
         """
-        with h5py.File(filename, 'w') as hf:
-            with ProgressBar(len(self.loops),
-                             ipython_widget=kwargs.get('notebook', True),) as progress:
-                for loop in self.loops:
-                    # Load in parameters from interface
-                    (time, electron_temperature, ion_temperature,
-                     density, velocity) = interface.load_results(loop)
-                    # Convert velocity to loop coordinate system
-                    # NOTE: the direction is evaluated at the left edges + the last right edge.
-                    # But the velocity is evaluated at the center of each cell so we need
-                    # to interpolate the direction to the cell centers for each component
-                    s = loop.field_aligned_coordinate.to(u.Mm).value
-                    s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
-                    s_hat = loop.coordinate_direction
-                    velocity_x = velocity * splev(s_center, splrep(s, s_hat[0, :]))
-                    velocity_y = velocity * splev(s_center, splrep(s, s_hat[1, :]))
-                    velocity_z = velocity * splev(s_center, splrep(s, s_hat[2, :]))
-                    # Write to file
-                    loop.model_results_filename = filename
-                    grp = hf.create_group(loop.name)
-                    grp.attrs['simulation_type'] = interface.name
-                    # time
-                    dset_time = grp.create_dataset('time', data=time.value)
-                    dset_time.attrs['unit'] = time.unit.to_string()
-                    # electron temperature
-                    dset_electron_temperature = grp.create_dataset(
-                        'electron_temperature', data=electron_temperature.value)
-                    dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
-                    # ion temperature
-                    dset_ion_temperature = grp.create_dataset(
-                        'ion_temperature', data=ion_temperature.value)
-                    dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
-                    # number density
-                    dset_density = grp.create_dataset('density', data=density.value)
-                    dset_density.attrs['unit'] = density.unit.to_string()
-                    # field-aligned velocity
-                    dset_velocity = grp.create_dataset('velocity', data=velocity.value)
-                    dset_velocity.attrs['unit'] = velocity.unit.to_string()
-                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
-                    # Cartesian xyz velocity
-                    dset_velocity_x = grp.create_dataset('velocity_x', data=velocity_x.value)
-                    dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
-                    dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
-                    dset_velocity_y = grp.create_dataset('velocity_y', data=velocity_y.value)
-                    dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
-                    dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
-                    dset_velocity_z = grp.create_dataset('velocity_z', data=velocity_z.value)
-                    dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
-                    dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
-                    progress.update()
+        root = zarr.open(store=filename, mode='w', **kwargs)
+        with ProgressBar(len(self.loops)) as progress:
+            for loop in self.loops:
+                loop.model_results_filename = filename
+                # Load in parameters from interface
+                (time, electron_temperature, ion_temperature,
+                    density, velocity) = interface.load_results(loop)
+                # Convert velocity to loop coordinate system
+                # NOTE: the direction is evaluated at the left edges + the last right edge.
+                # But the velocity is evaluated at the center of each cell so we need
+                # to interpolate the direction to the cell centers for each component
+                s = loop.field_aligned_coordinate.to(u.Mm).value
+                s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
+                s_hat = loop.coordinate_direction
+                velocity_x = velocity * splev(s_center, splrep(s, s_hat[0, :]))
+                velocity_y = velocity * splev(s_center, splrep(s, s_hat[1, :]))
+                velocity_z = velocity * splev(s_center, splrep(s, s_hat[2, :]))
+                # Write to file
+                grp = root.create_group(loop.name)
+                grp.attrs['simulation_type'] = interface.name
+                # time
+                dset_time = grp.create_dataset('time', data=time.value)
+                dset_time.attrs['unit'] = time.unit.to_string()
+                # NOTE: Set the chunk size such that accessing all entries for a given timestep
+                # is the most efficient pattern.
+                chunks = (None,) + s_center.shape
+                # electron temperature
+                dset_electron_temperature = grp.create_dataset(
+                    'electron_temperature', data=electron_temperature.value, chunks=chunks)
+                dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
+                # ion temperature
+                dset_ion_temperature = grp.create_dataset(
+                    'ion_temperature', data=ion_temperature.value, chunks=chunks)
+                dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
+                # number density
+                dset_density = grp.create_dataset('density', data=density.value, chunks=chunks)
+                dset_density.attrs['unit'] = density.unit.to_string()
+                # field-aligned velocity
+                dset_velocity = grp.create_dataset('velocity', data=velocity.value, chunks=chunks)
+                dset_velocity.attrs['unit'] = velocity.unit.to_string()
+                dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
+                # Cartesian xyz velocity
+                dset_velocity_x = grp.create_dataset(
+                    'velocity_x', data=velocity_x.value, chunks=chunks)
+                dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
+                dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
+                dset_velocity_y = grp.create_dataset(
+                    'velocity_y', data=velocity_y.value, chunks=chunks)
+                dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
+                dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
+                dset_velocity_z = grp.create_dataset(
+                    'velocity_z', data=velocity_z.value, chunks=chunks)
+                dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
+                dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
+                progress.update()
