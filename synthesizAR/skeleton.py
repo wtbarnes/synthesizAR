@@ -96,11 +96,26 @@ Number of loops: {len(self.loops)}'''
     @property
     def all_coordinates(self):
         """
-        Coordinates for all loops in the skeleton
+        Coordinates for all loops in the skeleton.
+
+        .. note:: This should be treated as a collection of points and NOT a 
+                  continuous structure.
         """
         return SkyCoord([l.coordinate for l in self.loops],
                         frame=self.loops[0].coordinate.frame,
                         representation_type=self.loops[0].coordinate.representation_type)
+    
+    @property
+    def all_coordinates_centers(self):
+        """
+        Coordinates for all grid cell centers of all loops in the skeleton
+
+        .. note:: This should be treated as a collection of points and NOT a 
+                  continuous structure.
+        """
+        return SkyCoord([l.coordinate_center for l in self.loops],
+                        frame=self.loops[0].coordinate_center.frame,
+                        representation_type=self.loops[0].coordinate_center.representation_type)
 
     def interpolate_loop_coordinates(self):
         """

@@ -2,7 +2,9 @@
 Loop object for holding field-aligned coordinates and quantities
 """
 import numpy as np
+from scipy.interpolate import splprep, splev
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
 import zarr
 
@@ -57,6 +59,17 @@ Loop full-length, L : {self.length.to(u.Mm):.3f}
 Footpoints : ({f0}),({f1})
 Maximum field strength : {np.max(self.field_strength):.2f}
 Simulation Type: {self.simulation_type}'''
+
+    @property
+    @u.quantity_input
+    def coordinate_center(self):
+        """
+        The coordinates of the centers of the bins.
+        """
+        tck, _ = splprep(self.coordinate.cartesian.xyz.value, u=self.field_aligned_coordinate_norm)
+        x, y, z = splev(self.field_aligned_coordinate_center/self.length, tck)
+        return SkyCoord(x=x, y=y, z=z, frame=self.coordinate.frame,
+                        representation_type=self.coordinate.representation_type)
 
     @property
     @u.quantity_input
@@ -131,7 +144,7 @@ Simulation Type: {self.simulation_type}'''
             return None
         else:
             with zarr.open(store=self.model_results_filename, mode='r') as root:
-                return root[self.name].attrs['simuation_type']
+                return root[self.name].attrs['simulation_type']
 
     @property
     @u.quantity_input
