@@ -68,8 +68,14 @@ Simulation Type: {self.simulation_type}'''
         """
         tck, _ = splprep(self.coordinate.cartesian.xyz.value, u=self.field_aligned_coordinate_norm)
         x, y, z = splev(self.field_aligned_coordinate_center/self.length, tck)
-        return SkyCoord(x=x, y=y, z=z, frame=self.coordinate.frame,
-                        representation_type=self.coordinate.representation_type)
+        unit = self.coordinate.cartesian.xyz.unit
+        return SkyCoord(
+            x=x*unit,
+            y=y*unit,
+            z=z*unit,
+            frame=self.coordinate.frame,
+            representation_type=self.coordinate.representation_type
+        )
 
     @property
     @u.quantity_input
