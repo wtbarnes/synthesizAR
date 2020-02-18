@@ -18,3 +18,7 @@ if not _ASTROPY_SETUP_:
     from .loop import Loop
     from .skeleton import Skeleton
     from .observe import Observer
+    # Alias counts as DN for convenience
+    import astropy.units
+    DN = astropy.units.def_unit('DN', astropy.units.count)
+    astropy.units.add_enabled_units(DN)
