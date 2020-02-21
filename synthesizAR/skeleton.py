@@ -1,7 +1,8 @@
 """
 Container for fieldlines in three-dimensional magnetic skeleton
 """
-from scipy.interpolate import splev, splrep
+import numpy as np
+from scipy.interpolate import splev, splprep, interp1d
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astropy.utils.console import ProgressBar
@@ -10,7 +11,7 @@ import zarr
 
 from synthesizAR import Loop
 from synthesizAR.extrapolate import peek_fieldlines
-
+from synthesizAR.atomic import Element
 
 class Skeleton(object):
     """
@@ -93,18 +94,42 @@ Number of loops: {len(self.loops)}'''
                 ))
         return cls(loops)
 
+    @u.quantity_input
+    def refine_loops(self, delta_s: u.cm):
+        """
+        Interpolate loop coordinates and field strengths to a specified spatial resolution
+        and return a new `Skeleton` object.
+
+        This can be important in order to ensure that an adequate number of points are used
+        to represent each fieldline when binning intensities onto the instrument grid.
+        """
+        new_loops = []
+        for l in self.loops:
+            tck, _ = splprep(l.coordinate.cartesian.xyz.value, u=l.field_aligned_coordinate_norm)
+            new_s = np.arange(0, l.length.to(u.Mm).value, delta_s.to(u.Mm).value) * u.Mm
+            x, y, z = splev((new_s/l.length).decompose(), tck)
+            unit = l.coordinate.cartesian.xyz.unit
+            new_coord = SkyCoord(x=x*unit, y=y*unit, z=z*unit, frame=l.coordinate.frame,
+                                 representation_type=l.coordinate.representation_type)
+            f_B = interp1d(l.field_aligned_coordinate.to(u.Mm), l.field_strength)
+            new_field_strength = f_B(new_s.to(u.Mm)) * l.field_strength.unit
+            new_loops.append(Loop(l.name, new_coord, new_field_strength,
+                                  model_results_filename=l.model_results_filename))
+
+        return Skeleton(new_loops)
+
     @property
     def all_coordinates(self):
         """
         Coordinates for all loops in the skeleton.
 
-        .. note:: This should be treated as a collection of points and NOT a 
+        .. note:: This should be treated as a collection of points and NOT a
                   continuous structure.
         """
         return SkyCoord([l.coordinate for l in self.loops],
                         frame=self.loops[0].coordinate.frame,
                         representation_type=self.loops[0].coordinate.representation_type)
-    
+
     @property
     def all_coordinates_centers(self):
         """
@@ -157,9 +182,9 @@ Number of loops: {len(self.loops)}'''
                 s = loop.field_aligned_coordinate.to(u.Mm).value
                 s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
                 s_hat = loop.coordinate_direction
-                velocity_x = velocity * splev(s_center, splrep(s, s_hat[0, :]))
-                velocity_y = velocity * splev(s_center, splrep(s, s_hat[1, :]))
-                velocity_z = velocity * splev(s_center, splrep(s, s_hat[2, :]))
+                velocity_x = velocity * interp1d(s, s_hat[0, :])(s_center)
+                velocity_y = velocity * interp1d(s, s_hat[1, :])(s_center)
+                velocity_z = velocity * interp1d(s, s_hat[2, :])(s_center)
                 # Write to file
                 grp = root.create_group(loop.name)
                 grp.attrs['simulation_type'] = interface.name
@@ -198,3 +223,44 @@ Number of loops: {len(self.loops)}'''
                 dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
                 dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
                 progress.update()
+
+    def load_ionization_fractions(self, emission_model, interface):
+        """
+        Load the ionization fractions for each ion in the emission model.
+
+        If the model interface provides a method for loading the population fraction
+        from the model, use that to get the population fractions. Otherwise, compute
+        the ion population fractions in equilibrium. 
+        """
+        # Check if we can load from the model
+        FROM_MODEL = False
+        if hasattr(interface, 'load_ionization_fraction'):
+            frac = interface.load_ionization_fraction(
+                self.loops[0], emission_model[0])
+            # Some models may optionally output the ionization fractions such that
+            # they will have this method, but it may not return anything
+            if frac is not None:
+                FROM_MODEL = True
+        # Get the unique elements from all of our ions
+        elements = list(set([ion.element_name for ion in emission_model]))
+        elements = [Element(e, self.temperature) for e in elements]
+        for el in elements:
+            ions = [i for i in emission_model if i.element_name == el.element_name]
+            if not FROM_MODEL:
+                ioneq = el.equilibrium_ionization()
+            for loop in self.loops:
+                if not FROM_MODEL:
+                    frac_el = interp1d(
+                        emission_model.temperature,
+                        ioneq,
+                        axis=0,
+                        kind='linear',
+                        fill='extrapolate'
+                    )(loop.electron_temperature)
+                for ion in ions:
+                    if FROM_MODEL:
+                        frac = interface.load_ionization_fraction(loop, ion)
+                    else:
+                        frac = frac_el[:, :, ion.charge_state]
+                    # TODO: Write to loop results file
+                    # TODO: Add attribute to loop
