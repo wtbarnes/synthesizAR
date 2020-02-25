@@ -207,7 +207,8 @@ Simulation Type: {self.simulation_type}'''
     @u.quantity_input
     def velocity_x(self) -> u.cm/u.s:
         """
-        X-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
+        X-component of velocity in the HEEQ Cartesian coordinate system as a function of loop
+        coordinate and time.
         """
         with zarr.open(store=self.model_results_filename, mode='r') as root:
             dset = root[f'{self.name}/velocity_x']
@@ -217,7 +218,8 @@ Simulation Type: {self.simulation_type}'''
     @u.quantity_input
     def velocity_y(self) -> u.cm/u.s:
         """
-        Y-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
+        Y-component of velocity in the HEEQ Cartesian coordinate system as a function of
+        loop coordinate and time.
         """
         with zarr.open(store=self.model_results_filename, mode='r') as root:
             dset = root[f'{self.name}/velocity_y']
@@ -227,8 +229,17 @@ Simulation Type: {self.simulation_type}'''
     @u.quantity_input
     def velocity_z(self) -> u.cm/u.s:
         """
-        Z-component of velocity in the HEEQ Cartesian coordinate system as a function of time.
+        Z-component of velocity in the HEEQ Cartesian coordinate system as a function of
+        loop coordinate and time.
         """
         with zarr.open(store=self.model_results_filename, mode='r') as root:
             dset = root[f'{self.name}/velocity_z']
             return u.Quantity(dset, dset.attrs['unit'])
+
+    def get_ionization_fraction(self, ion):
+        """
+        Return the ionization fraction for a particular ion.
+        """
+        with zarr.open(store=self.model_results_filename, mode='r') as root:
+            dset = root[f'{self.name}/ionization_fraction/{ion.name}']
+            return u.SpecificTypeQuantity(dset, dset.attrs['unit'])
