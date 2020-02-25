@@ -81,7 +81,7 @@ Number of loops: {len(self.loops)}'''
         """
         exclude_keys = ['asdf_library', 'history']
         loops = []
-        with asdf.open(filename) as af:
+        with asdf.open(filename, mode='r', copy_arrays=True) as af:
             for k in af.keys():
                 if k in exclude_keys:
                     continue
@@ -224,43 +224,57 @@ Number of loops: {len(self.loops)}'''
                 dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
                 progress.update()
 
-    def load_ionization_fractions(self, emission_model, interface):
+    def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
         """
         Load the ionization fractions for each ion in the emission model.
 
+        Parameters
+        ----------
+        emission_model : `synthesizAR.atomic.EmissionModel`
+        interface : optional
+            A model interface. Only necessary if loading the ionization fractions
+            from the model
+
         If the model interface provides a method for loading the population fraction
         from the model, use that to get the population fractions. Otherwise, compute
-        the ion population fractions in equilibrium. 
+        the ion population fractions in equilibrium. This should be done after
+        calling `load_loop_simulations`.
         """
+        root = zarr.open(store=self.loops[0].model_results_filename, mode='w', **kwargs)
         # Check if we can load from the model
         FROM_MODEL = False
-        if hasattr(interface, 'load_ionization_fraction'):
-            frac = interface.load_ionization_fraction(
-                self.loops[0], emission_model[0])
+        if interface is not None and hasattr(interface, 'load_ionization_fraction'):
+            frac = interface.load_ionization_fraction(self.loops[0], emission_model[0])
             # Some models may optionally output the ionization fractions such that
             # they will have this method, but it may not return anything
             if frac is not None:
                 FROM_MODEL = True
         # Get the unique elements from all of our ions
         elements = list(set([ion.element_name for ion in emission_model]))
-        elements = [Element(e, self.temperature) for e in elements]
+        elements = [Element(e, emission_model.temperature) for e in elements]
         for el in elements:
             ions = [i for i in emission_model if i.element_name == el.element_name]
             if not FROM_MODEL:
                 ioneq = el.equilibrium_ionization()
             for loop in self.loops:
+                chunks = (None,) + loop.field_aligned_coordinate_center.shape
                 if not FROM_MODEL:
-                    frac_el = interp1d(
-                        emission_model.temperature,
-                        ioneq,
-                        axis=0,
-                        kind='linear',
-                        fill='extrapolate'
-                    )(loop.electron_temperature)
+                    frac_el = interp1d(el.temperature,
+                                       ioneq,
+                                       axis=0,
+                                       kind='linear',
+                                       fill_value='extrapolate')(loop.electron_temperature)
+                if 'ionization_fraction' in root[loop.name]:
+                    grp = root[f'{loop.name}/ionization_fraction']
+                else:
+                    grp = root[loop.name].create_group('ionization_fraction')
                 for ion in ions:
                     if FROM_MODEL:
                         frac = interface.load_ionization_fraction(loop, ion)
+                        desc = f'Ionization fraction of {ion.name} as computed by {interface.name}'
                     else:
                         frac = frac_el[:, :, ion.charge_state]
-                    # TODO: Write to loop results file
-                    # TODO: Add attribute to loop
+                        desc = f'Ionization fraction of {ion.name} in equilibrium.'
+                    dset = grp.create_dataset(f'{ion.name}', data=frac, chunks=chunks)
+                    dset.attrs['unit'] = ''
+                    dset.attrs['description'] = desc
