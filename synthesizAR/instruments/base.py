@@ -1,16 +1,23 @@
 """
 Base class for instrument objects.
 """
+import os
+
 import numpy as np
 from scipy.interpolate import interp1d
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from sunpy.util.metadata import MetaDict
 from sunpy.coordinates.frames import Helioprojective, HeliographicStonyhurst
-from sunpy.map import make_fitswcs_header
+from sunpy.map import make_fitswcs_header, Map
 import distributed
 import zarr
 
+from synthesizAR.util import is_visible
+
+
+# TODO: some sort of base channel object that all instruments can use by default
+# should look something like those in aiapy
 
 class InstrumentBase(object):
     """
@@ -23,15 +30,18 @@ class InstrumentBase(object):
         Tuple of start and end observing times
     observer_coordinate : `~astropy.coordinates.SkyCoord`
         Coordinate of the observing instrument
+    assumed_cross_section : `~astropy.units.Quantity`, optional
+        Approximation of the loop cross-section. This defines the filling factor.
     """
     fits_template = MetaDict()
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observer):
+    def __init__(self, observing_time: u.s, observer, assumed_cross_section=1e14 * u.cm**2):
         self.observing_time = np.arange(observing_time[0].to(u.s).value,
                                         observing_time[1].to(u.s).value,
                                         self.cadence.value)*u.s
         self.observer = observer
+        self.assumed_cross_section = assumed_cross_section
 
     def calculate_intensity_kernel(self, *args, **kwargs):
         """
@@ -39,13 +49,6 @@ class InstrumentBase(object):
         a new instrument class, this method should be overridden.
         """
         raise NotImplementedError('No detect method implemented.')
-
-    def integrate_los(self, time, channel, skeleton):
-        """
-        Integrate intensity along a LOS.
-        """
-        # TODO: decide if this could be generalized for all instruments?
-        raise NotImplementedError
 
     def los_velocity(self, v_x, v_y, v_z):
         """
@@ -64,28 +67,34 @@ class InstrumentBase(object):
 
     @property
     def cross_section_ratio(self):
-        loop_cs = 1e14 * u.cm**2
+        """
+        Ratio between loop cross-sectional area and pixel area. This essentially defines
+        our filling factor.
+        """
         w_x, w_y = (1*u.pix * self.resolution).to(u.radian).value * self.observer.radius
-        return (loop_cs / (w_x * w_y)).decompose()
+        return (self.assumed_cross_section / (w_x * w_y)).decompose()
 
-    def observe(self, skeleton, channels=None, **kwargs):
-        # This method can be attached to the base class
-        # This is where the actual forward modeling is done
-        #
-        # 1. Construct detector array for given instrument, observer at t_i
-        # 2. Get all loop coordinates in frame of observer at t_i
-        # 3. Compute kernel of LOS intensity integral for all coordinates at t_i
-        # 4. Bin coordinates, weighted by kernels and grid cell width and x.s. ratio, into detector array
-        # 5. Write out as a sunpy map with appropriate metadata
-        #
-        client = distributed.get_client()
+    def convolve_with_psf(self, data, channel):
+        # TODO: do the convolution here!
+        return data
+
+    def observe(self, skeleton, save_directory, channels=None, **kwargs):
+        """
+        Calculate the time dependent intensity for all loops and project them along
+        the line-of-sight as defined by the instrument observer.
+        
+        Parameters
+        ----------
+
+        """
         if channels is None:
             channels = self.channels
-        maps = {c.name: [] for c in channels}
+        client = distributed.get_client()
         for channel in channels:
             kernels = client.map(self.calculate_intensity_kernel,
                                  skeleton.loops,
-                                 channel=channel)
+                                 channel=channel,
+                                 **kwargs)
             kernels_interp = client.map(self.interpolate_to_instrument_time,
                                         kernels,
                                         skeleton.loops,
@@ -97,15 +106,12 @@ class InstrumentBase(object):
                                name=self.name)
             distributed.wait(files)
             # TODO: add step to save to a file, dont keep in memory
-            for t in self.observing_time:
+            for i, t in enumerate(self.observing_time):
                 m = self.integrate_los(t, channel, skeleton)
-                maps[channel.name].append(m)
-
-        return maps
+                m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'))
 
     @staticmethod
     def write_kernel_to_file(kernel, loop, channel, name):
-        # This method can be moved to the base instrument
         root = zarr.open(loop.model_results_filename, 'a')
         if name not in root[loop.name]:
             root[loop.name].create_group(name)
@@ -119,20 +125,54 @@ class InstrumentBase(object):
 
     @staticmethod
     def interpolate_to_instrument_time(kernel, loop, observing_time):
-        # This method can be moved to the base instrument
+        """
+        Interpolate the intensity kernel from the simulation time to the cadence
+        of the instrument for the desired observing window.
+        """
         time = loop.time
         if time.shape == (1,):
             if time != observing_time:
                 raise ValueError('Model and observing times are not equal for a single model time step.')
             return kernel
         f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=0)
-        return f_t(observing_time.value) * k.unit
+        return f_t(observing_time.value) * kernel.unit
+
+    def integrate_los(self, time, channel, skeleton):
+        # Get Coordinates
+        coords = skeleton.all_coordinates_centers.transform_to(self.projected_frame)
+        # Compute weights
+        i_time = np.where(time == self.observing_time)[0][0]
+        widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
+        root = zarr.open(skeleton.loops[0].model_results_filename, 'r')
+        kernels = np.concatenate([root[f'{l.name}/{self.name}/{channel.name}'][i_time, :]
+                                  for l in skeleton.loops])
+        unit_kernel = u.Unit(
+            root[f'{skeleton.loops[0].name}/{self.name}/{channel.name}'].attrs['unit'])
+        weights = self.cross_section_ratio * widths * (kernels*unit_kernel)
+        visible = is_visible(coords, self.observer)
+        # Bin
+        bins, (blc, trc) = self.get_detector_array(skeleton.all_coordinates)
+        hist, _, _ = np.histogram2d(
+            coords.Tx.value,
+            coords.Ty.value,
+            bins=bins,
+            range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
+            weights=weights.value * visible,
+        )
+        header = self.get_header(channel, skeleton.all_coordinates)
+        header['bunit'] = weights.unit.decompose().to_string()
+        header['date-obs'] = (self.observer.obstime + time).isot
+
+        return Map(hist.T, header)
 
     def get_header(self, channel, coordinates):
-        # This method can be attached to the base object
+        """
+        Create the FITS header for a given channel and set of loop coordinates
+        that define the needed FOV.
+        """
         bins, bin_range = self.get_detector_array(coordinates)
         header = make_fitswcs_header(
-            (bins[1],bins[0]),  # swap order because it expects (row,column)
+            (bins[1], bins[0]),  # swap order because it expects (row,column)
             bin_range[0],  # align with the lower left corner of the lower left pixel
             reference_pixel=(-0.5, -0.5)*u.pixel,  # center of the lower left pixel is (0,0)
             scale=self.resolution,
@@ -141,14 +181,17 @@ class InstrumentBase(object):
             wavelength=channel.channel,
         )
         return header
-        
+
     def get_detector_array(self, coordinates):
-        # This method can be attached to the base object
+        """
+        Calculate the number of pixels in the detector FOV and the physical coordinates of the
+        bottom left and top right corners.
+        """
         coordinates = coordinates.transform_to(self.projected_frame)
         if self.pad_fov is None:
             pad_x, pad_y = 0*u.arcsec, 0*u.arcsec
-        # Note: this is the coordinate of the bottom left corner of the bottom left corner pixel
-        # This is NOT the coordinate at the center of the pixel!
+        # NOTE: this is the coordinate of the bottom left corner of the bottom left corner pixel,
+        # NOT the coordinate at the center of the pixel!
         bottom_left_corner = SkyCoord(
             Tx=coordinates.Tx.min() - pad_x,
             Ty=coordinates.Ty.min() - pad_y,
@@ -157,6 +200,8 @@ class InstrumentBase(object):
         bins_x = int(np.ceil((coordinates.Tx.max() + pad_x - bottom_left_corner.Tx) / self.resolution[0]).value)
         bins_y = int(np.ceil((coordinates.Ty.max() + pad_y - bottom_left_corner.Ty) / self.resolution[1]).value)
         # Compute right corner after the fact to account for rounding in bin numbers
+        # NOTE: this is the coordinate of the top right corner of the top right corner pixel, NOT
+        # the coordinate at the center of the pixel!
         top_right_corner = SkyCoord(
             Tx=bottom_left_corner.Tx + self.resolution[0]*bins_x*u.pixel,
             Ty=bottom_left_corner.Ty + self.resolution[1]*bins_y*u.pixel,
