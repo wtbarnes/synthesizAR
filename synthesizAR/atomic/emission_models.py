@@ -29,7 +29,9 @@ class EmissionModel(fiasco.IonCollection):
                 ion._dset_names['abundance_filename'] = default_abundance
                 # If the abundance is still None, throw an error
                 if ion.abundance is None:
-                    raise ValueError(f'No {ion.element_name} abundance available for {default_abundance}')
+                    raise ValueError(
+                        f'No {ion.element_name} abundance available for {default_abundance}'
+                    )
 
     def to_asdf(self, filename):
         """
