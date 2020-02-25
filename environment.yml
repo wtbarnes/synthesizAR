@@ -6,13 +6,14 @@ dependencies:
 - python
 - pip
 - numba
-- h5py
 - sunpy
 - dask
 - distributed
 - yt
 - flake8
 - sphinx
+- zarr
+- asdf
 - pip:
   - sphinx-astropy
   - plasmapy[theory]
