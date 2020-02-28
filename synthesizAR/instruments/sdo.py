@@ -101,7 +101,7 @@ class InstrumentSDOAIA(InstrumentBase):
         in an emission model.
         """
         em_convolved = {}
-        r = channel.wavelength_response()
+        r = channel.wavelength_response() * channel.plate_scale
         f_interp = interp1d(channel.wavelength, r)
         for ion in emission_model:
             wavelength, emissivity = emission_model.get_emissivity(ion)
