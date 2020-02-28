@@ -240,7 +240,7 @@ Number of loops: {len(self.loops)}'''
         the ion population fractions in equilibrium. This should be done after
         calling `load_loop_simulations`.
         """
-        root = zarr.open(store=self.loops[0].model_results_filename, mode='w', **kwargs)
+        root = zarr.open(store=self.loops[0].model_results_filename, mode='a', **kwargs)
         # Check if we can load from the model
         FROM_MODEL = False
         if interface is not None and hasattr(interface, 'load_ionization_fraction'):
@@ -271,10 +271,10 @@ Number of loops: {len(self.loops)}'''
                 for ion in ions:
                     if FROM_MODEL:
                         frac = interface.load_ionization_fraction(loop, ion)
-                        desc = f'Ionization fraction of {ion.name} as computed by {interface.name}'
+                        desc = f'Ionization fraction of {ion.ion_name} as computed by {interface.name}'
                     else:
                         frac = frac_el[:, :, ion.charge_state]
-                        desc = f'Ionization fraction of {ion.name} in equilibrium.'
-                    dset = grp.create_dataset(f'{ion.name}', data=frac, chunks=chunks)
+                        desc = f'Ionization fraction of {ion.ion_name} in equilibrium.'
+                    dset = grp.create_dataset(f'{ion.ion_name}', data=frac, chunks=chunks)
                     dset.attrs['unit'] = ''
                     dset.attrs['description'] = desc

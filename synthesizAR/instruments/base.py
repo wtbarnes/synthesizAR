@@ -17,7 +17,7 @@ from synthesizAR.util import is_visible
 
 
 # TODO: some sort of base channel object that all instruments can use by default
-# should look something like those in aiapy
+# should look something like those in aiapy; use data classes?
 
 class InstrumentBase(object):
     """
@@ -74,7 +74,7 @@ class InstrumentBase(object):
         w_x, w_y = (1*u.pix * self.resolution).to(u.radian).value * self.observer.radius
         return (self.assumed_cross_section / (w_x * w_y)).decompose()
 
-    def convolve_with_psf(self, data, channel):
+    def convolve_with_psf(self, data):
         # TODO: do the convolution here!
         return data
 
@@ -108,6 +108,7 @@ class InstrumentBase(object):
             # TODO: add step to save to a file, dont keep in memory
             for i, t in enumerate(self.observing_time):
                 m = self.integrate_los(t, channel, skeleton)
+                m = self.convolve_with_psf(m)
                 m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'))
 
     @staticmethod

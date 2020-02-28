@@ -241,5 +241,5 @@ Simulation Type: {self.simulation_type}'''
         Return the ionization fraction for a particular ion.
         """
         with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/ionization_fraction/{ion.name}']
-            return u.SpecificTypeQuantity(dset, dset.attrs['unit'])
+            dset = root[f'{self.name}/ionization_fraction/{ion.ion_name}']
+            return u.Quantity(dset)

@@ -82,7 +82,7 @@ class EmissionModel(fiasco.IonCollection):
         for ion in self:
             # NOTE: Purpusefully not using the contribution_function or emissivity methods on
             # fiasco.Ion because (i) ionization fraction may be loop dependent, (ii) don't want
-            # to assume any abundance at this stage so that we can change it later withou haviting
+            # to assume any abundance at this stage so that we can change it later without having
             # to recalculate the level populations, and (iii) we want to exclude the hc/lambda
             # factor.
             pop = ion.level_populations(self.density)

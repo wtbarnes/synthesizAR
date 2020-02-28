@@ -2,7 +2,7 @@
 Class for the SDO/AIA instrument. Holds information about the cadence and
 spatial and spectroscopic resolution.
 """
-
+import warnings
 import pkg_resources
 
 import numpy as np
@@ -37,7 +37,6 @@ class InstrumentSDOAIA(InstrumentBase):
     """
 
     def __init__(self, observing_time, observer, pad_fov=None):
-        super().__init__(observing_time, observer)
         self.telescope = 'SDO/AIA'
         self.detector = 'AIA'
         self.name = 'SDO_AIA'
@@ -52,6 +51,7 @@ class InstrumentSDOAIA(InstrumentBase):
         self.cadence = 12.0*u.s
         self.resolution = [0.600698, 0.600698]*u.arcsec/u.pixel
         self.pad_fov = pad_fov
+        super().__init__(observing_time, observer)
 
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):
@@ -61,15 +61,16 @@ class InstrumentSDOAIA(InstrumentBase):
             # wavelength response functions
             n = loop.density
             T = loop.electron_temperature
-            Tn_flat = np.vstack((T.value.flatten(), n.value.flatten()))
+            Tn_flat = np.stack((T.value.flatten(), n.value.flatten()), axis=1)
             kernel = np.zeros(T.shape)
             # Get the group for this channel
             root = zarr.open(em_model.emissivity_table_filename, mode='r')
             grp = root[f'SDO_AIA/{channel.name}']
             for ion in em_model:
-                ds = grp[ion.ion_name]
-                if ds is None:
+                if ion.ion_name not in grp:
+                    warnings.warn(f'Not including contribution from {ion.ion_name}')
                     continue
+                ds = grp[ion.ion_name]
                 em_ion = u.Quantity(ds, ds.attrs['unit'])
                 # Interpolate wavelength-convolved emissivity to loop n,T
                 em_flat = interpn(
@@ -102,9 +103,10 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         em_convolved = {}
         r = channel.wavelength_response() * channel.plate_scale
-        f_interp = interp1d(channel.wavelength, r)
+        f_interp = interp1d(channel.wavelength, r, bounds_error=False, fill_value=0.0)
         for ion in emission_model:
             wavelength, emissivity = emission_model.get_emissivity(ion)
+            # TODO: need to figure out a better way to propagate missing emissivities
             if wavelength is None or emissivity is None:
                 em_convolved[ion.ion_name] = None
             else:
@@ -115,16 +117,25 @@ class InstrumentSDOAIA(InstrumentBase):
     def observe(self, skeleton, save_directory, channels=None, **kwargs):
         em_model = kwargs.get('emission_model')
         if em_model:
+            # TODO: skip if the file already exists?
             # If using an emission model, we want to first convolve the wavelength-dependent
             # emissivities with the wavelength response functions and store them in the
             # emissivity table
             channels = self.channels if channels is None else channels
-            root = zarr.open(em_model.emissivity_table_filename)
-            grp = root.create_group(self.name)
+            root = zarr.open(store=em_model.emissivity_table_filename, mode='a')
+            if self.name not in root:
+                grp = root.create_group(self.name)
+            else:
+                grp = root[self.name]
             for channel in channels:
                 em_convolved = self.convolve_emissivities(channel, em_model)
-                chan_grp = grp.create_group(channel.name)
+                if channel.name in grp:
+                    chan_grp = grp[channel.name]
+                else:
+                    chan_grp = grp.create_group(channel.name)
                 for k in em_convolved:
+                    if k in chan_grp or em_convolved[k] is None:
+                        continue
                     ds = chan_grp.create_dataset(k, data=em_convolved[k].value)
                     ds.attrs['unit'] = em_convolved[k].unit.to_string()
 
