@@ -10,8 +10,9 @@ import asdf
 import zarr
 
 from synthesizAR import Loop
-from synthesizAR.extrapolate import peek_fieldlines
+from synthesizAR.visualize import peek_fieldlines
 from synthesizAR.atomic import Element
+
 
 class Skeleton(object):
     """

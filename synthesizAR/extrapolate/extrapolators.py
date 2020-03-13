@@ -10,9 +10,10 @@ import numba
 from astropy.utils.console import ProgressBar
 
 from synthesizAR.util import SpatialPair
+from synthesizAR.visualize import peek_fieldlines
 
 from .helpers import from_local, to_local, magnetic_field_to_yt_dataset
-from .fieldlines import trace_fieldlines, peek_fieldlines
+from .fieldlines import trace_fieldlines
 
 __all__ = ['PotentialField', 'peek_projections']
 
