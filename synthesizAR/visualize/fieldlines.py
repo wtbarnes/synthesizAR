@@ -93,6 +93,8 @@ def plot_fieldlines(*coords, observer=None, check_visible=True, **kwargs):
         c = coord.transform_to(dummy_map.coordinate_frame)
         if check_visible:
             c = c[is_visible(c, dummy_map.observer_coordinate)]
+        if len(c) == 0:
+            continue  # Matplotlib throws exception when no points are visible
         ax.plot_coord(c, **plot_kwargs)
     grid_kwargs = kwargs.get('grid_kwargs', {'grid_spacing': 10*u.deg, 'color': 'k'})
     dummy_map.draw_grid(axes=ax, **grid_kwargs)
