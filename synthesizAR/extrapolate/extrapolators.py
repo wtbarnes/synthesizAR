@@ -2,26 +2,17 @@
 Field extrapolation methods for computing 3D vector magnetic fields from LOS magnetograms
 """
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 from scipy.interpolate import griddata
 import astropy.units as u
 import numba
 from astropy.utils.console import ProgressBar
-try:
-    import cupy
-    HAS_CUPY = True
-except ImportError:
-    HAS_CUPY = False
-
 
 from synthesizAR.util import SpatialPair
 from synthesizAR.visualize import peek_fieldlines
-
 from .helpers import from_local, to_local, magnetic_field_to_yt_dataset
 from .fieldlines import trace_fieldlines
 
-__all__ = ['PotentialField', 'peek_projections']
+__all__ = ['PotentialField']
 
 
 class PotentialField(object):
@@ -69,7 +60,7 @@ class PotentialField(object):
     def trace_fieldlines(self, B_field, number_fieldlines, **kwargs):
         """
         Trace field lines through vector magnetic field.
-        
+
         This is a wrapper around `~synthesizAR.extrapolate.trace_fieldlines` and
         accepts all of the same keyword arguments. Note that here the field lines are
         automatically converted to the HEEQ coordinate system.
@@ -84,7 +75,7 @@ class PotentialField(object):
         coordinates : `list`
             `~astropy.coordinates.SkyCoord` objects giving coordinates for all field lines
         field_strengths : `list`
-            `~astropy.units.Quantity` for magnitude of :math:`B(s)` for each field line 
+            `~astropy.units.Quantity` for magnitude of :math:`B(s)` for each field line
         """
         ds = self.as_yt(B_field)
         lower_boundary = self.project_boundary(self.range.x, self.range.y).value
@@ -238,53 +229,3 @@ def _calculate_phi_numba(phi, boundary, delta, shape, z_depth, l_hat):
                         phi[j, i, k] += boundary[j_prime, i_prime] * green * factor
 
     return phi
-
-
-def peek_projections(B_field, **kwargs):
-    """
-    Quick plot of projections of components of fields along different axes
-
-    .. warning:: These plots are just images and include no spatial information
-    """
-    norm = kwargs.get('norm', Normalize(vmin=-2e3, vmax=2e3))
-    fontsize = kwargs.get('fontsize', 20)
-    frames = [
-        {'field': 0, 'field_label': 'x', 'axis_label': 'x', 'axis_indices': (2, 1)},
-        {'field': 0, 'field_label': 'x', 'axis_label': 'y', 'axis_indices': (0, 2)},
-        {'field': 0, 'field_label': 'x', 'axis_label': 'z', 'axis_indices': (0, 1)},
-        {'field': 1, 'field_label': 'y', 'axis_label': 'x', 'axis_indices': (2, 1)},
-        {'field': 1, 'field_label': 'y', 'axis_label': 'y', 'axis_indices': (0, 2)},
-        {'field': 1, 'field_label': 'y', 'axis_label': 'z', 'axis_indices': (0, 1)},
-        {'field': 2, 'field_label': 'z', 'axis_label': 'x', 'axis_indices': (2, 1)},
-        {'field': 2, 'field_label': 'z', 'axis_label': 'y', 'axis_indices': (0, 2)},
-        {'field': 2, 'field_label': 'z', 'axis_label': 'z', 'axis_indices': (0, 1)},
-    ]
-    fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (10, 10)))
-    ax1_grid, ax2_grid = np.meshgrid(np.linspace(-1, 1, B_field.x.shape[1]),
-                                     np.linspace(-1, 1, B_field.x.shape[0]))
-    for i, (ax, f) in enumerate(zip(axes.flatten(), frames)):
-        b_sum = B_field[f['field']].value.sum(axis=i % 3)
-        b_stream_1 = B_field[f['axis_indices'][0]].sum(axis=i % 3).value
-        b_stream_2 = B_field[f['axis_indices'][1]].sum(axis=i % 3).value
-        if f['axis_label'] != 'z':
-            b_sum = b_sum.T
-            b_stream_1 = b_stream_1.T
-            b_stream_2 = b_stream_2.T
-        im = ax.pcolormesh(ax1_grid, ax2_grid, b_sum, norm=norm, cmap=kwargs.get('cmap', 'hmimag'))
-        ax.streamplot(ax1_grid[0, :], ax2_grid[:, 0], b_stream_1, b_stream_2,
-                      color=kwargs.get('color', 'w'), density=kwargs.get('density', 0.5),
-                      linewidth=kwargs.get('linewidth', 2))
-        ax.get_xaxis().set_ticks([])
-        ax.get_yaxis().set_ticks([])
-        if i % 3 == 0:
-            ax.set_ylabel(f'$B_{f["field_label"]}$', fontsize=fontsize)
-        if i > 5:
-            ax.set_xlabel(f'$\sum_{f["axis_label"]}$', fontsize=fontsize)
-        ax.set_xlim(-1, 1)
-        ax.set_ylim(-1, 1)
-
-    fig.tight_layout()
-    fig.subplots_adjust(hspace=0, wspace=0, right=0.965)
-    cax = fig.add_axes([0.975, 0.08, 0.03, 0.9])
-    fig.colorbar(im, cax=cax)
-    plt.show()

@@ -3,6 +3,7 @@ Visualizaition functions related to 1D fieldlines
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 import astropy.units as u
 import astropy.constants as const
 from astropy.time import Time
@@ -13,7 +14,7 @@ from sunpy.coordinates import Helioprojective
 
 from synthesizAR.util import is_visible
 
-__all__ = ['plot_fieldlines', 'peek_fieldlines']
+__all__ = ['plot_fieldlines', 'peek_fieldlines', 'peek_projections']
 
 
 def peek_fieldlines(magnetogram, fieldlines, **kwargs):
@@ -100,3 +101,53 @@ def plot_fieldlines(*coords, observer=None, check_visible=True, **kwargs):
     dummy_map.draw_grid(axes=ax, **grid_kwargs)
 
     return fig, ax
+
+
+def peek_projections(B_field, **kwargs):
+    """
+    Quick plot of projections of components of fields along different axes
+
+    .. warning:: These plots are just images and include no spatial information
+    """
+    norm = kwargs.get('norm', Normalize(vmin=-2e3, vmax=2e3))
+    fontsize = kwargs.get('fontsize', 20)
+    frames = [
+        {'field': 0, 'field_label': 'x', 'axis_label': 'x', 'axis_indices': (2, 1)},
+        {'field': 0, 'field_label': 'x', 'axis_label': 'y', 'axis_indices': (0, 2)},
+        {'field': 0, 'field_label': 'x', 'axis_label': 'z', 'axis_indices': (0, 1)},
+        {'field': 1, 'field_label': 'y', 'axis_label': 'x', 'axis_indices': (2, 1)},
+        {'field': 1, 'field_label': 'y', 'axis_label': 'y', 'axis_indices': (0, 2)},
+        {'field': 1, 'field_label': 'y', 'axis_label': 'z', 'axis_indices': (0, 1)},
+        {'field': 2, 'field_label': 'z', 'axis_label': 'x', 'axis_indices': (2, 1)},
+        {'field': 2, 'field_label': 'z', 'axis_label': 'y', 'axis_indices': (0, 2)},
+        {'field': 2, 'field_label': 'z', 'axis_label': 'z', 'axis_indices': (0, 1)},
+    ]
+    fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (10, 10)))
+    ax1_grid, ax2_grid = np.meshgrid(np.linspace(-1, 1, B_field.x.shape[1]),
+                                     np.linspace(-1, 1, B_field.x.shape[0]))
+    for i, (ax, f) in enumerate(zip(axes.flatten(), frames)):
+        b_sum = B_field[f['field']].value.sum(axis=i % 3)
+        b_stream_1 = B_field[f['axis_indices'][0]].sum(axis=i % 3).value
+        b_stream_2 = B_field[f['axis_indices'][1]].sum(axis=i % 3).value
+        if f['axis_label'] != 'z':
+            b_sum = b_sum.T
+            b_stream_1 = b_stream_1.T
+            b_stream_2 = b_stream_2.T
+        im = ax.pcolormesh(ax1_grid, ax2_grid, b_sum, norm=norm, cmap=kwargs.get('cmap', 'hmimag'))
+        ax.streamplot(ax1_grid[0, :], ax2_grid[:, 0], b_stream_1, b_stream_2,
+                      color=kwargs.get('color', 'w'), density=kwargs.get('density', 0.5),
+                      linewidth=kwargs.get('linewidth', 2))
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+        if i % 3 == 0:
+            ax.set_ylabel(f'$B_{f["field_label"]}$', fontsize=fontsize)
+        if i > 5:
+            ax.set_xlabel(f'$\sum_{f["axis_label"]}$', fontsize=fontsize)
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0, wspace=0, right=0.965)
+    cax = fig.add_axes([0.975, 0.08, 0.03, 0.9])
+    fig.colorbar(im, cax=cax)
+    plt.show()
