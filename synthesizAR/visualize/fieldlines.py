@@ -35,8 +35,7 @@ def peek_fieldlines(magnetogram, fieldlines, **kwargs):
     ax.grid(alpha=0.)
     magnetogram.draw_grid(axes=ax, grid_spacing=10*u.deg, alpha=0.75, color='k')
     # Lines
-    line_frequency = kwargs.get('line_frequency', 5)
-    for line in fieldlines[::line_frequency]:
+    for line in fieldlines:
         coord = line.transform_to(magnetogram.coordinate_frame)
         # Mask lines behind the solar disk
         i_visible = np.where(is_visible(coord, magnetogram.observer_coordinate))
