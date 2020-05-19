@@ -36,7 +36,7 @@ class InstrumentSDOAIA(InstrumentBase):
     --------
     """
 
-    def __init__(self, observing_time, observer, pad_fov=None):
+    def __init__(self, observing_time, observer, **kwargs):
         self.telescope = 'SDO/AIA'
         self.detector = 'AIA'
         self.name = 'SDO_AIA'
@@ -50,8 +50,7 @@ class InstrumentSDOAIA(InstrumentBase):
         ]
         self.cadence = 12.0*u.s
         self.resolution = [0.600698, 0.600698]*u.arcsec/u.pixel
-        self.pad_fov = pad_fov
-        super().__init__(observing_time, observer)
+        super().__init__(observing_time, observer, **kwargs)
 
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):

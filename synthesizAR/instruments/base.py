@@ -21,8 +21,9 @@ from synthesizAR.util import is_visible
 
 class InstrumentBase(object):
     """
-    Base class for instruments. Need to at least implement a detect() method that is used by the
-    `Observer` class to get the detector counts.
+    Base class for instruments. This object is not meant to be instantiated directly. Instead,
+    specific instruments should subclass this base object and implement a `calculate_intensity_kernel`
+    method for that specific instrument.
 
     Parameters
     ----------
@@ -32,16 +33,22 @@ class InstrumentBase(object):
         Coordinate of the observing instrument
     assumed_cross_section : `~astropy.units.Quantity`, optional
         Approximation of the loop cross-section. This defines the filling factor.
+    pad_fov : `~astropy.units.Quantity`, optional
+        Two-dimensional array specifying the padding to apply to the field of view of the synthetic
+        image in both directions. If None, no padding is applied and the field of view is defined
+        by the maximal extent of the loop coordinates in each direction.
     """
     fits_template = MetaDict()
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observer, assumed_cross_section=1e14 * u.cm**2):
+    def __init__(self, observing_time: u.s, observer, assumed_cross_section=1e14 * u.cm**2,
+                 pad_fov=None):
         self.observing_time = np.arange(observing_time[0].to(u.s).value,
                                         observing_time[1].to(u.s).value,
                                         self.cadence.value)*u.s
         self.observer = observer
         self.assumed_cross_section = assumed_cross_section
+        self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
 
     def calculate_intensity_kernel(self, *args, **kwargs):
         """
@@ -189,17 +196,15 @@ class InstrumentBase(object):
         bottom left and top right corners.
         """
         coordinates = coordinates.transform_to(self.projected_frame)
-        if self.pad_fov is None:
-            pad_x, pad_y = 0*u.arcsec, 0*u.arcsec
         # NOTE: this is the coordinate of the bottom left corner of the bottom left corner pixel,
         # NOT the coordinate at the center of the pixel!
         bottom_left_corner = SkyCoord(
-            Tx=coordinates.Tx.min() - pad_x,
-            Ty=coordinates.Ty.min() - pad_y,
+            Tx=coordinates.Tx.min() - self.pad_fov[0],
+            Ty=coordinates.Ty.min() - self.pad_fov[1],
             frame=coordinates.frame
         )
-        bins_x = int(np.ceil((coordinates.Tx.max() + pad_x - bottom_left_corner.Tx) / self.resolution[0]).value)
-        bins_y = int(np.ceil((coordinates.Ty.max() + pad_y - bottom_left_corner.Ty) / self.resolution[1]).value)
+        bins_x = int(np.ceil((coordinates.Tx.max() + self.pad_fov[0] - bottom_left_corner.Tx) / self.resolution[0]).value)
+        bins_y = int(np.ceil((coordinates.Ty.max() + self.pad_fov[1] - bottom_left_corner.Ty) / self.resolution[1]).value)
         # Compute right corner after the fact to account for rounding in bin numbers
         # NOTE: this is the coordinate of the top right corner of the top right corner pixel, NOT
         # the coordinate at the center of the pixel!

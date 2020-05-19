@@ -113,7 +113,7 @@ def semi_circular_loop(length: u.cm, observer=None, n_points=1000, offset: u.cm 
                       y=0*u.km,
                       z=const.R_sun,
                       frame=sunpy.coordinates.Heliocentric(observer=observer))
-    # Offset along the y-axis, convenien for creating loop arcades
+    # Offset along the y-axis, convenient for creating loop arcades
     delta_y = 0*u.cm if offset is None else offset
     return SkyCoord(x=x + origin.x,
                     y=delta_y*np.ones(x.shape) + origin.y,
