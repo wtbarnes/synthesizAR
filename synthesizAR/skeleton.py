@@ -10,7 +10,7 @@ import asdf
 import zarr
 
 from synthesizAR import Loop
-from synthesizAR.visualize import peek_fieldlines
+from synthesizAR.visualize import plot_fieldlines
 from synthesizAR.atomic import Element
 
 
@@ -150,11 +150,15 @@ Number of loops: {len(self.loops)}'''
         """
         raise NotImplementedError
 
-    def peek(self, magnetogram, **kwargs):
+    def peek(self, **kwargs):
         """
-        Plot loop coordinates overlaid on magnetogram.
+        Plot loop coordinates on the solar disk.
+
+        See Also
+        --------
+        synthesizAR.visualize.plot_fieldlines
         """
-        peek_fieldlines(magnetogram, [l.coordinate for l in self.loops], **kwargs)
+        plot_fieldlines(*[_.coordinate for _ in self.loops], **kwargs)
 
     def configure_loop_simulations(self, interface, **kwargs):
         """

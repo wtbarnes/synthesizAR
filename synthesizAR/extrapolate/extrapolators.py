@@ -8,7 +8,7 @@ import numba
 from astropy.utils.console import ProgressBar
 
 from synthesizAR.util import SpatialPair
-from synthesizAR.visualize import peek_fieldlines
+from synthesizAR.visualize import plot_fieldlines
 from .helpers import from_local, to_local, magnetic_field_to_yt_dataset
 from .fieldlines import trace_fieldlines
 
@@ -207,7 +207,7 @@ class PotentialField(object):
         return bfield
 
     def peek(self, fieldlines, **kwargs):
-        peek_fieldlines(self.magnetogram, [l for l, m in fieldlines], **kwargs)
+        plot_fieldlines(*[fl for fl, _ in fieldlines], magnetogram=self.magnetogram, **kwargs)
 
 
 @numba.jit(nopython=True, fastmath=True, parallel=True)
