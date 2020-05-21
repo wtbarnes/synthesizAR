@@ -207,7 +207,7 @@ class PotentialField(object):
         return bfield
 
     def peek(self, fieldlines, **kwargs):
-        plot_fieldlines(*[fl for fl, _ in fieldlines], magnetogram=self.magnetogram, **kwargs)
+        plot_fieldlines(*fieldlines, magnetogram=self.magnetogram, **kwargs)
 
 
 @numba.jit(nopython=True, fastmath=True, parallel=True)
