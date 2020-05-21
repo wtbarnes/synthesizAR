@@ -7,7 +7,7 @@ import numpy as np
 from sunpy.util.metadata import MetaDict
 from sunpy.map import Map
 from sunpy.io.fits import get_header
-import sunpy.cm
+from sunpy.visualization.colormaps.cm import hinodexrt
 import astropy.units as u
 import astropy.io.fits
 import h5py
@@ -39,7 +39,7 @@ class EISCube(object):
         self.meta = header.copy()
         self.wavelength = wavelength
         self.data = data
-        self.cmap = kwargs.get('cmap', sunpy.cm.get_cmap('hinodexrt'))
+        self.cmap = kwargs.get('cmap', hinodexrt)
         self._fix_header()
 
     def __repr__(self):
