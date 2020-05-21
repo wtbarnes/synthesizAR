@@ -102,7 +102,7 @@ class EbtelInterface(object):
         return time, electron_temperature, ion_temperature, density, velocity
 
     @staticmethod
-    def calculate_ionization_fraction(field, emission_model, **kwargs):
+    def calculate_ionization_fraction(skeleton, emission_model, **kwargs):
         """
         Solve the time-dependent ionization balance equation for all loops and all elements
 
@@ -115,7 +115,7 @@ class EbtelInterface(object):
 
         Parameters
         ----------
-        field : `~synthesizAR.Field`
+        skeleton : `~synthesizAR.Skeleton`
         emission_model : `~synthesizAR.atomic.EmissionModel`
 
         Other Parameters
@@ -139,8 +139,8 @@ class EbtelInterface(object):
                 el, rate_matrix=rate_matrix, initial_condition=ioneq)
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
-            y = client.map(partial_nei, field.loops, pure=False)
-            write_y = client.map(partial_write, y, field.loops, pure=False)
+            y = client.map(partial_nei, skeleton.loops, pure=False)
+            write_y = client.map(partial_write, y, skeleton.loops, pure=False)
             distributed.client.wait(write_y)
             futures[el_name] = write_y
 
