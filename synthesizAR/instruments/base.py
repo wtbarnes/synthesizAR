@@ -43,10 +43,9 @@ class InstrumentBase(object):
     @u.quantity_input
     def __init__(self, observing_time: u.s, observer, assumed_cross_section=1e14 * u.cm**2,
                  pad_fov=None):
-        self.observing_time = np.arange(observing_time[0].to(u.s).value,
-                                        observing_time[1].to(u.s).value,
-                                        self.cadence.value)*u.s
-        self.observer = observer
+        self.observing_time = np.arange(*observing_time.to('s').value,
+                                        self.cadence.to('s').value)*u.s
+        self.observer = observer.transform_to(HeliographicStonyhurst)
         self.assumed_cross_section = assumed_cross_section
         self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
 
@@ -62,8 +61,7 @@ class InstrumentBase(object):
         Compute the LOS velocity for the instrument observer
         """
         # NOTE: transform from HEEQ to HCC with respect to the instrument observer
-        obs = self.observer.transform_to(HeliographicStonyhurst)
-        Phi_0, B_0 = obs.lon.to(u.radian), obs.lat.to(u.radian)
+        Phi_0, B_0 = self.observer.lon.to(u.radian), self.observer.lat.to(u.radian)
         v_los = v_z*np.sin(B_0) + v_x*np.cos(B_0)*np.cos(Phi_0) + v_y*np.cos(B_0)*np.sin(Phi_0)
         # NOTE: Negative sign to be consistent with convention v_los > 0 away from observer
         return -v_los
