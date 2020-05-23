@@ -109,12 +109,12 @@ class InstrumentBase(object):
                                skeleton.loops,
                                channel=channel,
                                name=self.name)
+            # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
             distributed.wait(files)
-            # TODO: add step to save to a file, dont keep in memory
             for i, t in enumerate(self.observing_time):
                 m = self.integrate_los(t, channel, skeleton)
                 m = self.convolve_with_psf(m)
-                m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'))
+                m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'), overwrite=True)
 
     @staticmethod
     def write_kernel_to_file(kernel, loop, channel, name):
