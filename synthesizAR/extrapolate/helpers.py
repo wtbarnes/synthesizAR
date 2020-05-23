@@ -82,7 +82,7 @@ def from_pfsspack(pfss_fieldlines):
 
 
 @u.quantity_input
-def semi_circular_loop(length: u.cm, observer=None, n_points=1000, offset: u.cm = None):
+def semi_circular_loop(length: u.cm, observer=None, obstime=None, n_points=1000, offset: u.cm = None):
     """
     Generate coordinates for a semi-circular loop
 
@@ -93,6 +93,9 @@ def semi_circular_loop(length: u.cm, observer=None, n_points=1000, offset: u.cm 
     observer : `~astropy.coordinates.SkyCoord`, optional
         Observer that defines te HCC coordinate system. Effectively, this is the
         coordinate of the midpoint of the loop.
+    obstime : parsable by `~astropy.time.Time`, optional
+        Observation time of the HCC frame. If `None`, will default to the `obstime`
+        of the `observer`.
     n_points : `int`, optional
         Number of points in the coordinate
     offset : `~astropy.units.Quantity`
@@ -109,10 +112,11 @@ def semi_circular_loop(length: u.cm, observer=None, n_points=1000, offset: u.cm 
         observer = SkyCoord(lon=0*u.deg,
                             lat=0*u.deg,
                             frame=sunpy.coordinates.HeliographicStonyhurst)
-    origin = SkyCoord(x=0*u.km,
-                      y=0*u.km,
-                      z=const.R_sun,
-                      frame=sunpy.coordinates.Heliocentric(observer=observer))
+    hcc_frame = sunpy.coordinates.Heliocentric(
+        observer=observer,
+        obstime=observer.obstime if obstime is None else obstime,
+    )
+    origin = SkyCoord(x=0*u.km, y=0*u.km, z=const.R_sun, frame=hcc_frame)
     # Offset along the y-axis, convenient for creating loop arcades
     delta_y = 0*u.cm if offset is None else offset
     return SkyCoord(x=x + origin.x,
