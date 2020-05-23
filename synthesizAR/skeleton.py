@@ -143,13 +143,6 @@ Number of loops: {len(self.loops)}'''
                         frame=self.loops[0].coordinate_center.frame,
                         representation_type=self.loops[0].coordinate_center.representation_type)
 
-    def interpolate_loop_coordinates(self):
-        """
-        Interpolate all loop coordinates to ensure each is represented by a suitable number
-        of points.
-        """
-        raise NotImplementedError
-
     def peek(self, **kwargs):
         """
         Plot loop coordinates on the solar disk.
