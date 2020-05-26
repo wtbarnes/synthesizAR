@@ -33,10 +33,13 @@ class Loop(object):
     >>> field_strength = u.Quantity([100,200], 'gauss')
     >>> loop = synthesizAR.Loop('coronal_loop', coordinate, field_strength)
     >>> loop
+    synthesizAR Loop
+    ----------------
     Name : coronal_loop
     Loop full-length, L : 5.196 Mm
     Footpoints : (1 Mm,2 Mm,3 Mm),(4 Mm,5 Mm,6 Mm)
     Maximum field strength : 200.00 G
+    Simulation Type: None
     """
 
     @u.quantity_input
