@@ -170,7 +170,9 @@ def synthetic_magnetogram(bottom_left_coord, top_right_coord, shape: u.pixel, ce
         xc_2 = (xphysical - (c.Tx - bottom_left_coord.Tx)).to(u.arcsec).value**2.0
         yc_2 = (yphysical - (c.Ty - bottom_left_coord.Ty)).to(u.arcsec).value**2.0
         data += a.to(u.Gauss).value * np.exp(
-            - xc_2 / (2 * s[0].to(u.arcsec).value**2) - yc_2 / (2 * s[1].to(u.arcsec).value**2))
+            - xc_2 / (2 * s[0].to(u.arcsec).value**2)
+            - yc_2 / (2 * s[1].to(u.arcsec).value**2)
+        )
     # Build metadata
     meta = make_fitswcs_header(
         data,
@@ -180,6 +182,7 @@ def synthetic_magnetogram(bottom_left_coord, top_right_coord, shape: u.pixel, ce
         instrument='synthetic_magnetic_imager',
         telescope='synthetic_magnetic_imager',
     )
+    meta['bunit'] = 'gauss'
     return GenericMap(data, meta)
 
 
