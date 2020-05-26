@@ -26,8 +26,8 @@ def test_loop_name(loop):
 
 
 def test_loop_coordinates(loop):
-    assert hasattr(loop, 'coordinates')
-    assert isinstance(loop.coordinates, SkyCoord)
+    assert hasattr(loop, 'coordinate')
+    assert isinstance(loop.coordinate, SkyCoord)
 
 
 def test_loop_field_strength(loop):
@@ -38,7 +38,7 @@ def test_loop_field_strength(loop):
 
 def test_loop_field_aligned_coordinate(loop):
     assert hasattr(loop, 'field_aligned_coordinate')
-    dx, dy, dz = np.diff(loop.coordinates.x), np.diff(loop.coordinates.y), np.diff(loop.coordinates.z)
+    dx, dy, dz = np.diff(loop.coordinate.x), np.diff(loop.coordinate.y), np.diff(loop.coordinate.z)
     d = np.sqrt(dx**2 + dy**2 + dz**2).cumsum()
     s = u.Quantity(np.append(0, d.value), d.unit)
     assert np.all(loop.field_aligned_coordinate == s)
@@ -46,5 +46,5 @@ def test_loop_field_aligned_coordinate(loop):
 
 def test_loop_length(loop):
     assert hasattr(loop, 'length')
-    dx, dy, dz = np.diff(loop.coordinates.x), np.diff(loop.coordinates.y), np.diff(loop.coordinates.z)
+    dx, dy, dz = np.diff(loop.coordinate.x), np.diff(loop.coordinate.y), np.diff(loop.coordinate.z)
     assert loop.length == np.sqrt(dx**2 + dy**2 + dz**2).sum()
