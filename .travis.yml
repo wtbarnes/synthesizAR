@@ -1,73 +1,26 @@
-# We set the language to c because python isn't supported on the MacOS X nodes
-# on Travis. However, the language ends up being irrelevant anyway, since we
-# install Python ourselves using conda.
-language: c
-
-os:
-    - linux
-
-# Setting sudo to false opts in to Travis-CI container-based builds.
-sudo: false
-
-# The apt packages below are needed for sphinx builds. A full list of packages
-# that can be included can be found here:
-#
-# https://github.com/travis-ci/apt-package-whitelist/blob/master/ubuntu-precise
-
-addons:
-    apt:
-        packages:
-            - graphviz
-            - texlive-latex-extra
-            - dvipng
-
-env:
-    global:
-
-        # The following versions are the 'default' for tests, unless
-        # overridden underneath. They are defined here in order to save having
-        # to repeat them for all configurations.
-        - PYTHON_VERSION=3.6
-        - NUMPY_VERSION=stable
-        - ASTROPY_VERSION=stable
-        - MAIN_CMD='python setup.py'
-        - PIP_DEPENDENCIES='sphinx-astropy plasmapy git+git://github.com/wtbarnes/fiasco.git'
-        - CONDA_DEPENDENCIES='dask distributed h5py matplotlib scipy sunpy yt numba pytest sphinx'
-        - PYTEST_VERSION=3.6.4
-        - SPHINX_VERSION=1.5.6
-        - CONDA_CHANNELS='conda-forge'
-        - EVENT_TYPE='pull_request push cron'
-
-        # If there are matplotlib or other GUI tests, uncomment the following
-        # line to use the X virtual framebuffer.
-        - SETUP_XVFB=True
-
-    matrix:
-        # Make sure that egg_info works without dependencies
-        - SETUP_CMD='egg_info'
-        - SETUP_CMD='install'
-        - SETUP_CMD='test --coverage'
-        - SETUP_CMD='build_docs'
-
-matrix:
-
-    include:
-        # Do a PEP8 test with pycodestyle
-        - os: linux
-          env: MAIN_CMD='pycodestyle synthesizAR --count' SETUP_CMD=''
-
-    allow_failures:
-        # Do a PEP8 test with pycodestyle
-        # (allow to fail unless your code completely compliant)
-        - os: linux
-          env: MAIN_CMD='pycodestyle synthesizAR --count' SETUP_CMD=''
-
+branches:
+  only: master
+os: linux
+language: python
+python: 3.8
 install:
-    - git clone --depth 1 git://github.com/astropy/ci-helpers.git
-    - source ci-helpers/travis/setup_conda.sh
-
-script:
-   - $MAIN_CMD $SETUP_CMD
-
-after_success:
-    - if [[ $SETUP_CMD == *coverage* ]]; then coveralls --rcfile='synthesizAR/tests/coveragerc'; fi
+- pip install tox
+jobs:
+  include:
+  - python: 3.6
+    script: tox -e py36
+  - python: 3.7
+    script: tox -e py37
+  - script: tox -e py38
+    after_success:
+    - pip install --upgrade codecov
+    - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then codecov --token=$CODECOV_TOKEN; fi'
+  - script: tox -e build_docs
+  - script: tox -e codestyle
+  allow_failures:
+  - script: tox -e codestyle
+    python: 3.8
+    os: linux
+env:
+  global:
+    secure: eBeL1pHWHJKNnd/hukJY+Ph2+i02pvikHaebvO/1GeRaUpyHhac0U9I2macrJCqh6jbY3l+pRuFEMJBnXLUnkJNJVwy91uxsXVbAB4ESo/BDjGqVT5/VpK2pwUpaPbxupNiL3TRXDZy3d9dmg3YeutwYgEh5qADP5FYKG5EzpWtC0orTILzpFZSCBE2NPNsYYES4JigWCt6vXCsT9Rbuc/hoQItjFleg7kR0UboHj9S8h6tWXy9Z6HP2rTTeCfTIWmTQegPAbf6O6OP+enUZ8uH5kPWeQwgfKSvbjZp42xRyGDLwQPq7TyGYY5ylova/kJrJKlz9ktaR8wG/xD52BO6MtlH7wzI8O95LH6YGJSGTaEP0X32UYnNiv7X32AaRiFBraaw9Co5wMwppOm8snSjnQEgnuwop11adDEoSVIyrN10IqYHoysRyET2CDssjqW27XYQzzm5lR0eBT9lam0hEAEngGU41GeeqbOOTFrbqzp8UgYRcd2mXzQghbnk2jH/1AVv1KoQuijqR1uN6FnA5GuwuFw56wz0wHCXo3PROFrgcKOBx3U7IOrFayh/c5DaRnXKU7uOqT+kxuPLhYu75DU6load2nLICrsekibcmt2CAxIRco6Vlc8RSQfLF1u+u8vVtUhptv3IJlyw7bl9FEE6lHanCIptCgb+V8U0=
