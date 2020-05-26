@@ -85,7 +85,7 @@ The final step in our forward modeling pipeline is to compute the synthetic inte
 First, we need to create the instrument and tell it the location of our observer. In this case, we'll use the observer coordinate define by our magnetogram: at disk center at a distance of 1 AU.
 
     >>> from synthesizAR.instruments import InstrumentSDOAIA
-    >>> aia = InstrumentSDOAIA([0,1]*u.s, magnetogram.observer_coordinate, pad_fov=(5,5)*u.arcsec)
+    >>> aia = InstrumentSDOAIA([0,1]*u.s, magnetogram.observer_coordinate, pad_fov=(5,5)*u.arcsec)  # doctest: +REMOTE_DATA
 
 Note that we are only observing at :math:`t=0` s as our loop model is a static model and thus our
 forward-modeled intensities will not evolve in time. Next, we need to set up our `~distributed.Client`
