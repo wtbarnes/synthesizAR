@@ -6,22 +6,16 @@
 [![Powered by SunPy Badge]( http://img.shields.io/badge/powered%20by-SunPy-orange.svg?style=flat)](http://www.sunpy.org)
 [![Build Status](https://travis-ci.org/wtbarnes/synthesizAR.svg?branch=master)](https://travis-ci.org/wtbarnes/synthesizAR)
 [![Documentation Status](http://readthedocs.org/projects/synthesizar/badge/?version=latest)](http://synthesizar.readthedocs.io/en/latest/?badge=latest)
-
+[![codecov](https://codecov.io/gh/wtbarnes/synthesizAR/branch/master/graph/badge.svg)](https://codecov.io/gh/wtbarnes/synthesizAR)
 
 synthesizAR is a Python package for forward modeling emission from solar active regions using hydrodynamic simulations of coronal loops
 
-## Dependencies
-The easiest way to install these packages is with the [Anaconda Python distribution](https://www.anaconda.com/distribution/). To create a new environment with all of the needed dependencies, use the [environment file included in this repo](environment.yml).
-```
-$ conda env create -f environment.yml
-$ source activate synthesizar
-```
-
 ## Install
-After installing all of the needed dependencies, clone and install the package,
+To clone the repository and install the package and all of its needed dependencies,
 ```shell
 $ git clone https://github.com/wtbarnes/synthesizAR.git
-$ cd synthesizAR && python setup.py install
+$ cd synthesizAR
+$ pip install -e .[all]
 ```
 
 ## Help
