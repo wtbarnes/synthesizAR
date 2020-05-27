@@ -4,17 +4,15 @@
 synthesizAR is a package for forward modeling emission from solar active regions using
 hydrodynamic simulations of coronal loops.
 """
-
-# Affiliated packages may add whatever they like to this file, but
-# should keep this content at the top.
-# ----------------------------------------------------------------------------
 from ._astropy_init import *
-# ----------------------------------------------------------------------------
+try:
+    from .version import __version__
+except ImportError:
+    __version__ = "unknown"
 
-# For egg_info test builds to pass, put package imports here.
-if not _ASTROPY_SETUP_:
-    from . import version
-    Version = version._last_generated_version
-    from .loop import Loop
-    from .skeleton import Skeleton
-    from .observe import Observer
+from .loop import Loop
+from .skeleton import Skeleton
+# Alias counts as DN for convenience
+import astropy.units
+DN = astropy.units.def_unit('DN', astropy.units.count)
+astropy.units.add_enabled_units(DN)

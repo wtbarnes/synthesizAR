@@ -2,19 +2,17 @@
 Field extrapolation methods for computing 3D vector magnetic fields from LOS magnetograms
 """
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 from scipy.interpolate import griddata
 import astropy.units as u
 import numba
 from astropy.utils.console import ProgressBar
 
 from synthesizAR.util import SpatialPair
-
+from synthesizAR.visualize import plot_fieldlines
 from .helpers import from_local, to_local, magnetic_field_to_yt_dataset
-from .fieldlines import trace_fieldlines, peek_fieldlines
+from .fieldlines import trace_fieldlines
 
-__all__ = ['PotentialField', 'peek_projections']
+__all__ = ['PotentialField']
 
 
 class PotentialField(object):
@@ -62,7 +60,7 @@ class PotentialField(object):
     def trace_fieldlines(self, B_field, number_fieldlines, **kwargs):
         """
         Trace field lines through vector magnetic field.
-        
+
         This is a wrapper around `~synthesizAR.extrapolate.trace_fieldlines` and
         accepts all of the same keyword arguments. Note that here the field lines are
         automatically converted to the HEEQ coordinate system.
@@ -77,7 +75,7 @@ class PotentialField(object):
         coordinates : `list`
             `~astropy.coordinates.SkyCoord` objects giving coordinates for all field lines
         field_strengths : `list`
-            `~astropy.units.Quantity` for magnitude of :math:`B(s)` for each field line 
+            `~astropy.units.Quantity` for magnitude of :math:`B(s)` for each field line
         """
         ds = self.as_yt(B_field)
         lower_boundary = self.project_boundary(self.range.x, self.range.y).value
@@ -149,7 +147,7 @@ class PotentialField(object):
                             y=int(self.shape.y.value),
                             z=int(self.shape.z.value))
         phi = np.zeros((shape.x, shape.y, shape.z))
-        phi = calculate_phi(phi, boundary, delta, shape, z_depth, l_hat)
+        phi = _calculate_phi_numba(phi, boundary, delta, shape, z_depth, l_hat)
         return phi * u.Unit(self.magnetogram.meta['bunit']) * self.delta.x.unit * (1. * u.pixel)
 
     @u.quantity_input
@@ -176,29 +174,32 @@ class PotentialField(object):
         B_field : `~synthesizAR.util.SpatialPair`
             x, y, and z components of the vector magnetic field in 3D
         """
-        Bfield = u.Quantity(np.zeros(phi.shape + (3,)), self.magnetogram.meta['bunit'])
-        # Take gradient--indexed as x,y,z in 4th dimension
-        Bfield[2:-2, 2:-2, 2:-2, 0] = -(phi[:-4, 2:-2, 2:-2] - 8.*phi[1:-3, 2:-2, 2:-2] 
-                                        + 8.*phi[3:-1, 2:-2, 2:-2]
-                                        - phi[4:, 2:-2, 2:-2])/12./(self.delta.x * 1. * u.pixel)
-        Bfield[2:-2, 2:-2, 2:-2, 1] = -(phi[2:-2, :-4, 2:-2] - 8.*phi[2:-2, 1:-3, 2:-2]
-                                        + 8.*phi[2:-2, 3:-1, 2:-2]
-                                        - phi[2:-2, 4:, 2:-2])/12./(self.delta.y * 1. * u.pixel)
-        Bfield[2:-2, 2:-2, 2:-2, 2] = -(phi[2:-2, 2:-2, :-4] - 8.*phi[2:-2, 2:-2, 1:-3]
-                                        + 8.*phi[2:-2, 2:-2, 3:-1]
-                                        - phi[2:-2, 2:-2, 4:])/12./(self.delta.z * 1. * u.pixel)
-        # Set boundary conditions
-        for i in range(3):
+        Bx = u.Quantity(np.zeros(phi.shape), self.magnetogram.meta['bunit'])
+        By = u.Quantity(np.zeros(phi.shape), self.magnetogram.meta['bunit'])
+        Bz = u.Quantity(np.zeros(phi.shape), self.magnetogram.meta['bunit'])
+        # Take gradient using a five-point stencil
+        Bx[2:-2, 2:-2, 2:-2] = -(phi[2:-2, :-4, 2:-2] - 8.*phi[2:-2, 1:-3, 2:-2]
+                                 + 8.*phi[2:-2, 3:-1, 2:-2]
+                                 - phi[2:-2, 4:, 2:-2])/12./(self.delta.x * 1. * u.pixel)
+        By[2:-2, 2:-2, 2:-2] = -(phi[:-4, 2:-2, 2:-2] - 8.*phi[1:-3, 2:-2, 2:-2]
+                                 + 8.*phi[3:-1, 2:-2, 2:-2]
+                                 - phi[4:, 2:-2, 2:-2])/12./(self.delta.y * 1. * u.pixel)
+        Bz[2:-2, 2:-2, 2:-2] = -(phi[2:-2, 2:-2, :-4] - 8.*phi[2:-2, 2:-2, 1:-3]
+                                 + 8.*phi[2:-2, 2:-2, 3:-1]
+                                 - phi[2:-2, 2:-2, 4:])/12./(self.delta.z * 1. * u.pixel)
+        # Set boundary conditions such that the last two cells in either direction in each dimension
+        # are the same as the preceding cell.
+        for Bfield in (Bx, By, Bz):
             for j in [0, 1]:
-                Bfield[j, :, :, i] = Bfield[2, :, :, i]
-                Bfield[:, j, :, i] = Bfield[:, 2, :, i]
-                Bfield[:, :, j, i] = Bfield[:, :, 2, i]
+                Bfield[j, :, :] = Bfield[2, :, :]
+                Bfield[:, j, :] = Bfield[:, 2, :]
+                Bfield[:, :, j] = Bfield[:, :, 2]
             for j in [-2, -1]:
-                Bfield[j, :, :, i] = Bfield[-3, :, :, i]
-                Bfield[:, j, :, i] = Bfield[:, -3, :, i]
-                Bfield[:, :, j, i] = Bfield[:, :, -3, i]
+                Bfield[j, :, :] = Bfield[-3, :, :]
+                Bfield[:, j, :] = Bfield[:, -3, :]
+                Bfield[:, :, j] = Bfield[:, :, -3]
 
-        return SpatialPair(x=Bfield[:, :, :, 1], y=Bfield[:, :, :, 0], z=Bfield[:, :, :, 2])
+        return SpatialPair(x=Bx, y=By, z=Bz)
 
     def extrapolate(self):
         phi = self.calculate_phi()
@@ -206,82 +207,25 @@ class PotentialField(object):
         return bfield
 
     def peek(self, fieldlines, **kwargs):
-        peek_fieldlines(self.magnetogram, [l for l, m in fieldlines], **kwargs)
+        plot_fieldlines(*fieldlines, magnetogram=self.magnetogram, **kwargs)
 
 
-@numba.jit(nopython=True)
-def calculate_phi(phi, boundary, delta, shape, z_depth, l_hat):
-    for i in range(shape.x):
-        for j in range(shape.y):
-            for k in range(shape.z):
-                x, y, z = i*delta.x, j*delta.y, k*delta.z
+@numba.jit(nopython=True, fastmath=True, parallel=True)
+def _calculate_phi_numba(phi, boundary, delta, shape, z_depth, l_hat):
+    for i in numba.prange(shape.x):
+        for j in numba.prange(shape.y):
+            for k in numba.prange(shape.z):
+                Rz = k * delta.z - z_depth
+                lzRz = l_hat[2] * Rz
+                factor = 1. / (2. * np.pi) * delta.x * delta.y
                 for i_prime in range(shape.x):
                     for j_prime in range(shape.y):
-                        x_prime, y_prime = i_prime*delta.x, j_prime*delta.y
-                        green = greens_function(x, y, z, x_prime, y_prime, z_depth, l_hat)
-                        phi[j, i, k] += boundary[j_prime, i_prime] * green * delta.x * delta.y
+                        Rx = delta.x * (i - i_prime)
+                        Ry = delta.y * (j - j_prime)
+                        R_mag = np.sqrt(Rx**2 + Ry**2 + Rz**2)
+                        num = l_hat[2] + Rz / R_mag
+                        denom = R_mag + lzRz + Rx*l_hat[0] + Ry*l_hat[1]
+                        green = num / denom
+                        phi[j, i, k] += boundary[j_prime, i_prime] * green * factor
 
     return phi
-
-
-@numba.jit(nopython=True)
-def greens_function(x, y, z, x_grid, y_grid, z_depth, l_hat):
-    Rx = x - x_grid
-    Ry = y - y_grid
-    Rz = z - z_depth
-    R_mag = np.sqrt(Rx**2 + Ry**2 + Rz**2)
-    l_dot_R = l_hat[0] * Rx + l_hat[1] * Ry + l_hat[2] * Rz
-    mu_dot_R = Rz - l_dot_R * l_hat[2]
-    term1 = l_hat[2] / R_mag
-    term2 = mu_dot_R / (R_mag * (R_mag + l_dot_R))
-    return 1. / (2. * np.pi) * (term1 + term2)
-
-
-def peek_projections(B_field, **kwargs):
-    """
-    Quick plot of projections of components of fields along different axes
-
-    .. warning:: These plots are just images and include no spatial information
-    """
-    norm = kwargs.get('norm', Normalize(vmin=-2e3, vmax=2e3))
-    fontsize = kwargs.get('fontsize', 20)
-    frames = [
-        {'field': 0, 'field_label': 'x', 'axis_label': 'x', 'axis_indices': (2, 1)},
-        {'field': 0, 'field_label': 'x', 'axis_label': 'y', 'axis_indices': (0, 2)},
-        {'field': 0, 'field_label': 'x', 'axis_label': 'z', 'axis_indices': (0, 1)},
-        {'field': 1, 'field_label': 'y', 'axis_label': 'x', 'axis_indices': (2, 1)},
-        {'field': 1, 'field_label': 'y', 'axis_label': 'y', 'axis_indices': (0, 2)},
-        {'field': 1, 'field_label': 'y', 'axis_label': 'z', 'axis_indices': (0, 1)},
-        {'field': 2, 'field_label': 'z', 'axis_label': 'x', 'axis_indices': (2, 1)},
-        {'field': 2, 'field_label': 'z', 'axis_label': 'y', 'axis_indices': (0, 2)},
-        {'field': 2, 'field_label': 'z', 'axis_label': 'z', 'axis_indices': (0, 1)},
-    ]
-    fig, axes = plt.subplots(3, 3, figsize=kwargs.get('figsize', (10, 10)))
-    ax1_grid, ax2_grid = np.meshgrid(np.linspace(-1, 1, B_field.x.shape[1]),
-                                     np.linspace(-1, 1, B_field.x.shape[0]))
-    for i, (ax, f) in enumerate(zip(axes.flatten(), frames)):
-        b_sum = B_field[f['field']].value.sum(axis=i % 3)
-        b_stream_1 = B_field[f['axis_indices'][0]].sum(axis=i % 3).value
-        b_stream_2 = B_field[f['axis_indices'][1]].sum(axis=i % 3).value
-        if f['axis_label'] != 'z':
-            b_sum = b_sum.T
-            b_stream_1 = b_stream_1.T
-            b_stream_2 = b_stream_2.T
-        im = ax.pcolormesh(ax1_grid, ax2_grid, b_sum, norm=norm, cmap=kwargs.get('cmap', 'hmimag'))
-        ax.streamplot(ax1_grid[0, :], ax2_grid[:, 0], b_stream_1, b_stream_2,
-                      color=kwargs.get('color', 'w'), density=kwargs.get('density', 0.5),
-                      linewidth=kwargs.get('linewidth', 2))
-        ax.get_xaxis().set_ticks([])
-        ax.get_yaxis().set_ticks([])
-        if i % 3 == 0:
-            ax.set_ylabel(f'$B_{f["field_label"]}$', fontsize=fontsize)
-        if i > 5:
-            ax.set_xlabel(f'$\sum_{f["axis_label"]}$', fontsize=fontsize)
-        ax.set_xlim(-1, 1)
-        ax.set_ylim(-1, 1)
-
-    fig.tight_layout()
-    fig.subplots_adjust(hspace=0, wspace=0, right=0.965)
-    cax = fig.add_axes([0.975, 0.08, 0.03, 0.9])
-    fig.colorbar(im, cax=cax)
-    plt.show()

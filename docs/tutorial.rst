@@ -8,10 +8,13 @@ Computing a Synthetic Magnetogram
 We will first need to create a synthetic magnetogram to perform a field extrapolation from. `synthesizAR` provides some basic functionality for creating synthetic magnetograms. First, import the needed libraries ::
 
     >>> import os
+    >>> import distributed
+    >>> import astropy.time
     >>> import astropy.units as u
     >>> import astropy.constants as const
     >>> from astropy.coordinates import SkyCoord
     >>> from sunpy.coordinates import HeliographicStonyhurst, Helioprojective
+    >>> from sunpy.coordinates.ephemeris import get_earth
     >>> import synthesizAR
     >>> import synthesizAR.extrapolate
     >>> import yt; yt.funcs.mylog.setLevel(50); yt.config.ytcfg.set('yt', 'suppressStreamLogging','True') # This is only to suppress unneeded output
@@ -21,10 +24,11 @@ We will first need to create a synthetic magnetogram to perform a field extrapol
 Then, configure our magnetogram. We need to specify the bounds of our map, number of "sunspots", the spread of these spots, and their strength, ::
 
     >>> shape = [ 50, 50] * u.pixel
-    >>> obs = SkyCoord(lon=0.*u.deg,lat=0.*u.deg,radius=const.au,frame=HeliographicStonyhurst)
-    >>> blc = SkyCoord(-50 * u.arcsec, -50 * u.arcsec,frame=Helioprojective(observer=obs))
-    >>> trc = SkyCoord(50 * u.arcsec, 50 * u.arcsec, frame=Helioprojective(observer=obs))
-    >>> centers = SkyCoord([15, -15,]*u.arcsec,[0, 0,]*u.arcsec,frame=Helioprojective(observer=obs))
+    >>> obs = get_earth(astropy.time.Time.now())
+    >>> hpc_frame = Helioprojective(observer=obs, obstime=obs.obstime)
+    >>> blc = SkyCoord(-50 * u.arcsec, -50 * u.arcsec,frame=hpc_frame)
+    >>> trc = SkyCoord(50 * u.arcsec, 50 * u.arcsec, frame=hpc_frame)
+    >>> centers = SkyCoord([15, -15,]*u.arcsec,[0, 0,]*u.arcsec,frame=hpc_frame)
     >>> sigmas = u.Quantity([[5, 5], [5, 5],],'arcsec')
     >>> amplitudes = u.Quantity([1e3, -1e3,], 'Gauss')
 
@@ -59,6 +63,11 @@ Each entry in our fieldline list contains 1) the coordinates of the fieldline as
 
 Note that we need not construct the fieldlines in this manner. Similary, we could get the fieldlines using some other method (e.g. the `pfss package from SSW <http://www.lmsal.com/~derosa/pfsspack/>`_) and construct our active region in exactly the same way.
 
+Before proceeding, we want to ensure that each of the loops in our active region is sufficiently sampled such that when we project along our LOS, our image is not "patchy." To ensure this, we can interpolate each of the loops in our active region to sufficient spatial resolution. What "sufficient" means here depends on how detailed we want our final image to be. As a rule of thumb, we want the grid cell widths of our loops to be less than a pixel of our observing instrument.
+
+>>> ds = (0.6*u.arcsec).to('radian').value * const.au * 0.9
+>>> active_region = active_region.refine_loops(ds)
+
 Loop Thermal Structure
 ------------------------
 The next step is to calculate the temperature and density as a function of loop coordinate and time. For this tutorial, we will compute a hydrostatic solution using the scaling laws of `Martens (2010) <http://adsabs.harvard.edu/abs/2010ApJ...714.1290M>`_.
@@ -66,8 +75,8 @@ The next step is to calculate the temperature and density as a function of loop 
 In order to compute the thermal structure along each loop, we need an interface between the `~synthesizAR.Loop` object and the model being used. synthesizAR provides interfaces to several different models. You can also easily define your own. Let's create the interface and compute the thermal structure for all of our loops,
 
     >>> from synthesizAR.interfaces import MartensInterface
-    >>> martens = MartensInterface()
-    >>> active_region.load_loop_simulations(martens, os.path.join(tmpdir, 'loops.h5'), notebook=False)
+    >>> martens = MartensInterface(1e-5*u.erg/(u.cm**3)/u.s)
+    >>> active_region.load_loop_simulations(martens, os.path.join(tmpdir, 'loops.zarr'))
 
 Synthesizing AIA Intensity Maps
 -------------------------------
@@ -76,21 +85,24 @@ The final step in our forward modeling pipeline is to compute the synthetic inte
 First, we need to create the instrument and tell it the location of our observer. In this case, we'll use the observer coordinate define by our magnetogram: at disk center at a distance of 1 AU.
 
     >>> from synthesizAR.instruments import InstrumentSDOAIA
-    >>> aia = InstrumentSDOAIA([0,1]*u.s, magnetogram.observer_coordinate)
+    >>> aia = InstrumentSDOAIA([0,1]*u.s, magnetogram.observer_coordinate, pad_fov=(5,5)*u.arcsec)  # doctest: +REMOTE_DATA
 
-Next, we combine our instrument object and active region into a single observer object that will compute the intensities from the temperatures and densities of each loop.
+Note that we are only observing at :math:`t=0` s as our loop model is a static model and thus our
+forward-modeled intensities will not evolve in time. Next, we need to set up our `~distributed.Client`
+instance which will handle the underlying parallelism.
 
-    >>> observer = synthesizAR.Observer(active_region, [aia])
-    >>> observer.build_detector_files(tmpdir, 1*u.Mm)
+    >>> client = distributed.Client(local_dir=tmpdir)
 
-In order to compute the intensities in each pixel along the line of sight, we first compute and interpolate the intensities over all loop lengths and simulation times. Then, we bin these counts over the whole pixel array.
+Lastly, we "observe" our active region skeleton, combined with our hydrostatic loop simulations, and project them along
+the line of sight as defined by our observer,
 
-    >>> observer.flatten_detector_counts()
-    >>> observer.bin_detector_counts(tmpdir)
+    >>> aia.observe(active_region, tmpdir, channels=aia.channels[2:3])
 
-This last step produces a `~sunpy.map.GenericMap` for each detector channel at each timestep and saves it to a FITS file. For example, to load the map for the 94 :math:`\mathrm{\mathring{A}}` channel
+This produces a `~sunpy.map.GenericMap` at each timestep for the 171 :math:`\mathrm{\mathring{A}}` channel and
+saves it to a FITS file. To load the resulting map,
 
     >>> from sunpy.map import Map
-    >>> m = Map(os.path.join(tmpdir, 'SDO_AIA', '94', 'map_t000000.fits'))
+    >>> m = Map(os.path.join(tmpdir, 'm_171_t0.fits'))
 
-Note that there is only one map per channel at :math:`t=0` s because the thermal structure of the loops in the active region is determined by the hydrostatic scaling laws.
+Note that there is only one map per channel at :math:`t=0` s because the thermal structure of the loops
+in the active region is determined by the hydrostatic scaling laws.

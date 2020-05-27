@@ -1,19 +1,16 @@
 """
 Container for fieldlines in three-dimensional magnetic skeleton
 """
-import os
-import datetime
-
 import numpy as np
-from sunpy.coordinates import HeliographicStonyhurst
+from scipy.interpolate import splev, splprep, interp1d
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-from astropy.utils.console import ProgressBar
-import h5py
+import asdf
+import zarr
 
 from synthesizAR import Loop
-from synthesizAR.extrapolate import peek_fieldlines
-from synthesizAR.util import get_keys
+from synthesizAR.visualize import plot_fieldlines
+from synthesizAR.atomic import Element
 
 
 class Skeleton(object):
@@ -29,7 +26,7 @@ class Skeleton(object):
     --------
     >>> import synthesizAR
     >>> import astropy.units as u
-    >>> loop = synthesizAR.Loop('loop', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation='cartesian'), [1e2,1e3] * u.G)
+    >>> loop = synthesizAR.Loop('loop', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation_type='cartesian'), [1e2,1e3] * u.G)
     >>> field = synthesizAR.Skeleton([loop,])
     """
 
@@ -54,139 +51,223 @@ class Skeleton(object):
         return cls(loops)
 
     def __repr__(self):
-        sim_type = self.simulation_type if hasattr(self, 'simulation_type') else ''
         return f'''synthesizAR Skeleton Object
 ------------------------
-Number of loops: {len(self.loops)}
-Simulation Type: {sim_type}'''
+Number of loops: {len(self.loops)}'''
 
-    def save(self, savedir=None):
+    def to_asdf(self, filename):
         """
-        Save the components of the field object to be reloaded later.
+        Serialize this instance of `Skeleton` to an ASDF file
         """
-        if savedir is None:
-            dt = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
-            savedir = f'synthesizAR-{type(self).__name__}-save_{dt}'
-        if not os.path.exists(savedir):
-            os.makedirs(savedir)
-        with h5py.File(os.path.join(savedir, 'loops.h5'), 'w') as hf:
-            for i, loop in enumerate(self.loops):
-                grp = hf.create_group(loop.name)
-                grp.attrs['index'] = i
-                if hasattr(loop, 'parameters_savefile'):
-                    grp.attrs['parameters_savefile'] = loop.parameters_savefile
-                else:
-                    grp.attrs['parameters_savefile'] = ''
-                ds = grp.create_dataset('coordinates', data=loop.coordinates.cartesian.xyz.value)
-                ds.attrs['unit'] = loop.coordinates.cartesian.xyz.unit.to_string()
-                ds = grp.create_dataset('field_strength', data=loop.field_strength.value)
-                ds.attrs['unit'] = loop.field_strength.unit.to_string()
+        tree = {}
+        for l in self.loops:
+            tree[l.name] = {
+                'field_strength': l.field_strength,
+                'coordinate': l.coordinate,
+                'model_results_filename': l.model_results_filename,
+            }
+        with asdf.AsdfFile(tree) as asdf_file:
+            asdf_file.write_to(filename)
 
     @classmethod
-    def restore(cls, savedir):
+    def from_asdf(cls, filename):
         """
-        Restore the field from a set of serialized files
-
-        Parameters
-        ----------
-        savedir: `str`
-            Path to directory that contains savefiles
+        Restore a `Skeleton` instance from an ASDF file
 
         Examples
         --------
         >>> import synthesizAR
-        >>> restored_field = synthesizAR.Skeleton.restore('/path/to/restored/field/dir') # doctest: +SKIP
+        >>> restored_field = synthesizAR.Skeleton.from_asdf('/path/to/skeleton.asdf') # doctest: +SKIP
         """
+        exclude_keys = ['asdf_library', 'history']
         loops = []
-        indices = []
-        with h5py.File(os.path.join(savedir, 'loops.h5'), 'r') as hf:
-            for grp_name in hf:
-                grp = hf[grp_name]
-                x = u.Quantity(grp['coordinates'][0, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                y = u.Quantity(grp['coordinates'][1, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                z = u.Quantity(grp['coordinates'][2, :],
-                               get_keys(grp['coordinates'].attrs, ('unit', 'units')))
-                coordinates = SkyCoord(
-                    x=x, y=y, z=z, frame=HeliographicStonyhurst, representation='cartesian')
-                field_strength = u.Quantity(
-                    grp['field_strength'],
-                    get_keys(grp['field_strength'].attrs, ('unit', 'units')))
-                l = Loop(grp_name, coordinates=coordinates, field_strength=field_strength)
-                if grp.attrs['parameters_savefile']:
-                    l.parameters_savefile = grp.attrs['parameters_savefile']
-                loops.append(l)
-                indices.append(grp.attrs['index'])
-        # NOTE: this to make sure the loops are in the same order as before
-        loops, _ = zip(*sorted(zip(loops, indices), key=lambda x: x[1]))
-
+        with asdf.open(filename, mode='r', copy_arrays=True) as af:
+            for k in af.keys():
+                if k in exclude_keys:
+                    continue
+                model_results_filename = af.tree[k].get('model_results_filename', None)
+                loops.append(Loop(
+                    k,
+                    SkyCoord(af.tree[k]['coordinate']),
+                    af.tree[k]['field_strength'],
+                    model_results_filename=model_results_filename,
+                ))
         return cls(loops)
 
-    def peek(self, magnetogram, **kwargs):
+    @u.quantity_input
+    def refine_loops(self, delta_s: u.cm):
         """
-        Show extracted fieldlines overlaid on magnetogram.
+        Interpolate loop coordinates and field strengths to a specified spatial resolution
+        and return a new `Skeleton` object.
+
+        This can be important in order to ensure that an adequate number of points are used
+        to represent each fieldline when binning intensities onto the instrument grid.
         """
-        fieldlines = [loop.coordinates for loop in self.loops]
-        peek_fieldlines(magnetogram, fieldlines, **kwargs)
+        new_loops = []
+        for l in self.loops:
+            tck, _ = splprep(l.coordinate.cartesian.xyz.value, u=l.field_aligned_coordinate_norm)
+            new_s = np.arange(0, l.length.to(u.Mm).value, delta_s.to(u.Mm).value) * u.Mm
+            x, y, z = splev((new_s/l.length).decompose(), tck)
+            unit = l.coordinate.cartesian.xyz.unit
+            new_coord = SkyCoord(x=x*unit, y=y*unit, z=z*unit, frame=l.coordinate.frame,
+                                 representation_type=l.coordinate.representation_type)
+            f_B = interp1d(l.field_aligned_coordinate.to(u.Mm), l.field_strength)
+            new_field_strength = f_B(new_s.to(u.Mm)) * l.field_strength.unit
+            new_loops.append(Loop(l.name, new_coord, new_field_strength,
+                                  model_results_filename=l.model_results_filename))
+
+        return Skeleton(new_loops)
+
+    @property
+    def all_coordinates(self):
+        """
+        Coordinates for all loops in the skeleton.
+
+        .. note:: This should be treated as a collection of points and NOT a
+                  continuous structure.
+        """
+        return SkyCoord([l.coordinate for l in self.loops],
+                        frame=self.loops[0].coordinate.frame,
+                        representation_type=self.loops[0].coordinate.representation_type)
+
+    @property
+    def all_coordinates_centers(self):
+        """
+        Coordinates for all grid cell centers of all loops in the skeleton
+
+        .. note:: This should be treated as a collection of points and NOT a 
+                  continuous structure.
+        """
+        return SkyCoord([l.coordinate_center for l in self.loops],
+                        frame=self.loops[0].coordinate_center.frame,
+                        representation_type=self.loops[0].coordinate_center.representation_type)
+
+    def peek(self, **kwargs):
+        """
+        Plot loop coordinates on the solar disk.
+
+        See Also
+        --------
+        synthesizAR.visualize.plot_fieldlines
+        """
+        plot_fieldlines(*[_.coordinate for _ in self.loops], **kwargs)
 
     def configure_loop_simulations(self, interface, **kwargs):
         """
         Configure hydrodynamic simulations for each loop object
         """
-        self.simulation_type = interface.name
-        with ProgressBar(len(self.loops), ipython_widget=kwargs.get('notebook', True)) as progress:
-            for loop in self.loops:
-                interface.configure_input(loop)
-                progress.update()
+        for loop in self.loops:
+            interface.configure_input(loop, **kwargs)
 
-    def load_loop_simulations(self, interface, savefile, **kwargs):
+    def load_loop_simulations(self, interface, filename, **kwargs):
         """
         Load in loop parameters from hydrodynamic results.
         """
-        with h5py.File(savefile, 'w') as hf:
-            with ProgressBar(len(self.loops),
-                             ipython_widget=kwargs.get('notebook', True),) as progress:
-                for loop in self.loops:
-                    # Load in parameters from interface
-                    (time, electron_temperature, ion_temperature,
-                     density, velocity) = interface.load_results(loop)
-                    # convert velocity to loop coordinate system
-                    grad_xyz = np.gradient(loop.coordinates.cartesian.xyz.value, axis=1)
-                    s_hat = grad_xyz / np.linalg.norm(grad_xyz, axis=0)
-                    velocity_x = velocity * s_hat[0, :]
-                    velocity_y = velocity * s_hat[1, :]
-                    velocity_z = velocity * s_hat[2, :]
-                    # Write to file
-                    loop.parameters_savefile = savefile
-                    grp = hf.create_group(loop.name)
-                    # time
-                    dset_time = grp.create_dataset('time', data=time.value)
-                    dset_time.attrs['unit'] = time.unit.to_string()
-                    # electron temperature
-                    dset_electron_temperature = grp.create_dataset('electron_temperature',
-                                                                   data=electron_temperature.value)
-                    dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
-                    # ion temperature
-                    dset_ion_temperature = grp.create_dataset('ion_temperature',
-                                                              data=ion_temperature.value)
-                    dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
-                    # number density
-                    dset_density = grp.create_dataset('density', data=density.value)
-                    dset_density.attrs['unit'] = density.unit.to_string()
-                    # field-aligned velocity
-                    dset_velocity = grp.create_dataset('velocity', data=velocity.value)
-                    dset_velocity.attrs['unit'] = velocity.unit.to_string()
-                    dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
-                    # Cartesian xyz velocity
-                    dset_velocity_x = grp.create_dataset('velocity_x', data=velocity_x.value)
-                    dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
-                    dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
-                    dset_velocity_y = grp.create_dataset('velocity_y', data=velocity_y.value)
-                    dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
-                    dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
-                    dset_velocity_z = grp.create_dataset('velocity_z', data=velocity_z.value)
-                    dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
-                    dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
+        root = zarr.open(store=filename, mode='w', **kwargs)
+        for loop in self.loops:
+            loop.model_results_filename = filename
+            # Load in parameters from interface
+            (time, electron_temperature, ion_temperature,
+                density, velocity) = interface.load_results(loop)
+            # Convert velocity to loop coordinate system
+            # NOTE: the direction is evaluated at the left edges + the last right edge.
+            # But the velocity is evaluated at the center of each cell so we need
+            # to interpolate the direction to the cell centers for each component
+            s = loop.field_aligned_coordinate.to(u.Mm).value
+            s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
+            s_hat = loop.coordinate_direction
+            velocity_x = velocity * interp1d(s, s_hat[0, :])(s_center)
+            velocity_y = velocity * interp1d(s, s_hat[1, :])(s_center)
+            velocity_z = velocity * interp1d(s, s_hat[2, :])(s_center)
+            # Write to file
+            grp = root.create_group(loop.name)
+            grp.attrs['simulation_type'] = interface.name
+            # time
+            dset_time = grp.create_dataset('time', data=time.value)
+            dset_time.attrs['unit'] = time.unit.to_string()
+            # NOTE: Set the chunk size such that accessing all entries for a given timestep
+            # is the most efficient pattern.
+            chunks = (None,) + s_center.shape
+            # electron temperature
+            dset_electron_temperature = grp.create_dataset(
+                'electron_temperature', data=electron_temperature.value, chunks=chunks)
+            dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
+            # ion temperature
+            dset_ion_temperature = grp.create_dataset(
+                'ion_temperature', data=ion_temperature.value, chunks=chunks)
+            dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
+            # number density
+            dset_density = grp.create_dataset('density', data=density.value, chunks=chunks)
+            dset_density.attrs['unit'] = density.unit.to_string()
+            # field-aligned velocity
+            dset_velocity = grp.create_dataset('velocity', data=velocity.value, chunks=chunks)
+            dset_velocity.attrs['unit'] = velocity.unit.to_string()
+            dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
+            # Cartesian xyz velocity
+            dset_velocity_x = grp.create_dataset(
+                'velocity_x', data=velocity_x.value, chunks=chunks)
+            dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
+            dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
+            dset_velocity_y = grp.create_dataset(
+                'velocity_y', data=velocity_y.value, chunks=chunks)
+            dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
+            dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
+            dset_velocity_z = grp.create_dataset(
+                'velocity_z', data=velocity_z.value, chunks=chunks)
+            dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
+            dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
 
-                    progress.update()
+    def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
+        """
+        Load the ionization fractions for each ion in the emission model.
+
+        Parameters
+        ----------
+        emission_model : `synthesizAR.atomic.EmissionModel`
+        interface : optional
+            A model interface. Only necessary if loading the ionization fractions
+            from the model
+
+        If the model interface provides a method for loading the population fraction
+        from the model, use that to get the population fractions. Otherwise, compute
+        the ion population fractions in equilibrium. This should be done after
+        calling `load_loop_simulations`.
+        """
+        root = zarr.open(store=self.loops[0].model_results_filename, mode='a', **kwargs)
+        # Check if we can load from the model
+        FROM_MODEL = False
+        if interface is not None and hasattr(interface, 'load_ionization_fraction'):
+            frac = interface.load_ionization_fraction(self.loops[0], emission_model[0])
+            # Some models may optionally output the ionization fractions such that
+            # they will have this method, but it may not return anything
+            if frac is not None:
+                FROM_MODEL = True
+        # Get the unique elements from all of our ions
+        elements = list(set([ion.element_name for ion in emission_model]))
+        elements = [Element(e, emission_model.temperature) for e in elements]
+        for el in elements:
+            ions = [i for i in emission_model if i.element_name == el.element_name]
+            if not FROM_MODEL:
+                ioneq = el.equilibrium_ionization()
+            for loop in self.loops:
+                chunks = (None,) + loop.field_aligned_coordinate_center.shape
+                if not FROM_MODEL:
+                    frac_el = interp1d(el.temperature,
+                                       ioneq,
+                                       axis=0,
+                                       kind='linear',
+                                       fill_value='extrapolate')(loop.electron_temperature)
+                if 'ionization_fraction' in root[loop.name]:
+                    grp = root[f'{loop.name}/ionization_fraction']
+                else:
+                    grp = root[loop.name].create_group('ionization_fraction')
+                for ion in ions:
+                    if FROM_MODEL:
+                        frac = interface.load_ionization_fraction(loop, ion)
+                        desc = f'Ionization fraction of {ion.ion_name} as computed by {interface.name}'
+                    else:
+                        frac = frac_el[:, :, ion.charge_state]
+                        desc = f'Ionization fraction of {ion.ion_name} in equilibrium.'
+                    dset = grp.create_dataset(f'{ion.ion_name}', data=frac, chunks=chunks)
+                    dset.attrs['unit'] = ''
+                    dset.attrs['description'] = desc

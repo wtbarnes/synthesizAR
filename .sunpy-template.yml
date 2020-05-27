@@ -1,0 +1,12 @@
+default_context:
+  package_name: synthesizAR
+  module_name: synthesizAR
+  short_description: A Python package for forward-modeling optically-thin emission
+  author_name: Will Barnes
+  author_email: will.t.barnes@gmail.com
+  license: BSD 3-Clause
+  project_url: https://github.com/wtbarnes/synthesizAR
+  github_repo: wtbarnes/synthesizAR
+  minimum_python_version: 3.6
+  use_compiled_extensions: n
+  include_example_code: n

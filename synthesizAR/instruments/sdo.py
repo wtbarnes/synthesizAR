@@ -2,26 +2,22 @@
 Class for the SDO/AIA instrument. Holds information about the cadence and
 spatial and spectroscopic resolution.
 """
-
-import json
-import pkg_resources
 import warnings
-import toolz
+import pkg_resources
 
 import numpy as np
-from scipy.interpolate import splrep, splev
-from scipy.ndimage import map_coordinates
-from scipy.ndimage.filters import gaussian_filter
+import asdf
+import zarr
 import astropy.units as u
-from sunpy.map import Map
-import h5py
-try:
-    import distributed
-except ImportError:
-    warnings.warn('Dask distributed scheduler required for parallel execution')
+from aiapy.response import Channel
+from scipy.interpolate import interp1d, interpn
 
-from synthesizAR.util import SpatialPair, is_visible, get_keys
 from synthesizAR.instruments import InstrumentBase
+
+_TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
+    'synthesizAR', 'instruments/data/aia_temperature_response.asdf')
+with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r') as af:
+    _TEMPERATURE_RESPONSE = af.tree
 
 
 class InstrumentSDOAIA(InstrumentBase):
@@ -32,9 +28,7 @@ class InstrumentSDOAIA(InstrumentBase):
     ----------
     observing_time : `tuple`
         start and end of observing time
-    observer_coordinate : `~astropy.coordinates.SkyCoord`
-    start_time : `~astropy.time.Time` or compatible datetime, optional
-        Starting time of the observation; if None, defaults to now.
+    observer : `~astropy.coordinates.SkyCoord`
     apply_psf : `bool`, optional
         If True (default), apply AIA point-spread function to images
 
@@ -42,216 +36,106 @@ class InstrumentSDOAIA(InstrumentBase):
     --------
     """
 
-    def __init__(self, observing_time, observer_coordinate, start_time=None, apply_psf=True):
-        self.fits_template['telescop'] = 'SDO/AIA'
-        self.fits_template['detector'] = 'AIA'
-        self.fits_template['waveunit'] = 'angstrom'
+    def __init__(self, observing_time, observer, **kwargs):
+        self.telescope = 'SDO/AIA'
+        self.detector = 'AIA'
         self.name = 'SDO_AIA'
         self.channels = [
-            {'wavelength': 94*u.angstrom,
-             'telescope_number': 4,
-             'gaussian_width': {'x': 0.951*u.pixel,
-                                'y': 0.951*u.pixel}},
-            {'wavelength': 131*u.angstrom,
-             'telescope_number': 1,
-             'gaussian_width': {'x': 1.033*u.pixel,
-                                'y': 1.033*u.pixel}},
-            {'wavelength': 171*u.angstrom,
-             'telescope_number': 3,
-             'gaussian_width': {'x': 0.962*u.pixel,
-                                'y': 0.962*u.pixel}},
-            {'wavelength': 193*u.angstrom,
-             'telescope_number': 2,
-             'gaussian_width': {'x': 1.512*u.pixel,
-                                'y': 1.512*u.pixel}},
-            {'wavelength': 211*u.angstrom,
-             'telescope_number': 2,
-             'gaussian_width': {'x': 1.199*u.pixel,
-                                'y': 1.199*u.pixel}},
-            {'wavelength': 335*u.angstrom,
-             'telescope_number': 1,
-             'gaussian_width': {'x': 0.962*u.pixel,
-                                'y': 0.962*u.pixel}},
+            Channel(94*u.angstrom),
+            Channel(131*u.angstrom),
+            Channel(171*u.angstrom),
+            Channel(193*u.angstrom),
+            Channel(211*u.angstrom),
+            Channel(335*u.angstrom),
         ]
         self.cadence = 12.0*u.s
-        self.resolution = SpatialPair(x=0.600698*u.arcsec/u.pixel,
-                                      y=0.600698*u.arcsec/u.pixel,
-                                      z=None)
-        self.apply_psf = apply_psf
-        super().__init__(observing_time, observer_coordinate, start_time=start_time)
-        self._setup_channels()
-
-    def _setup_channels(self):
-        """
-        Setup channel, specifically the wavelength or temperature response functions.
-
-        .. note:: This should be replaced once the response functions are available in SunPy.
-        """
-        aia_fn = pkg_resources.resource_filename('synthesizAR', 'instruments/data/sdo_aia.json')
-        with open(aia_fn, 'r') as f:
-            aia_info = json.load(f)
-
-        for channel in self.channels:
-            channel['name'] = str(channel['wavelength'].value).strip('.0')
-            channel['instrument_label'] = '{}_{}'.format(self.fits_template['detector'],
-                                                         channel['telescope_number'])
-            channel['wavelength_range'] = None
-            x = aia_info[channel['name']]['temperature_response_x']
-            y = aia_info[channel['name']]['temperature_response_y']
-            channel['temperature_response_spline'] = splrep(x, y)
-            x = aia_info[channel['name']]['response_x']
-            y = aia_info[channel['name']]['response_y']
-            channel['wavelength_response_spline'] = splrep(x, y)
-
-    def build_detector_file(self, file_template, dset_shape, chunks, *args):
-        """
-        Allocate space for counts data.
-        """
-        additional_fields = ['{}'.format(channel['name']) for channel in self.channels]
-        super().build_detector_file(file_template, dset_shape, chunks, *args,
-                                    additional_fields=additional_fields)
+        self.resolution = [0.600698, 0.600698]*u.arcsec/u.pixel
+        super().__init__(observing_time, observer, **kwargs)
 
     @staticmethod
-    def calculate_counts_simple(channel, loop, *args, **kwargs):
-        """
-        Calculate the AIA intensity using only the temperature response functions.
-        """
-        response_function = (splev(np.ravel(loop.electron_temperature),
-                                   channel['temperature_response_spline'])
-                             * u.count * u.cm**5 / u.s / u.pixel)
-        counts = np.reshape(np.ravel(loop.density**2)*response_function, loop.density.shape)
-        return counts
+    def calculate_intensity_kernel(loop, channel, **kwargs):
+        em_model = kwargs.get('emission_model', None)
+        if em_model:
+            # Full intensity calculation using CHIANTI and the
+            # wavelength response functions
+            n = loop.density
+            T = loop.electron_temperature
+            Tn_flat = np.stack((T.value.flatten(), n.value.flatten()), axis=1)
+            kernel = np.zeros(T.shape)
+            # Get the group for this channel
+            root = zarr.open(em_model.emissivity_table_filename, mode='r')
+            grp = root[f'SDO_AIA/{channel.name}']
+            for ion in em_model:
+                if ion.ion_name not in grp:
+                    warnings.warn(f'Not including contribution from {ion.ion_name}')
+                    continue
+                ds = grp[ion.ion_name]
+                em_ion = u.Quantity(ds, ds.attrs['unit'])
+                # Interpolate wavelength-convolved emissivity to loop n,T
+                em_flat = interpn(
+                    (em_model.temperature.to(T.unit).value, em_model.density.to(n.unit).value),
+                    em_ion.value,
+                    Tn_flat,
+                    method='linear',
+                    fill_value=None,
+                    bounds_error=False,
+                )
+                em_ion_interp = np.reshape(em_flat, T.shape)
+                em_ion_interp = u.Quantity(np.where(em_ion_interp < 0., 0., em_ion_interp),
+                                           em_ion.unit)
+                ionization_fraction = loop.get_ionization_fraction(ion)
+                tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*n*em_ion_interp
+                if not hasattr(kernel, 'unit'):
+                    kernel = kernel*tmp.unit
+                kernel += tmp
+        else:
+            # Use tabulated temperature respone functions
+            T, K = _TEMPERATURE_RESPONSE['temperature'], _TEMPERATURE_RESPONSE[channel.name]
+            K_interp = np.interp(loop.electron_temperature, T, K)
+            kernel = K_interp * loop.density**2
+        return kernel
 
-    @staticmethod
-    def flatten_emissivities(channel, emission_model):
+    def convolve_emissivities(self, channel, emission_model):
         """
-        Compute product between wavelength response and emissivity for all ions
+        Compute product between wavelength response for `channel` and emissivity for all ions
+        in an emission model.
         """
-        flattened_emissivities = []
+        em_convolved = {}
+        r = channel.wavelength_response() * channel.plate_scale
+        f_interp = interp1d(channel.wavelength, r, bounds_error=False, fill_value=0.0)
         for ion in emission_model:
             wavelength, emissivity = emission_model.get_emissivity(ion)
+            # TODO: need to figure out a better way to propagate missing emissivities
             if wavelength is None or emissivity is None:
-                flattened_emissivities.append(None)
-                continue
-            interpolated_response = splev(wavelength.value, channel['wavelength_response_spline'],
-                                          ext=1)
-            em_summed = np.dot(emissivity.value, interpolated_response)
-            unit = emissivity.unit*u.count/u.photon*u.steradian/u.pixel*u.cm**2
-            flattened_emissivities.append(u.Quantity(em_summed, unit))
+                em_convolved[ion.ion_name] = None
+            else:
+                em_convolved[ion.ion_name] = np.dot(emissivity, f_interp(wavelength)) * r.unit
 
-        return flattened_emissivities
+        return em_convolved
 
-    @staticmethod
-    def calculate_counts_full(channel, loop, emission_model, flattened_emissivities):
-        """
-        Calculate the AIA intensity using the wavelength response functions and a
-        full emission model.
-        """
-        density = loop.density
-        electron_temperature = loop.electron_temperature
-        counts = np.zeros(electron_temperature.shape)
-        itemperature, idensity = emission_model.interpolate_to_mesh_indices(loop)
-        for ion, flat_emiss in zip(emission_model, flattened_emissivities):
-            if flat_emiss is None:
-                continue
-            ionization_fraction = emission_model.get_ionization_fraction(loop, ion)
-            tmp = np.reshape(map_coordinates(flat_emiss.value, np.vstack([itemperature, idensity])),
-                             electron_temperature.shape)
-            tmp = u.Quantity(np.where(tmp < 0., 0., tmp), flat_emiss.unit)
-            counts_tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*density*tmp
-            if not hasattr(counts, 'unit'):
-                counts = counts*counts_tmp.unit
-            counts += counts_tmp
+    def observe(self, skeleton, save_directory, channels=None, **kwargs):
+        em_model = kwargs.get('emission_model')
+        if em_model:
+            # TODO: skip if the file already exists?
+            # If using an emission model, we want to first convolve the wavelength-dependent
+            # emissivities with the wavelength response functions and store them in the
+            # emissivity table
+            channels = self.channels if channels is None else channels
+            root = zarr.open(store=em_model.emissivity_table_filename, mode='a')
+            if self.name not in root:
+                grp = root.create_group(self.name)
+            else:
+                grp = root[self.name]
+            for channel in channels:
+                em_convolved = self.convolve_emissivities(channel, em_model)
+                if channel.name in grp:
+                    chan_grp = grp[channel.name]
+                else:
+                    chan_grp = grp.create_group(channel.name)
+                for k in em_convolved:
+                    if k in chan_grp or em_convolved[k] is None:
+                        continue
+                    ds = chan_grp.create_dataset(k, data=em_convolved[k].value)
+                    ds.attrs['unit'] = em_convolved[k].unit.to_string()
 
-        return counts
-
-    def flatten_serial(self, loops, interpolated_loop_coordinates, hf, emission_model=None):
-        """
-        Interpolate intensity in each channel to temporal resolution of the instrument
-        and appropriate spatial scale.
-        """
-        if emission_model is None:
-            calculate_counts = self.calculate_counts_simple
-            flattened_emissivities = None
-        else:
-            calculate_counts = self.calculate_counts_full
-
-        for channel in self.channels:
-            start_index = 0
-            dset = hf[channel['name']]
-            if emission_model is not None:
-                flattened_emissivities = self.flatten_emissivities(channel, emission_model)
-            for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                c = calculate_counts(channel, loop, emission_model, flattened_emissivities)
-                y = self.interpolate(c, loop, interp_s)
-                self.commit(y, dset, start_index)
-                start_index += interp_s.shape[0]
-
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, emission_model=None):
-        """
-        Interpolate intensity in each channel to temporal resolution of the instrument
-        and appropriate spatial scale. Returns a dask task.
-        """
-        # Setup scheduler
-        client = distributed.get_client()
-        start_indices = np.insert(np.array(
-            [s.shape[0] for s in interpolated_loop_coordinates]).cumsum()[:-1], 0, 0)
-        if emission_model is None:
-            calculate_counts = self.calculate_counts_simple
-            flat_emiss = None
-        else:
-            calculate_counts = self.calculate_counts_full
-
-        futures = []
-        for channel in self.channels:
-            # Flatten emissivities for appropriate channel
-            if emission_model is not None:
-                flat_emiss = self.flatten_emissivities(channel, emission_model)
-            # Map each loop to worker
-            partial_counts = toolz.curry(calculate_counts)(
-                channel, emission_model=emission_model, flattened_emissivities=flat_emiss)
-            partial_write = toolz.curry(self.write_to_hdf5)(dset_name=channel['name'])
-            y = client.map(partial_counts, loops)
-            y_interp = client.map(self.interpolate, y, loops, interpolated_loop_coordinates)
-            loop_futures = client.map(partial_write, y_interp, start_indices)
-            # Block until complete
-            distributed.client.wait(loop_futures)
-            futures += loop_futures
-
-        return futures
-
-    def detect(self, channel, i_time, header, bins, bin_range):
-        """
-        For a given channel and timestep, map the intensity along the loop to the 3D field and
-        return the AIA data product.
-
-        Parameters
-        ----------
-        channel : `dict`
-        i_time : `int`
-        header : `~sunpy.util.metadata.MetaDict`
-        bins : `~synthesizAR.util.SpatialPair`
-        bin_range : `~synthesizAR.util.SpatialPair`
-
-        Returns
-        -------
-        AIA data product : `~sunpy.map.Map`
-        """
-        with h5py.File(self.counts_file, 'r') as hf:
-            weights = np.array(hf[channel['name']][i_time, :])
-            units = u.Unit(get_keys(hf[channel['name']].attrs, ('unit', 'units')))
-
-        hpc_coordinates = self.total_coordinates
-        dz = np.diff(bin_range.z)[0].cgs / bins.z * (1. * u.pixel)
-        visible = is_visible(hpc_coordinates, self.observer_coordinate)
-        hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value,
-                                    hpc_coordinates.Ty.value,
-                                    bins=(bins.x.value, bins.y.value),
-                                    range=(bin_range.x.value, bin_range.y.value),
-                                    weights=visible * weights * dz.value)
-        header['bunit'] = (units * dz.unit).to_string()
-
-        if self.apply_psf:
-            counts = gaussian_filter(hist.T, (channel['gaussian_width']['y'].value,
-                                              channel['gaussian_width']['x'].value))
-        return Map(counts.astype(np.float32), header)
+        super().observe(skeleton, save_directory, channels=channels, **kwargs)

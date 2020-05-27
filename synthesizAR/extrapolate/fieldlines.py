@@ -4,22 +4,12 @@ Functions for generating, tracing, filtering, and converting fieldlines
 import warnings
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
-from scipy.optimize import bisect
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 import astropy.units as u
-import astropy.constants as const
-from astropy.coordinates import SkyCoord
-from sunpy.coordinates import HeliographicStonyhurst, HeliographicCarrington, Heliocentric
 from sunpy.image.resample import resample
-import sunpy.time
 import yt
 
-from synthesizAR.util import is_visible
 
-__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines',
-           'peek_fieldlines', 'from_pfsspack', 'circular_loop']
+__all__ = ['filter_streamlines', 'find_seed_points', 'trace_fieldlines']
 
 
 @u.quantity_input
@@ -201,144 +191,3 @@ def trace_fieldlines(ds, number_fieldlines, max_tries=100, get_seed_points=None,
         warnings.warn(f'Maxed out number of tries with {len(fieldlines)} acceptable streamlines')
 
     return fieldlines
-
-
-def peek_fieldlines(magnetogram, fieldlines, **kwargs):
-    """
-    Quick plot of streamlines overplotted on magnetogram
-
-    Parameters
-    ----------
-    magnetogram : `~sunpy.map.Map`
-    fieldlines : `list`
-    """
-    fig = plt.figure(figsize=kwargs.get('figsize', (8, 8)))
-    ax = fig.gca(projection=magnetogram)
-    # Plot map
-    norm = kwargs.get('norm', Normalize(vmin=-1.5e3, vmax=1.5e3))
-    magnetogram.plot(axes=ax, title=False, cmap=kwargs.get('cmap', 'hmimag'), norm=norm)
-    # Grid
-    ax.grid(alpha=0.)
-    magnetogram.draw_grid(axes=ax, grid_spacing=10*u.deg, alpha=0.75, color='k')
-    # Lines
-    line_frequency = kwargs.get('line_frequency', 5)
-    for line in fieldlines[::line_frequency]:
-        coord = line.transform_to(magnetogram.coordinate_frame)
-        # Mask lines behind the solar disk
-        i_visible = np.where(is_visible(coord, magnetogram.observer_coordinate))
-        coord_visible = SkyCoord(Tx=coord.Tx[i_visible], Ty=coord.Ty[i_visible],
-                                 distance=coord.distance[i_visible],
-                                 frame=magnetogram.coordinate_frame)
-        ax.plot_coord(coord_visible, '-', color=kwargs.get('color', 'k'), lw=kwargs.get('lw', 1),
-                      alpha=kwargs.get('alpha', 0.5))
-
-    plt.show()
-
-
-def from_pfsspack(pfss_fieldlines):
-    """
-    Convert fieldline coordinates output from the SSW package `pfss <http://www.lmsal.com/~derosa/pfsspack/>`_ 
-    into `~astropy.coordinates.SkyCoord` objects.
-
-    Parameters
-    ----------
-    pfss_fieldlines : `~numpy.recarray`
-        Structure produced by reading pfss output with `~scipy.io.readsav`
-
-    Returns
-    -------
-    fieldlines : `list`
-        Each entry is a `tuple` containing a `~astropy.coordinates.SkyCoord` object and a
-        `~astropy.units.Quantity` object listing the coordinates and field strength along the loop.
-    """
-    # Fieldline coordinates
-    num_fieldlines = pfss_fieldlines['ptr'].shape[0]
-    # Use HGC frame if possible
-    try:
-        frame = HeliographicCarrington(
-            obstime=sunpy.time.parse_time(pfss_fieldlines['now'].decode('utf-8')))
-    except ValueError:
-        warnings.warn('Assuming HGS frame because no date available for HGC frame')
-        frame = HeliographicStonyhurst()
-    fieldlines = []
-    for i in range(num_fieldlines):
-        # NOTE: For an unknown reason, there are a number of invalid points for each line output
-        # by pfss
-        n_valid = pfss_fieldlines['nstep'][i]
-        lon = (pfss_fieldlines['ptph'][i, :] * u.radian).to(u.deg)[:n_valid]
-        lat = 90 * u.deg - (pfss_fieldlines['ptth'][i, :] * u.radian).to(u.deg)[:n_valid]
-        radius = ((pfss_fieldlines['ptr'][i, :]) * const.R_sun.to(u.cm))[:n_valid]
-        coord = SkyCoord(lon=lon, lat=lat, radius=radius, frame=frame)
-        fieldlines.append(coord)
-
-    # Magnetic field strengths
-    lon_grid = (pfss_fieldlines['phi'] * u.radian - np.pi * u.radian).to(u.deg).value
-    lat_grid = (np.pi / 2. * u.radian - pfss_fieldlines['theta'] * u.radian).to(u.deg).value
-    radius_grid = pfss_fieldlines['rix'] * const.R_sun.to(u.cm).value
-    B_radius = pfss_fieldlines['br']
-    B_lat = pfss_fieldlines['bth']
-    B_lon = pfss_fieldlines['bph']
-    # Create interpolators
-    B_radius_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_radius,
-                                                    bounds_error=False, fill_value=None)
-    B_lat_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_lat,
-                                                 bounds_error=False, fill_value=None)
-    B_lon_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_lon,
-                                                 bounds_error=False, fill_value=None)
-    # Interpolate values through each line
-    field_strengths = []
-    for f in fieldlines:
-        points = np.stack([f.spherical.distance.to(u.cm).value,
-                           f.spherical.lat.to(u.deg).value,
-                           f.spherical.lon.to(u.deg).value], axis=1)
-        b_r = B_radius_interpolator(points)
-        b_lat = B_lat_interpolator(points)
-        b_lon = B_lon_interpolator(points)
-        field_strengths.append(np.sqrt(b_r**2 + b_lat**2 + b_lon**2) * u.Gauss)
-
-    return [(l, b) for l, b in zip(fieldlines, field_strengths)]
-
-
-@u.quantity_input
-def circular_loop(length: u.cm, theta0=0*u.deg, phi0=0*u.deg, n_points=1000):
-    """
-    Generate a circular loop whose center lies at :math:`(R_{\odot},\Theta_0,\Phi_0)`
-
-    Parameters
-    ----------
-    length : `~astropy.units.Quantity`
-        Full length of the loop
-    theta0 : `~astropy.units.Quantity`, optional
-        Latitude of the loop center
-    phi0 : `~astropy.units.Quantity`, optional
-        Longitude of the loop center
-    n_points : `int`
-        Number of points in the coordinate
-    """
-    # Compute loop radius from loop length
-    # NOTE: Resulting expression is transcendental, hence the bisection technique
-    r_1 = const.R_sun
-
-    def func(x):
-        return np.arccos(0.5*x/r_1.to(u.cm).value) - np.pi + length.to(u.cm).value/2./x
-
-    r_2 = bisect(func, length.to(u.cm).value/(2*np.pi), length.to(u.cm).value/np.pi) * u.cm
-    alpha = np.arccos(0.5*(r_2/r_1).decompose())
-    phi = np.linspace(-np.pi*u.rad + alpha, np.pi*u.rad-alpha, n_points)
-    # Quadratic formula to find r
-    a = 1.
-    b = -2*(r_1.to(u.cm)*np.cos(phi.to(u.radian)))
-    c = r_1.to(u.cm)**2 - r_2.to(u.cm)**2
-    r = (-b + np.sqrt(b**2 - 4*a*c))/2/a
-    # Choose only points above the surface
-    i_r = np.where(r > r_1)
-    r = r[i_r]
-    phi = phi[i_r]
-    # We are expressing this in an HCC frame
-    hcc_frame = Heliocentric(
-        observer=SkyCoord(lon=phi0, lat=theta0, radius=r_1, frame='heliographic_stonyhurst'))
-    x = r.to(u.cm)*np.sin(phi.to(u.radian))
-    y = u.Quantity(r.shape[0]*[0*u.cm])
-    z = r.to(u.cm)*np.cos(phi.to(u.radian))
-
-    return SkyCoord(x=x, y=y, z=z, frame=hcc_frame).transform_to('heliographic_stonyhurst')

@@ -36,7 +36,7 @@ class RTVInterface(object):
         pressure = pressure * u.dyne / (u.cm**2)
         rtv = RTVScalingLaws(loop.length/2, pressure=pressure, **self.rtv_kwargs)
         time = u.Quantity([0, ], 's')
-        shape = time.shape+loop.field_aligned_coordinate.shape
+        shape = time.shape+loop.field_aligned_coordinate_center.shape
         temperature = np.ones(shape) * rtv.max_temperature
         density = np.ones(shape) * rtv.density
         # Scaling laws do not provide any velocity information

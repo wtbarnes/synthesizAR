@@ -4,10 +4,9 @@ Model interface for the HYDrodynamics and RADiation (HYDRAD) code
 import os
 
 import numpy as np
-from scipy.interpolate import splrep, splprep, splev
+from scipy.interpolate import splrep, splev
 import astropy.units as u
 import astropy.constants as const
-from astropy.coordinates import SkyCoord
 import sunpy.sun.constants as sun_const
 from pydrad.configure import Configure
 from pydrad.parse import Strand
@@ -37,76 +36,46 @@ class HYDRADInterface(object):
     heating_model: object
         Instance of a heating model class that describes when and
         where the heating should occur along the loop
-    delta_s_uniform: `~astropy.units.Quantity`
-        Grid spacing of the uniform spatial grid to which all
-        quantities will be interpreted
     """
     name = 'HYDRAD'
 
     @u.quantity_input
-    def __init__(self, base_config, hydrad_dir, output_dir, heating_model, delta_s_uniform: u.cm):
+    def __init__(self, base_config, hydrad_dir, output_dir, heating_model):
         self.base_config = base_config
         self.hydrad_dir = hydrad_dir
         self.output_dir = output_dir
         self.heating_model = heating_model
-        self.delta_s_uniform = delta_s_uniform
-        self.max_grid_cell = 1e8*u.cm
-    
+
     def configure_input(self, loop):
         config = self.base_config.copy()
         config['general']['loop_length'] = loop.length
         config['initial_conditions']['heating_location'] = loop.length / 2.
-        # Gravity and cross-section coefficients
         config['general']['poly_fit_gravity'] = self.get_gravity_coefficients(loop)
         config['general']['poly_fit_magnetic_field'] = self.get_cross_section_coefficients(loop)
-        # Heating configuration
-        config['heating']['events'] = self.heating_model.calculate_event_properties(loop)
-        # Setup configuration and generate initial conditions
+        config = self.heating_model.calculate_event_properties(config, loop)
         c = Configure(config)
         c.setup_simulation(os.path.join(self.output_dir, loop.name),
                            base_path=self.hydrad_dir,
                            verbose=False)
 
     def load_results(self, loop):
-        # Create the strand and uniform coordinate
-        s = Strand(os.path.join(self.output_dir, loop.name), read_amr=False)
-        s_uniform = np.arange(
-            0, s.loop_length.to(u.cm).value, self.delta_s_uniform.to(u.cm).value)*u.cm
-        # Preallocate space for arrays
-        shape = s.time.shape + s_uniform.shape
+        loop_coord_center = loop.field_aligned_coordinate_center.to(u.cm).value
+        s = Strand(os.path.join(self.output_dir, loop.name))
+        shape = s.time.shape + loop_coord_center.shape
         electron_temperature = np.zeros(shape)
         ion_temperature = np.zeros(shape)
         density = np.zeros(shape)
         velocity = np.zeros(shape)
-
-        # Interpolate each quantity at each timestep
-        for i, _ in enumerate(s.time):
-            p = s[i]
+        for i, p in enumerate(s):
             coord = p.coordinate.to(u.cm).value
             tsk = splrep(coord, p.electron_temperature.to(u.K).value,)
-            electron_temperature[i, :] = splev(s_uniform.value, tsk, ext=0)
+            electron_temperature[i, :] = splev(loop_coord_center, tsk, ext=0)
             tsk = splrep(coord, p.ion_temperature.to(u.K).value,)
-            ion_temperature[i, :] = splev(s_uniform.value, tsk, ext=0)
+            ion_temperature[i, :] = splev(loop_coord_center, tsk, ext=0)
             tsk = splrep(coord, p.electron_density.to(u.cm**(-3)).value)
-            density[i, :] = splev(s_uniform.value, tsk, ext=0)
+            density[i, :] = splev(loop_coord_center, tsk, ext=0)
             tsk = splrep(coord, p.velocity.to(u.cm/u.s).value,)
-            velocity[i, :] = splev(s_uniform.value, tsk, ext=0)
-
-        # Interpolate loop coordinates
-        tsk, _ = splprep(loop.coordinates.cartesian.xyz.value)
-        coord_xyz = splev((s_uniform/s.loop_length).decompose().value, tsk)
-        loop.coordinates = SkyCoord(
-            x=coord_xyz[0, :]*loop.coordinates.cartesian.xyz.unit,
-            y=coord_xyz[1, :]*loop.coordinates.cartesian.xyz.unit,
-            z=coord_xyz[2, :]*loop.coordinates.cartesian.xyz.unit,
-            frame=loop.coordinates.frame,
-            representation='cartesian',
-        )
-        # Interpolate magnetic field strength
-        tsk = splrep(loop.field_aligned_coordinate.value, loop.field_strength.value)
-        field_strength = splev(s_uniform, tsk)
-        loop._field_strength = u.Quantity(
-            np.where(field_strength < 0, 0., field_strength), loop.field_strength.unit)
+            velocity[i, :] = splev(loop_coord_center, tsk, ext=0)
 
         return (
             s.time,
@@ -117,18 +86,23 @@ class HYDRADInterface(object):
         )
 
     def get_cross_section_coefficients(self, loop):
-        s_norm = loop.field_aligned_coordinate / loop.length
-        return np.polyfit(s_norm, loop.field_strength, 6)[::-1]
+        # NOTE: this is reversed because numpy returns the coefficients
+        # in descending polynomial order, but HYDRAD expects them in
+        # ascending order.
+        return np.polyfit(loop.field_aligned_coordinate_norm.value,
+                          loop.field_strength.to(u.G).value, 6)[::-1]
 
     def get_gravity_coefficients(self, loop):
-        s_norm = loop.field_aligned_coordinate / loop.length
-        s_hat = (np.gradient(loop.coordinates.cartesian.xyz, axis=1)
-                 / np.linalg.norm(np.gradient(loop.coordinates.cartesian.xyz, axis=1), axis=0))
         r_hat = u.Quantity(np.stack([
             np.sin(loop.coordinates.spherical.lat)*np.cos(loop.coordinates.spherical.lon),
             np.sin(loop.coordinates.spherical.lat)*np.sin(loop.coordinates.spherical.lon),
             np.cos(loop.coordinates.spherical.lat)
         ]))
-        g_parallel = -sun_const.surface_gravity.cgs * ((
-            const.R_sun.cgs / loop.coordinates.spherical.distance)**2) * (r_hat * s_hat).sum(axis=0)
-        return np.polyfit(s_norm, g_parallel, 6)[::-1]
+        r_hat_dot_s_hat = (r_hat * loop.coordinate_direction).sum(axis=0)
+        g_parallel = -sun_const.surface_gravity * (
+            (const.R_sun / loop.coordinates.spherical.distance)**2) * r_hat_dot_s_hat
+        # NOTE: this is reversed because numpy returns the coefficients
+        # in descending polynomial order, but HYDRAD expects them in
+        # ascending order.
+        return np.polyfit(loop.field_aligned_coordinate_norm.value,
+                          g_parallel.to(u.cm/(u.s**2)).value, 6)[::-1]

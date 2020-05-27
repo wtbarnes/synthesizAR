@@ -29,23 +29,17 @@ import datetime
 import os
 import sys
 
-ON_RTD = os.environ.get('READTHEDOCS') == 'True'
-ON_TRAVIS = os.environ.get('TRAVIS') == 'true'
-
 # Load all of the global Astropy configuration
-from sphinx_astropy.conf import *
+from sphinx_astropy.conf.v1 import *
 
 # Add some stuff to the intersphinx mapping
-intersphinx_mapping['sunpy'] = ('http://docs.sunpy.org/en/stable/', None)
-intersphinx_mapping['yt'] = ('http://yt-project.org/doc/', None)
-intersphinx_mapping['fiasco'] = ('http://fiasco.readthedocs.io/en/latest/', None)
-intersphinx_mapping['dask'] = ('http://dask.readthedocs.io/en/latest', None)
+intersphinx_mapping['sunpy'] = ('https://docs.sunpy.org/en/stable/', None)
+intersphinx_mapping['yt'] = ('https://yt-project.org/doc/', None)
+intersphinx_mapping['fiasco'] = ('https://fiasco.readthedocs.io/en/latest/', None)
+intersphinx_mapping['dask'] = ('https://docs.dask.org/en/latest', None)
 
 # Get configuration information from setup.cfg
-try:
-    from ConfigParser import ConfigParser
-except ImportError:
-    from configparser import ConfigParser
+from configparser import ConfigParser
 conf = ConfigParser()
 
 conf.read([os.path.join(os.path.dirname(__file__), '..', 'setup.cfg')])
@@ -75,7 +69,7 @@ rst_epilog += """
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
-project = setup_cfg['package_name']
+project = setup_cfg['name']
 author = setup_cfg['author']
 copyright = '{0}, {1}'.format(
     datetime.datetime.now().year, setup_cfg['author'])
@@ -84,8 +78,8 @@ copyright = '{0}, {1}'.format(
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-__import__(setup_cfg['package_name'])
-package = sys.modules[setup_cfg['package_name']]
+__import__(setup_cfg['name'])
+package = sys.modules[setup_cfg['name']]
 
 # The short X.Y version.
 version = package.__version__.split('-', 1)[0]
@@ -93,23 +87,6 @@ version = package.__version__.split('-', 1)[0]
 release = package.__version__
 
 # -- Options for HTML output ---------------------------------------------------
-
-# A NOTE ON HTML THEMES
-# The global astropy configuration uses a custom theme, 'bootstrap-astropy',
-# which is installed along with astropy. A different theme can be used or
-# the options for this theme can be modified by overriding some of the
-# variables set in the global configuration. The variables set in the
-# global configuration are listed below, commented out.
-
-
-# Add any paths that contain custom themes here, relative to this directory.
-# To use a different custom theme, add the directory containing the theme.
-#html_theme_path = []
-
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes. To override the custom theme, set this to the
-# name of a builtin theme or the name of a custom theme in html_theme_path.
-#html_theme = None
 
 try:
     html_theme = "sphinx_rtd_theme"
@@ -159,20 +136,28 @@ man_pages = [('index', project.lower(), project + u' Documentation',
               [author], 1)]
 
 
-# -- Options for the edit_on_github extension ---------------------------------
+# Render inheritance diagrams in SVG
+graphviz_output_format = "svg"
 
-if eval(setup_cfg.get('edit_on_github')):
-    extensions += ['sphinx_astropy.ext.edit_on_github']
+graphviz_dot_args = [
+    '-Nfontsize=10',
+    '-Nfontname=Helvetica Neue, Helvetica, Arial, sans-serif',
+    '-Efontsize=10',
+    '-Efontname=Helvetica Neue, Helvetica, Arial, sans-serif',
+    '-Gfontsize=10',
+    '-Gfontname=Helvetica Neue, Helvetica, Arial, sans-serif'
+]
 
-    versionmod = __import__(setup_cfg['package_name'] + '.version')
-    edit_on_github_project = setup_cfg['github_project']
-    if versionmod.version.release:
-        edit_on_github_branch = "v" + versionmod.version.version
-    else:
-        edit_on_github_branch = "master"
 
-    edit_on_github_source_root = ""
-    edit_on_github_doc_root = "docs"
-
-# -- Resolving issue number to links in changelog -----------------------------
-github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_project'])
+"""
+Write the latest changelog into the documentation.
+"""
+target_file = os.path.abspath("./whatsnew/latest_changelog.txt")
+try:
+    from sunpy.util.towncrier import generate_changelog_for_docs
+    if is_development:
+        generate_changelog_for_docs("../", target_file)
+except Exception as e:
+    print(f"Failed to add changelog to docs with error {e}.")
+# Make sure the file exists or else sphinx will complain.
+open(target_file, 'a').close()

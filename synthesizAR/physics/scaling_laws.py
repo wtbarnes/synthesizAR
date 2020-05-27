@@ -4,11 +4,59 @@ Implementations of various coronal loop scaling laws
 import numpy as np
 import astropy.units as u
 import astropy.constants as const
+import sunpy.sun.constants as sun_const
 from scipy.special import beta, betaincinv
+from scipy.integrate import cumtrapz
 
-__all__ = ['MartensScalingLaws', 'RTVScalingLaws']
+__all__ = ['Isothermal', 'MartensScalingLaws', 'RTVScalingLaws']
 
 KAPPA_0 = 1e-6 * u.erg / u.cm / u.s * u.K**(-7/2)
+
+
+class Isothermal(object):
+    """
+    Hydrostatic loop solutions for an isothermal atmosphere
+
+    Parameters
+    ----------
+    s : `~astropy.units.Quantity`
+        Field-aligned loop coordinate
+    r : `~astropy.units.Quantity`
+        Radial distance as a function of `s`
+    temperature : `~astropy.units.Quantity`
+    pressure0 : `~astropy.units.Quantity`
+        Pressure at :math:`r=R_{\odot}`
+    """
+
+    @u.quantity_input
+    def __init__(self, s: u.cm, r: u.cm, temperature: u.K, pressure0: u.dyne/u.cm**2):
+        self.s = s
+        self.r = r
+        self.temperature = temperature
+        self.pressure0 = pressure0
+
+    @property
+    def _integral(self):
+        # Add points to the front in the case that s[0] does not
+        # correspond to R_sun as we do not know the initial value
+        # at that point
+        r = np.append(const.R_sun, self.r)
+        s = np.append(-np.diff(self.s)[0], self.s)
+        integrand = 1/r**2 * np.gradient(r) / np.gradient(s)
+        # Integrate over the whole loop
+        return cumtrapz(integrand.to('cm-2').value, s.to('cm').value) / u.cm
+
+    @property
+    @u.quantity_input
+    def pressure(self) -> u.dyne / u.cm**2:
+        g_sun = sun_const.equatorial_surface_gravity
+        scale_height = 2*const.k_B*self.temperature / const.m_p / g_sun
+        return self.pressure0 * np.exp(-const.R_sun**2 / scale_height * self._integral)
+
+    @property
+    @u.quantity_input
+    def density(self) -> u.cm**(-3):
+        return self.pressure / (2*const.k_B*self.temperature)
 
 
 class MartensScalingLaws(object):
@@ -19,14 +67,20 @@ class MartensScalingLaws(object):
     ----------
     s : `~astropy.units.Quantity`
         Field-aligned loop coordinate for half of symmetric, semi-circular loop
-    maximum_temperature : `~astropy.units.Quantity`
-        Maximum temperature at loop apex
-    base_temperature : `~astropy.units.Quantity`, optional
-        Temperature at the loop base, i.e. the chromosphere
+    heating_constant : `astropy.units.Quantity`
+        Constant of proportionality that relates the actual heating rate to the
+        scaling with temperature and pressure. The actual units will depend on
+        `alpha` and `beta`. See Eq. 2 of [1]_.
     alpha : `float`, optional
         Temperature dependence of the heating rate
+    beta : `float`, optional
+        Pressure depndence of the heating rate
     gamma : `float`, optional
         Temperature dependence of the radiative loss rate
+    chi : `astropy.units.Quantity`, optional
+        Constant of proportionality relating the actual radiative losses to the
+        scaling with temperature. May need to adjust this based on the value of
+        `gamma`.
 
     References
     ----------
@@ -34,14 +88,15 @@ class MartensScalingLaws(object):
     """
 
     @u.quantity_input
-    def __init__(self, s: u.cm, max_temperature: u.K, alpha=0, gamma=0.5,
-                 base_temperature: u.K = 0.01*u.MK, chi=None):
-        self.max_temperature = max_temperature
-        self.base_temperature = base_temperature
+    def __init__(self, s: u.cm, heating_constant, alpha=0, beta=0, gamma=0.5,
+                 chi=10**(-18.8) * u.erg * u.cm**3 / u.s * u.K**(0.5)):
         self.s = s
+        self.heating_constant = heating_constant
         self.alpha = alpha
+        self.beta = beta
         self.gamma = gamma
-        self.chi = 10**(-18.8) * u.erg * u.cm**3 / u.s * u.K**(0.5) if chi is None else chi
+        self.chi = chi
+        self.chi_0 = self.chi/(4.*(const.k_B**2))
 
     @property
     @u.quantity_input
@@ -54,20 +109,25 @@ class MartensScalingLaws(object):
 
     @property
     @u.quantity_input
-    def temperature(self,) -> u.K:
-        beta_term = betaincinv(self._lambda+1, 0.5, self.x.value)**(1./(2 + self.gamma + self.alpha))
-        return self.max_temperature * beta_term + self.base_temperature
+    def max_temperature(self,) -> u.K:
+        coeff_1 = np.sqrt(KAPPA_0 / self.chi_0 * (3 - 2*self.gamma))/(
+            4 + 2*self.gamma + 2*self.alpha)
+        coeff_2 = (7/2 + self.alpha)/(3/2 - self.gamma)
+        beta_func = beta(self._lambda + 1, 0.5)
+        index = self.alpha + 11/4*self.beta + self.gamma*self.beta/2 - 7/2
+        return (self.chi_0 * coeff_2 / self.heating_constant
+                * (coeff_1*beta_func/self.loop_length)**(2-self.beta))**(1/index)
 
     @property
     @u.quantity_input
-    def density(self,) -> u.cm**(-3):
-        return self.pressure / 2. / const.k_B / self.temperature
+    def temperature(self,) -> u.K:
+        beta_term = betaincinv(self._lambda+1, 0.5, self.x.value)**(1./(2 + self.gamma + self.alpha))
+        return self.max_temperature * beta_term
 
     @property
     @u.quantity_input
     def pressure(self,) -> u.dyne/(u.cm**2):
-        chi_0 = self.chi/(4.*(const.k_B**2))
-        coeff = np.sqrt(KAPPA_0 / chi_0 * (3 - 2*self.gamma))/(4 + 2*self.gamma + 2*self.alpha)
+        coeff = np.sqrt(KAPPA_0 / self.chi_0 * (3 - 2*self.gamma))/(4 + 2*self.gamma + 2*self.alpha)
         beta_func = beta(self._lambda + 1, 0.5)
         p_0 = self.max_temperature**((11+2*self.gamma)/4) * coeff * beta_func / self.loop_length
         return np.ones(self.s.shape) * p_0
