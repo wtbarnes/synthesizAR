@@ -1,3 +1,6 @@
+# Coverage reports
+coverage.xml
+
 # Compiled files
 *.py[cod]
 *.a

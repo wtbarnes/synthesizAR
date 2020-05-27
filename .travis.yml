@@ -13,7 +13,7 @@ jobs:
     script: tox -e py37
   - script: tox -e py38
     after_success:
-    - pip install --upgrade codecov
+    - pip install --upgrade codecov==2.1.1
     - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then codecov --token=$CODECOV_TOKEN; fi'
   - script: tox -e build_docs
   - script: tox -e codestyle
