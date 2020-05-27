@@ -212,12 +212,12 @@ class PotentialField(object):
 
 @numba.jit(nopython=True, fastmath=True, parallel=True)
 def _calculate_phi_numba(phi, boundary, delta, shape, z_depth, l_hat):
+    factor = 1. / (2. * np.pi) * delta.x * delta.y
     for i in numba.prange(shape.x):
         for j in numba.prange(shape.y):
             for k in numba.prange(shape.z):
                 Rz = k * delta.z - z_depth
                 lzRz = l_hat[2] * Rz
-                factor = 1. / (2. * np.pi) * delta.x * delta.y
                 for i_prime in range(shape.x):
                     for j_prime in range(shape.y):
                         Rx = delta.x * (i - i_prime)
