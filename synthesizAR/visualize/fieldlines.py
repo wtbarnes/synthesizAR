@@ -11,6 +11,7 @@ from astropy.coordinates import SkyCoord
 from astropy.visualization import ImageNormalize
 from sunpy.map import GenericMap, make_fitswcs_header
 from sunpy.coordinates import Helioprojective
+from sunpy.coordinates.ephemeris import get_earth
 
 from synthesizAR.util import is_visible
 
@@ -28,20 +29,21 @@ def plot_fieldlines(*coords, magnetogram=None, observer=None, check_visible=True
         The LOS magnetic field map to overplot the field lines on top of. Useful
         when the field lines are derived from a magnetic field extrapolation.
     observer : `~astropy.coordinates.SkyCoord`, optional
-        Position of the observer. If None, defaults to (0, 0, 1 AU)
-        (in HGS coordinates) at the current time. If `magnetogram` is specified,
-        this argument has no effect and the observer will be the observer as defined by
-        the HPC coordinate frame of the `magnetogram`.
+        Position of the observer. If None, defaults to position of Earth at the
+        current time. If `magnetogram` is specified, this argument has no effect
+        and the observer will be the observer as defined by the HPC coordinate
+        frame of the `magnetogram`.
     check_visible : `bool`
         If True, mask coordinates that are obscured by the solar disk.
 
     Other Parameters
     ----------------
     plot_kwargs : `dict`
-        Additional parameters to pass to `~matplotlib.pyplot.plot`
+        Additional parameters to pass to `~matplotlib.pyplot.plot` when
+        drawing field lines.
     grid_kwargs : `dict`
         Additional parameters to pass to `~sunpy.map.Map.draw_grid`
-    imwho_kwargs : `dict`
+    imshow_kwargs : `dict`
         Additional parameters to pass to `~sunpy.map.Map.plot`
     """
     plot_kwargs = {'color': 'k', 'lw': 1}
@@ -53,9 +55,7 @@ def plot_fieldlines(*coords, magnetogram=None, observer=None, check_visible=True
         # If no magnetogram is given, create a dummy transparent map for some specified
         # observer location
         data = np.ones((10, 10))
-        if observer is None:
-            observer = SkyCoord(lat=0*u.deg, lon=0*u.deg, radius=const.au,
-                                frame='heliographic_stonyhurst', obstime=Time.now())
+        observer = get_earth(Time.now()) if observer is None else observer
         coord = SkyCoord(Tx=0*u.arcsec,
                          Ty=0*u.arcsec,
                          frame=Helioprojective(observer=observer, obstime=observer.obstime))
