@@ -14,7 +14,6 @@ jobs:
   - script: tox -e py38
     after_success:
     - pip install --upgrade codecov
-    - coverage xml
     - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then codecov --token=$CODECOV_TOKEN; fi'
   - script: tox -e build_docs
   - script: tox -e codestyle
