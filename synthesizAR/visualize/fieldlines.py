@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 import astropy.units as u
-import astropy.constants as const
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
 from astropy.visualization import ImageNormalize
@@ -45,6 +44,10 @@ def plot_fieldlines(*coords, magnetogram=None, observer=None, check_visible=True
         Additional parameters to pass to `~sunpy.map.Map.draw_grid`
     imshow_kwargs : `dict`
         Additional parameters to pass to `~sunpy.map.Map.plot`
+
+    See Also
+    --------
+    synthesizAR.util.is_visible
     """
     plot_kwargs = {'color': 'k', 'lw': 1}
     grid_kwargs = {'grid_spacing': 10*u.deg, 'color': 'k', 'alpha': 0.75}
