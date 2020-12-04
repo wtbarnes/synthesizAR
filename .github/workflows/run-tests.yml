@@ -51,8 +51,4 @@ jobs:
     - name: Run tox
       run: python -m tox -e  ${{ matrix.toxenv }}
     - name: Report coverage
-      uses: codecov/codecov-action@v1
-      with:
-        fail_ci_if_error: true
-        verbose: true
-        file: ./coverage.xml
+      run: codecov
