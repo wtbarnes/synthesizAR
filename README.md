@@ -4,7 +4,7 @@
 
 # synthesizAR
 [![Powered by SunPy Badge]( http://img.shields.io/badge/powered%20by-SunPy-orange.svg?style=flat)](http://www.sunpy.org)
-[![Build Status](https://travis-ci.org/wtbarnes/synthesizAR.svg?branch=master)](https://travis-ci.org/wtbarnes/synthesizAR)
+![synthesizAR CI status](https://github.com/wtbarnes/synthesizAR/workflows/Run%20tests/badge.svg)
 [![Documentation Status](http://readthedocs.org/projects/synthesizar/badge/?version=latest)](http://synthesizar.readthedocs.io/en/latest/?badge=latest)
 [![codecov](https://codecov.io/gh/wtbarnes/synthesizAR/branch/master/graph/badge.svg)](https://codecov.io/gh/wtbarnes/synthesizAR)
 
