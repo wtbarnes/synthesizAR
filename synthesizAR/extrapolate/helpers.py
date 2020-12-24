@@ -19,7 +19,7 @@ __all__ = ['from_pfsspack', 'semi_circular_loop', 'synthetic_magnetogram',
 
 def from_pfsspack(pfss_fieldlines):
     """
-    Convert fieldline coordinates output from the SSW package `pfss <http://www.lmsal.com/~derosa/pfsspack/>`_ 
+    Convert fieldline coordinates output from the SSW package `pfss <http://www.lmsal.com/~derosa/pfsspack/>`_
     into `~astropy.coordinates.SkyCoord` objects.
 
     Parameters
@@ -82,7 +82,12 @@ def from_pfsspack(pfss_fieldlines):
 
 
 @u.quantity_input
-def semi_circular_loop(length: u.cm, observer=None, obstime=None, n_points=1000, offset: u.cm = None):
+def semi_circular_loop(length: u.cm,
+                       observer=None,
+                       obstime=None,
+                       n_points=1000,
+                       offset: u.cm = 0*u.cm,
+                       gamma: u.deg = 0*u.deg):
     """
     Generate coordinates for a semi-circular loop
 
@@ -99,7 +104,9 @@ def semi_circular_loop(length: u.cm, observer=None, obstime=None, n_points=1000,
     n_points : `int`, optional
         Number of points in the coordinate
     offset : `~astropy.units.Quantity`
-        Offset along the HCC y-axis
+        Offset in the direction perpendicular to the arcade
+    gamma : `~astropy.units.Quantity`
+        Orientation of the arcade relative to the HCC y-axis
     """
     # Calculate a semi-circular loop
     s = np.linspace(0, length, n_points)
@@ -118,9 +125,9 @@ def semi_circular_loop(length: u.cm, observer=None, obstime=None, n_points=1000,
     )
     origin = SkyCoord(x=0*u.km, y=0*u.km, z=const.R_sun, frame=hcc_frame)
     # Offset along the y-axis, convenient for creating loop arcades
-    delta_y = 0*u.cm if offset is None else offset
-    return SkyCoord(x=x + origin.x,
-                    y=delta_y*np.ones(x.shape) + origin.y,
+    offset = offset*np.ones(s.shape)
+    return SkyCoord(x=offset * np.sin(gamma) + x * np.cos(gamma) + origin.x,
+                    y=offset * np.cos(gamma) + x * np.sin(gamma) + origin.y,
                     z=z + origin.z,
                     frame=origin.frame)
 
