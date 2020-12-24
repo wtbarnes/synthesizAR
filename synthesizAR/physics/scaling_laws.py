@@ -133,6 +133,11 @@ class MartensScalingLaws(object):
         return np.ones(self.s.shape) * p_0
 
     @property
+    @u.quantity_input
+    def heating_rate(self,) -> u.erg/(u.cm**3)/u.s:
+        return self.heating_constant * (self.pressure**self.beta) * (self.temperature**self.alpha)
+
+    @property
     def _lambda(self):
         mu = -2*(2+self.gamma)/7
         nu = 2*self.alpha/7
