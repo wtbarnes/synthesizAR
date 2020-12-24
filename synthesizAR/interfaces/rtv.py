@@ -27,14 +27,13 @@ class RTVInterface(object):
     """
     name = 'RTV'
 
-    def __init__(self, plasma_beta=0.001, rtv_kwargs=None):
-        self.plasma_beta = plasma_beta
+    def __init__(self, heating_model, rtv_kwargs=None):
+        self.heating_model = heating_model
         self.rtv_kwargs = {} if rtv_kwargs is None else rtv_kwargs
 
     def load_results(self, loop):
-        pressure = loop.field_strength.mean().to(u.G).value**2 / 8 / np.pi * self.plasma_beta
-        pressure = pressure * u.dyne / (u.cm**2)
-        rtv = RTVScalingLaws(loop.length/2, pressure=pressure, **self.rtv_kwargs)
+        heating_rate = self.heating_model.get_heating_rate(loop)
+        rtv = RTVScalingLaws(loop.length/2, heating_rate=heating_rate, **self.rtv_kwargs)
         time = u.Quantity([0, ], 's')
         shape = time.shape+loop.field_aligned_coordinate_center.shape
         temperature = np.ones(shape) * rtv.max_temperature

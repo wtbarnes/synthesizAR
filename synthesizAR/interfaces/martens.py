@@ -19,6 +19,8 @@ class MartensInterface(object):
 
     Parameters
     ----------
+    heating_constant : `~astropy.units.Quantity`
+        Constant of proportionality for heating rate scaling.
     temperature_cutoff : `~astropy.units.Quantity`, optional
         Lowest possible temperature in the loop. The Martens scaling laws
         permit temperatures of 0 K at the base of the loop which are unphysical.
@@ -40,7 +42,8 @@ class MartensInterface(object):
     def load_results(self, loop):
         time = u.Quantity([0, ], 's')
         s_half = np.linspace(0, 1, 1000)*loop.length/2
-        msl = MartensScalingLaws(s_half, self.heating_constant, **self.model_parameters)
+        H = self.get_heating_constant(loop)
+        msl = MartensScalingLaws(s_half, H, **self.model_parameters)
         # Make sure there are no temperatures below specified cutoff
         msl_temperature = np.where(msl.temperature < self.temperature_cutoff,
                                    self.temperature_cutoff,
@@ -61,3 +64,10 @@ class MartensInterface(object):
         velocity = np.ones(time.shape+s_center.shape) * np.nan * u.cm/u.s
 
         return time, temperature, temperature, density, velocity
+
+    def get_heating_constant(self, loop):
+        """
+        Override this to get a more complicated relationship between the loop
+        and the heating rate
+        """
+        return self.heating_constant
