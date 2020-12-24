@@ -14,7 +14,7 @@ class EmissionModel(fiasco.IonCollection):
     """
     Model for how atomic data is used to calculate emission from coronal plasma.
     """
-    
+
     @u.quantity_input
     def __init__(self, density: u.cm**(-3), *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -63,8 +63,8 @@ class EmissionModel(fiasco.IonCollection):
         em_model = cls(density, *ions)
         em_model.emissivity_table_filename = emissivity_table_filename
         return em_model
-        
-    def calculate_emissivity_table(self, filename, **kwargs):
+
+    def calculate_emissivity_table(self, filename, include_protons=True):
         """
         Calculate and store emissivity for every ion in the model.
 
@@ -78,14 +78,14 @@ class EmissionModel(fiasco.IonCollection):
         where :math:`N_j` is the level population of :math:`j` and :math:`
         """
         self.emissivity_table_filename = filename
-        root = zarr.open(store=filename, mode='w', **kwargs)
+        root = zarr.open(store=filename, mode='w')
         for ion in self:
             # NOTE: Purpusefully not using the contribution_function or emissivity methods on
             # fiasco.Ion because (i) ionization fraction may be loop dependent, (ii) don't want
             # to assume any abundance at this stage so that we can change it later without having
             # to recalculate the level populations, and (iii) we want to exclude the hc/lambda
             # factor.
-            pop = ion.level_populations(self.density)
+            pop = ion.level_populations(self.density, include_protons=include_protons)
             # NOTE: populations not available for every ion
             if pop is None:
                 warnings.warn(f'Cannot compute level populations for {ion.ion_name}')
