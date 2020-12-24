@@ -15,7 +15,7 @@ except ImportError:
     warnings.warn('Dask library required for NEI calculation')
 
 from synthesizAR.atomic import Element
-from .util import write_xml
+from .util import run_ebtel
 
 
 class EbtelInterface(object):
@@ -35,27 +35,24 @@ class EbtelInterface(object):
     """
     name = 'EBTEL'
 
-    def __init__(self, base_config, heating_model, config_dir, results_dir):
+    def __init__(self, base_config, heating_model, ebtel_dir):
         """
         Create EBTEL interface
         """
         self.base_config = base_config
         self.heating_model = heating_model
-        self.heating_model.base_config = base_config
-        self.config_dir = config_dir
-        self.results_dir = results_dir
-        if not os.path.exists(self.config_dir):
-            os.makedirs(self.config_dir)
-        if not os.path.exists(self.results_dir):
-            os.makedirs(self.results_dir)
+        self.ebtel_dir = ebtel_dir
 
-    def configure_input(self, loop):
+    def load_results(self, loop):
         """
-        Configure EBTEL input for a given loop object.
+        Load EBTEL output for a given loop object.
+
+        Parameters
+        ----------
+        loop : `synthesizAR.Loop` object
         """
-        output_filename = os.path.join(self.config_dir, loop.name+'.xml')
+        # Configure run
         output_dict = copy.deepcopy(self.base_config)
-        output_dict['output_filename'] = os.path.join(self.results_dir, loop.name)
         output_dict['loop_length'] = loop.length.to(u.cm).value / 2.0
         event_properties = self.heating_model.calculate_event_properties(loop)
         events = []
@@ -66,31 +63,19 @@ class EbtelInterface(object):
                                      'decay_start': event_properties['decay_start'][i],
                                      'decay_end': event_properties['decay_end'][i]}})
         output_dict['heating']['events'] = events
-        write_xml(output_dict, output_filename)
-        output_dict['config_filename'] = output_filename
-        loop.hydro_configuration = output_dict
-
-    def load_results(self, loop):
-        """
-        Load EBTEL output for a given loop object.
-
-        Parameters
-        ----------
-        loop : `synthesizAR.Loop` object
-        """
-        # load text
-        N_s = loop.field_aligned_coordinate.shape[0]
-        _tmp = np.loadtxt(loop.hydro_configuration['output_filename'])
+        # Run model
+        _tmp = run_ebtel(output_dict, self.ebtel_dir)
 
         # reshape into a 1D loop structure with units
-        time = _tmp[:, 0]*u.s
-        electron_temperature = np.outer(_tmp[:, 1], np.ones(N_s))*u.K
-        ion_temperature = np.outer(_tmp[:, 2], np.ones(N_s))*u.K
-        density = np.outer(_tmp[:, 3], np.ones(N_s))*(u.cm**(-3))
-        velocity = np.outer(_tmp[:, -2], np.ones(N_s))*u.cm/u.s
+        N_s = loop.field_aligned_coordinate_center.shape[0]
+        time = _tmp['time']*u.s
+        electron_temperature = np.outer(_tmp['electron_temperature'], np.ones(N_s))*u.K
+        ion_temperature = np.outer(_tmp['ion_temperature'], np.ones(N_s))*u.K
+        density = np.outer(_tmp['density'], np.ones(N_s))*(u.cm**(-3))
+        velocity = np.outer(_tmp['velocity'], np.ones(N_s))*u.cm/u.s
         # flip sign of velocity where the radial distance from center is maximum
         # FIXME: this is probably not the best way to do this...
-        r = np.sqrt(np.sum(loop.coordinates.cartesian.xyz.value**2, axis=0))
+        r = np.sqrt(np.sum(loop.coordinate_center.cartesian.xyz.value**2, axis=0))
         i_mirror = np.where(np.diff(np.sign(np.gradient(r))))[0]
         if i_mirror.shape[0] > 0:
             i_mirror = i_mirror[0] + 1
@@ -106,7 +91,7 @@ class EbtelInterface(object):
         """
         Solve the time-dependent ionization balance equation for all loops and all elements
 
-        This method computes the time dependent ion population fractions for each element in 
+        This method computes the time dependent ion population fractions for each element in
         the emission model and each loop in the active region and compiles the results to a single
         HDF5 file. To do this efficiently, it uses the dask.distributed library to take advantage of
         multiple processes/cores/machines and compute the population fractions in parallel. It returns

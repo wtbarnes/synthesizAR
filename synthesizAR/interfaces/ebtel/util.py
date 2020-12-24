@@ -5,6 +5,7 @@ import os
 import subprocess
 import warnings
 from collections import OrderedDict
+import tempfile
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as xdm
 
@@ -20,21 +21,54 @@ class EbtelPlusPlusError(Exception):
     pass
 
 
-def run_ebtel(ebtel_dir, loop):
+def run_ebtel(config, ebtel_dir):
     """
-    Launch an ebtel++ simulation
-
+    Run an ebtel++ simulation
     Parameters
     ----------
+    config: `dict`
+        Dictionary of configuration options
     ebtel_dir: `str`
         Path to directory containing ebtel++ source code.
-    loop: `~synthesizAR.Loop`
     """
-    cmd = subprocess.run([os.path.join(ebtel_dir, 'bin/ebtel++.run'),
-                          '-c', loop.hydro_configuration['config_filename']],
-                         shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,)
-    if cmd.stderr:
-        raise EbtelPlusPlusError(f"{cmd.stderr.decode('utf-8')}")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_filename = os.path.join(tmpdir, 'ebtelplusplus.tmp.xml')
+        results_filename = os.path.join(tmpdir, 'ebtelplusplus.tmp')
+        config['output_filename'] = results_filename
+        write_xml(config, config_filename)
+        cmd = subprocess.run(
+            [os.path.join(ebtel_dir, 'bin/ebtel++.run'), '-c', config_filename],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if cmd.stderr:
+            raise EbtelPlusPlusError(f"{cmd.stderr.decode('utf-8')}")
+        data = np.loadtxt(results_filename)
+
+        results = {
+            'time': data[:, 0],
+            'electron_temperature': data[:, 1],
+            'ion_temperature': data[:, 2],
+            'density': data[:, 3],
+            'electron_pressure': data[:, 4],
+            'ion_pressure': data[:, 5],
+            'velocity': data[:, 6],
+            'heat': data[:, 7],
+        }
+
+        results_dem = {}
+        if config['calculate_dem']:
+            results_dem['dem_tr'] = np.loadtxt(
+                config['output_filename'] + '.dem_tr')
+            results_dem['dem_corona'] = np.loadtxt(
+                config['output_filename'] + '.dem_corona')
+            # The first row of both is the temperature bins
+            results_dem['dem_temperature'] = results_dem['dem_tr'][0, :]
+            results_dem['dem_tr'] = results_dem['dem_tr'][1:, :]
+            results_dem['dem_corona'] = results_dem['dem_corona'][1:, :]
+
+    return {**results, **results_dem}
 
 
 def read_xml(input_filename,):
