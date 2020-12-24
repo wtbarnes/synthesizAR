@@ -52,6 +52,13 @@ class Loop(object):
         self.field_strength = field_strength
         self.model_results_filename = model_results_filename
 
+    @property
+    def zarr_root(self):
+        """
+        Root object to Zarr filestore for model results
+        """
+        return zarr.open(store=self.model_results_filename, mode='r')
+
     def __repr__(self):
         f0 = f'{self.coordinate.x[0]:.3g},{self.coordinate.y[0]:.3g},{self.coordinate.z[0]:.3g}'
         f1 = f'{self.coordinate.x[-1]:.3g},{self.coordinate.y[-1]:.3g},{self.coordinate.z[-1]:.3g}'
@@ -152,8 +159,7 @@ Simulation Type: {self.simulation_type}'''
         if self.model_results_filename is None:
             return None
         else:
-            with zarr.open(store=self.model_results_filename, mode='r') as root:
-                return root[self.name].attrs['simulation_type']
+            return self.zarr_root[self.name].attrs['simulation_type']
 
     @property
     @u.quantity_input
@@ -161,9 +167,8 @@ Simulation Type: {self.simulation_type}'''
         """
         Simulation time
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/time']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/time']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -171,9 +176,8 @@ Simulation Type: {self.simulation_type}'''
         """
         Loop electron temperature as function of coordinate and time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/electron_temperature']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/electron_temperature']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -181,9 +185,8 @@ Simulation Type: {self.simulation_type}'''
         """
         Loop ion temperature as function of coordinate and time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/ion_temperature']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/ion_temperature']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -191,9 +194,8 @@ Simulation Type: {self.simulation_type}'''
         """
         Loop density as a function of coordinate and time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/density']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/density']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -202,9 +204,8 @@ Simulation Type: {self.simulation_type}'''
         Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
         time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/velocity']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/velocity']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -213,9 +214,8 @@ Simulation Type: {self.simulation_type}'''
         X-component of velocity in the HEEQ Cartesian coordinate system as a function of loop
         coordinate and time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/velocity_x']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/velocity_x']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -224,9 +224,8 @@ Simulation Type: {self.simulation_type}'''
         Y-component of velocity in the HEEQ Cartesian coordinate system as a function of
         loop coordinate and time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/velocity_y']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/velocity_y']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     @property
     @u.quantity_input
@@ -235,14 +234,12 @@ Simulation Type: {self.simulation_type}'''
         Z-component of velocity in the HEEQ Cartesian coordinate system as a function of
         loop coordinate and time.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/velocity_z']
-            return u.Quantity(dset, dset.attrs['unit'])
+        dset = self.zarr_root[f'{self.name}/velocity_z']
+        return u.Quantity(dset, dset.attrs['unit'])
 
     def get_ionization_fraction(self, ion):
         """
         Return the ionization fraction for a particular ion.
         """
-        with zarr.open(store=self.model_results_filename, mode='r') as root:
-            dset = root[f'{self.name}/ionization_fraction/{ion.ion_name}']
-            return u.Quantity(dset)
+        dset = self.zarr_root[f'{self.name}/ionization_fraction/{ion.ion_name}']
+        return u.Quantity(dset)
