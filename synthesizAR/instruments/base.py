@@ -87,7 +87,7 @@ class InstrumentBase(object):
         """
         Calculate the time dependent intensity for all loops and project them along
         the line-of-sight as defined by the instrument observer.
-        
+
         Parameters
         ----------
 
@@ -140,7 +140,7 @@ class InstrumentBase(object):
             if time != observing_time:
                 raise ValueError('Model and observing times are not equal for a single model time step.')
             return kernel
-        f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=0)
+        f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=0, fill_value='extrapolate')
         return f_t(observing_time.value) * kernel.unit
 
     def integrate_los(self, time, channel, skeleton):
@@ -149,7 +149,7 @@ class InstrumentBase(object):
         # Compute weights
         i_time = np.where(time == self.observing_time)[0][0]
         widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
-        root = zarr.open(skeleton.loops[0].model_results_filename, 'r')
+        root = skeleton.loops[0].zarr_root
         kernels = np.concatenate([root[f'{l.name}/{self.name}/{channel.name}'][i_time, :]
                                   for l in skeleton.loops])
         unit_kernel = u.Unit(
