@@ -1,12 +1,14 @@
 """
 Container for fieldlines in three-dimensional magnetic skeleton
 """
+from distributed import client
 import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 import asdf
 import zarr
+import distributed
 
 from synthesizAR import Loop
 from synthesizAR.visualize import plot_fieldlines
@@ -135,7 +137,7 @@ Number of loops: {len(self.loops)}'''
         """
         Coordinates for all grid cell centers of all loops in the skeleton
 
-        .. note:: This should be treated as a collection of points and NOT a 
+        .. note:: This should be treated as a collection of points and NOT a
                   continuous structure.
         """
         return SkyCoord([l.coordinate_center for l in self.loops],
@@ -159,63 +161,74 @@ Number of loops: {len(self.loops)}'''
         for loop in self.loops:
             interface.configure_input(loop, **kwargs)
 
+    @staticmethod
+    def _load_loop_simulation(loop, root=None, interface=None):
+        # Load in parameters from interface
+        (time, electron_temperature, ion_temperature,
+            density, velocity) = interface.load_results(loop)
+        # Convert velocity to loop coordinate system
+        # NOTE: the direction is evaluated at the left edges + the last right edge.
+        # But the velocity is evaluated at the center of each cell so we need
+        # to interpolate the direction to the cell centers for each component
+        s = loop.field_aligned_coordinate.to(u.Mm).value
+        s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
+        s_hat = loop.coordinate_direction
+        velocity_x = velocity * interp1d(s, s_hat[0, :])(s_center)
+        velocity_y = velocity * interp1d(s, s_hat[1, :])(s_center)
+        velocity_z = velocity * interp1d(s, s_hat[2, :])(s_center)
+        # Write to file
+        grp = root.create_group(loop.name)
+        grp.attrs['simulation_type'] = interface.name
+        # time
+        dset_time = grp.create_dataset('time', data=time.value)
+        dset_time.attrs['unit'] = time.unit.to_string()
+        # NOTE: Set the chunk size such that accessing all entries for a given timestep
+        # is the most efficient pattern.
+        chunks = (None,) + s_center.shape
+        # electron temperature
+        dset_electron_temperature = grp.create_dataset(
+            'electron_temperature', data=electron_temperature.value, chunks=chunks)
+        dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
+        # ion temperature
+        dset_ion_temperature = grp.create_dataset(
+            'ion_temperature', data=ion_temperature.value, chunks=chunks)
+        dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
+        # number density
+        dset_density = grp.create_dataset('density', data=density.value, chunks=chunks)
+        dset_density.attrs['unit'] = density.unit.to_string()
+        # field-aligned velocity
+        dset_velocity = grp.create_dataset('velocity', data=velocity.value, chunks=chunks)
+        dset_velocity.attrs['unit'] = velocity.unit.to_string()
+        dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
+        # Cartesian xyz velocity
+        dset_velocity_x = grp.create_dataset(
+            'velocity_x', data=velocity_x.value, chunks=chunks)
+        dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
+        dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
+        dset_velocity_y = grp.create_dataset(
+            'velocity_y', data=velocity_y.value, chunks=chunks)
+        dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
+        dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
+        dset_velocity_z = grp.create_dataset(
+            'velocity_z', data=velocity_z.value, chunks=chunks)
+        dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
+        dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
+
     def load_loop_simulations(self, interface, filename, **kwargs):
         """
         Load in loop parameters from hydrodynamic results.
         """
+        client = distributed.get_client()
         root = zarr.open(store=filename, mode='w', **kwargs)
-        for loop in self.loops:
-            loop.model_results_filename = filename
-            # Load in parameters from interface
-            (time, electron_temperature, ion_temperature,
-                density, velocity) = interface.load_results(loop)
-            # Convert velocity to loop coordinate system
-            # NOTE: the direction is evaluated at the left edges + the last right edge.
-            # But the velocity is evaluated at the center of each cell so we need
-            # to interpolate the direction to the cell centers for each component
-            s = loop.field_aligned_coordinate.to(u.Mm).value
-            s_center = loop.field_aligned_coordinate_center.to(u.Mm).value
-            s_hat = loop.coordinate_direction
-            velocity_x = velocity * interp1d(s, s_hat[0, :])(s_center)
-            velocity_y = velocity * interp1d(s, s_hat[1, :])(s_center)
-            velocity_z = velocity * interp1d(s, s_hat[2, :])(s_center)
-            # Write to file
-            grp = root.create_group(loop.name)
-            grp.attrs['simulation_type'] = interface.name
-            # time
-            dset_time = grp.create_dataset('time', data=time.value)
-            dset_time.attrs['unit'] = time.unit.to_string()
-            # NOTE: Set the chunk size such that accessing all entries for a given timestep
-            # is the most efficient pattern.
-            chunks = (None,) + s_center.shape
-            # electron temperature
-            dset_electron_temperature = grp.create_dataset(
-                'electron_temperature', data=electron_temperature.value, chunks=chunks)
-            dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
-            # ion temperature
-            dset_ion_temperature = grp.create_dataset(
-                'ion_temperature', data=ion_temperature.value, chunks=chunks)
-            dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
-            # number density
-            dset_density = grp.create_dataset('density', data=density.value, chunks=chunks)
-            dset_density.attrs['unit'] = density.unit.to_string()
-            # field-aligned velocity
-            dset_velocity = grp.create_dataset('velocity', data=velocity.value, chunks=chunks)
-            dset_velocity.attrs['unit'] = velocity.unit.to_string()
-            dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
-            # Cartesian xyz velocity
-            dset_velocity_x = grp.create_dataset(
-                'velocity_x', data=velocity_x.value, chunks=chunks)
-            dset_velocity_x.attrs['unit'] = velocity_x.unit.to_string()
-            dset_velocity_x.attrs['note'] = 'x-component of velocity in HEEQ coordinates'
-            dset_velocity_y = grp.create_dataset(
-                'velocity_y', data=velocity_y.value, chunks=chunks)
-            dset_velocity_y.attrs['unit'] = velocity_y.unit.to_string()
-            dset_velocity_y.attrs['note'] = 'y-component of velocity in HEEQ coordinates'
-            dset_velocity_z = grp.create_dataset(
-                'velocity_z', data=velocity_z.value, chunks=chunks)
-            dset_velocity_z.attrs['unit'] = velocity_z.unit.to_string()
-            dset_velocity_z.attrs['note'] = 'z-component of velocity in HEEQ coordinates'
+        status = client.map(
+            self._load_loop_simulation,
+            self.loops,
+            root=root,
+            interface=interface,
+        )
+        for l in self.loops:
+            l.model_results_filename = filename
+        return status
 
     def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
         """
