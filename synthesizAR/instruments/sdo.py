@@ -95,13 +95,13 @@ class InstrumentSDOAIA(InstrumentBase):
             kernel = K_interp * loop.density**2
         return kernel
 
-    def convolve_emissivities(self, channel, emission_model):
+    def convolve_emissivities(self, channel, emission_model, **kwargs):
         """
         Compute product between wavelength response for `channel` and emissivity for all ions
         in an emission model.
         """
         em_convolved = {}
-        r = channel.wavelength_response() * channel.plate_scale
+        r = channel.wavelength_response(**kwargs) * channel.plate_scale
         f_interp = interp1d(channel.wavelength, r, bounds_error=False, fill_value=0.0)
         for ion in emission_model:
             wavelength, emissivity = emission_model.get_emissivity(ion)
@@ -121,21 +121,35 @@ class InstrumentSDOAIA(InstrumentBase):
             # emissivities with the wavelength response functions and store them in the
             # emissivity table
             channels = self.channels if channels is None else channels
+            # NOTE: Don't open with 'w' because we want to preserve the emissivity table
             root = zarr.open(store=em_model.emissivity_table_filename, mode='a')
             if self.name not in root:
                 grp = root.create_group(self.name)
             else:
                 grp = root[self.name]
+            # Get options for wavelength response
+            include_crosstalk = kwargs.pop('include_crosstalk', True)
+            obstime = self.observer.obstime if kwargs.pop('include_degradation', False) else None
+            include_eve_correction = kwargs.pop('include_eve_correction', False)
             for channel in channels:
-                em_convolved = self.convolve_emissivities(channel, em_model)
+                em_convolved = self.convolve_emissivities(
+                    channel,
+                    em_model,
+                    include_crosstalk=include_crosstalk,
+                    obstime=obstime,
+                    include_eve_correction=include_eve_correction,
+                )
                 if channel.name in grp:
                     chan_grp = grp[channel.name]
                 else:
                     chan_grp = grp.create_group(channel.name)
                 for k in em_convolved:
-                    if k in chan_grp or em_convolved[k] is None:
-                        continue
-                    ds = chan_grp.create_dataset(k, data=em_convolved[k].value)
+                    # NOTE: update dataset even when it already exists
+                    if k in chan_grp:
+                        ds = chan_grp[k]
+                        ds[:, :] = em_convolved[k].value
+                    else:
+                        ds = chan_grp.create_dataset(k, data=em_convolved[k].value)
                     ds.attrs['unit'] = em_convolved[k].unit.to_string()
 
         super().observe(skeleton, save_directory, channels=channels, **kwargs)
