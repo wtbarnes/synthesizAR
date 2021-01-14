@@ -95,6 +95,8 @@ class InstrumentBase(object):
         if channels is None:
             channels = self.channels
         client = distributed.get_client()
+        coordinates = skeleton.all_coordinates
+        coordinates_centers = skeleton.all_coordinates_centers
         for channel in channels:
             kernels = client.map(self.calculate_intensity_kernel,
                                  skeleton.loops,
@@ -112,7 +114,7 @@ class InstrumentBase(object):
             # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
             distributed.wait(files)
             for i, t in enumerate(self.observing_time):
-                m = self.integrate_los(t, channel, skeleton)
+                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers)
                 m = self.convolve_with_psf(m)
                 m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'), overwrite=True)
 
@@ -143,21 +145,26 @@ class InstrumentBase(object):
         f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=0, fill_value='extrapolate')
         return f_t(observing_time.value) * kernel.unit
 
-    def integrate_los(self, time, channel, skeleton):
+    def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers):
+        client = distributed.get_client()
         # Get Coordinates
-        coords = skeleton.all_coordinates_centers.transform_to(self.projected_frame)
+        coords = coordinates_centers.transform_to(self.projected_frame)
         # Compute weights
         i_time = np.where(time == self.observing_time)[0][0]
         widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
         root = skeleton.loops[0].zarr_root
-        kernels = np.concatenate([root[f'{l.name}/{self.name}/{channel.name}'][i_time, :]
-                                  for l in skeleton.loops])
+        # NOTE: do this outside of the client.map call to make Dask happy
+        path = f'{{}}/{self.name}/{channel.name}'
+        kernels = np.concatenate(client.gather(client.map(
+            lambda l: root[path.format(l.name)][i_time, :],
+            skeleton.loops,
+        )))
         unit_kernel = u.Unit(
             root[f'{skeleton.loops[0].name}/{self.name}/{channel.name}'].attrs['unit'])
         weights = self.cross_section_ratio * widths * (kernels*unit_kernel)
         visible = is_visible(coords, self.observer)
         # Bin
-        bins, (blc, trc) = self.get_detector_array(skeleton.all_coordinates)
+        bins, (blc, trc) = self.get_detector_array(coordinates)
         hist, _, _ = np.histogram2d(
             coords.Tx.value,
             coords.Ty.value,
@@ -165,7 +172,7 @@ class InstrumentBase(object):
             range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
             weights=weights.value * visible,
         )
-        header = self.get_header(channel, skeleton.all_coordinates)
+        header = self.get_header(channel, coordinates)
         header['bunit'] = weights.unit.decompose().to_string()
         header['date-obs'] = (self.observer.obstime + time).isot
 
