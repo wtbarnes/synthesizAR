@@ -13,8 +13,15 @@ import yt
 import sunpy.coordinates
 from sunpy.map import GenericMap, make_fitswcs_header
 
-__all__ = ['from_pfsspack', 'semi_circular_loop', 'synthetic_magnetogram',
-           'magnetic_field_to_yt_dataset', 'from_local', 'to_local']
+__all__ = [
+    'from_pfsspack',
+    'semi_circular_loop',
+    'semi_circular_bundle',
+    'synthetic_magnetogram',
+    'magnetic_field_to_yt_dataset',
+    'from_local',
+    'to_local',
+]
 
 
 def from_pfsspack(pfss_fieldlines):
@@ -111,7 +118,7 @@ def semi_circular_loop(length: u.cm,
     # Calculate a semi-circular loop
     s = np.linspace(0, length, n_points)
     z = length / np.pi * np.sin(np.pi * u.rad * s/length)
-    x = np.sqrt(length**2 / np.pi**2 - z**2)
+    x = np.sqrt((length / np.pi)**2 - z**2)
     x = np.where(s < length/2, -x, x)
     # Define origin in HCC coordinates such that the midpoint of the loop
     # is centered on the origin at the solar surface
@@ -130,6 +137,32 @@ def semi_circular_loop(length: u.cm,
                     y=offset * np.cos(gamma) + x * np.sin(gamma) + origin.y,
                     z=z + origin.z,
                     frame=origin.frame)
+
+
+@u.quantity_input
+def semi_circular_bundle(length: u.cm, radius: u.cm, num_strands, **kwargs):
+    """
+    Generate a cylindrical bundle of semi-circular strands.
+
+    Parameters
+    ----------
+    length : `~astropy.units.Quantity`
+        Nominal full loop length
+    radius : `~astropy.units.Quantity`
+        Cross-sectional radius
+    num_strands : `int`
+        Number of strands in the bundle
+
+    See Also
+    ---------
+    semi_circular_loop
+    """
+    length_max = length + np.pi*radius
+    length_min = length - np.pi*radius
+    lengths = np.random.random_sample(size=num_strands) * (length_max - length_min) + length_min
+    max_offset = np.sqrt(radius**2 - (1/np.pi * (lengths - length))**2)
+    offset = np.random.random_sample(size=num_strands)*2*max_offset - max_offset
+    return [semi_circular_loop(l, offset=o, **kwargs) for l,o in zip(lengths, offset)]
 
 
 @u.quantity_input
