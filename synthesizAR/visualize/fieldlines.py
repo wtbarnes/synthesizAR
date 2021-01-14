@@ -17,7 +17,7 @@ from synthesizAR.util import is_visible
 __all__ = ['plot_fieldlines', 'peek_projections']
 
 
-def plot_fieldlines(*coords, magnetogram=None, observer=None, check_visible=True, **kwargs):
+def plot_fieldlines(*coords, magnetogram=None, observer=None, check_visible=True, draw_grid=True, **kwargs):
     """
     Plot fieldlines on the surface of the Sun
 
@@ -80,7 +80,8 @@ def plot_fieldlines(*coords, magnetogram=None, observer=None, check_visible=True
         if len(c) == 0:
             continue  # Matplotlib throws exception when no points are visible
         ax.plot_coord(c, **plot_kwargs)
-    magnetogram.draw_grid(axes=ax, **grid_kwargs)
+    if draw_grid:
+        magnetogram.draw_grid(axes=ax, **grid_kwargs)
 
     return fig, ax
 
