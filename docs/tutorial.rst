@@ -38,9 +38,9 @@ Finally, create the synthetic magnetogram. This is just a normal `~sunpy.map.Gen
 
 Extrapolating a Magnetic Field
 ------------------------------
-Now that we have a magnetogram, we can use it to perform a potential field extrapolation to 
-approximate the 3D vector magnetic field. We first need to specify the shape and spatial extent of 
-the z-dimension and we set the spatial extent of the z-dimension such that the resolution is the same 
+Now that we have a magnetogram, we can use it to perform a potential field extrapolation to
+approximate the 3D vector magnetic field. We first need to specify the shape and spatial extent of
+the z-dimension and we set the spatial extent of the z-dimension such that the resolution is the same
 as in the x-dimension, ::
 
     >>> shape_z = 50 * u.pixel
@@ -72,6 +72,10 @@ Loop Thermal Structure
 ------------------------
 The next step is to calculate the temperature and density as a function of loop coordinate and time. For this tutorial, we will compute a hydrostatic solution using the scaling laws of `Martens (2010) <http://adsabs.harvard.edu/abs/2010ApJ...714.1290M>`_.
 
+Next, we need to set up our `~distributed.Client` instance which will handle the underlying parallelism.
+
+    >>> client = distributed.Client(local_dir=tmpdir)
+
 In order to compute the thermal structure along each loop, we need an interface between the `~synthesizAR.Loop` object and the model being used. synthesizAR provides interfaces to several different models. You can also easily define your own. Let's create the interface and compute the thermal structure for all of our loops,
 
     >>> from synthesizAR.interfaces import MartensInterface
@@ -88,10 +92,7 @@ First, we need to create the instrument and tell it the location of our observer
     >>> aia = InstrumentSDOAIA([0,1]*u.s, magnetogram.observer_coordinate, pad_fov=(5,5)*u.arcsec)  # doctest: +REMOTE_DATA
 
 Note that we are only observing at :math:`t=0` s as our loop model is a static model and thus our
-forward-modeled intensities will not evolve in time. Next, we need to set up our `~distributed.Client`
-instance which will handle the underlying parallelism.
-
-    >>> client = distributed.Client(local_dir=tmpdir)
+forward-modeled intensities will not evolve in time.
 
 Lastly, we "observe" our active region skeleton, combined with our hydrostatic loop simulations, and project them along
 the line of sight as defined by our observer,
