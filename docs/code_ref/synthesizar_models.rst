@@ -1,6 +1,6 @@
-synthesizAR physics
+synthesizAR models
 ====================
 
-.. automodapi:: synthesizAR.physics
+.. automodapi:: synthesizAR.models
    :no-heading:
    :no-inheritance-diagram:

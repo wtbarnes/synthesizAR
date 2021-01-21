@@ -6,7 +6,7 @@ from scipy.interpolate import interp1d
 import astropy.units as u
 import astropy.constants as const
 
-from synthesizAR.physics import MartensScalingLaws
+from synthesizAR.models import MartensScalingLaws
 
 __all__ = ['MartensInterface']
 
@@ -25,11 +25,11 @@ class MartensInterface(object):
         Lowest possible temperature in the loop. The Martens scaling laws
         permit temperatures of 0 K at the base of the loop which are unphysical.
     model_parameters : `dict`, optional
-        Keyword arguments to `synthesizAR.physics.MartensScalingLaws`
+        Keyword arguments to `synthesizAR.models.MartensScalingLaws`
 
     See Also
     --------
-    synthesizAR.physics.MartensScalingLaws :
+    synthesizAR.models.MartensScalingLaws :
     """
     name = 'Martens2010'
 

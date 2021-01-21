@@ -4,7 +4,7 @@ Interface between loop object and RTV scaling laws
 import numpy as np
 import astropy.units as u
 
-from synthesizAR.physics import RTVScalingLaws
+from synthesizAR.models import RTVScalingLaws
 
 __all__ = ['RTVInterface']
 
@@ -18,12 +18,12 @@ class RTVInterface(object):
     plasma_beta : `float`, optional
         Ratio of plasma to magnetic pressure
     rtv_kwargs : `dict`, optional
-        Keyword arguments to `synthesizAR.physics.RTVScalingLaws`
+        Keyword arguments to `synthesizAR.models.RTVScalingLaws`
 
     See Also
     --------
-    synthesizAR.physics.MartensScalingLaws :
-    synthesizAR.physics.RTVScalingLaws :
+    synthesizAR.models.MartensScalingLaws :
+    synthesizAR.models.RTVScalingLaws :
     """
     name = 'RTV'
 
