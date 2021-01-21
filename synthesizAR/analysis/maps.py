@@ -7,7 +7,7 @@ import astropy.units as u
 from matplotlib import cm, colors
 from sunpy.map import GenericMap
 
-from synthesizAR.util import is_visible, get_keys
+from synthesizAR.util import is_visible
 
 __all__ = ['make_los_velocity_map', 'make_temperature_map']
 
@@ -20,7 +20,7 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
     plot_settings = {'cmap': cm.get_cmap('bwr'),
                      'norm': colors.SymLogNorm(10, vmin=-1e8, vmax=1e8)}
     plot_settings.update(kwargs.get('plot_settings', {}))
-    
+
     bins, bin_range = instr.make_detector_array(field)
     visible = is_visible(instr.total_coordinates, instr.observer_coordinate)
     hist_coordinates, _, _ = np.histogram2d(instr.total_coordinates.Tx.value,
@@ -36,9 +36,9 @@ def make_los_velocity_map(time: u.s, field, instr, **kwargs):
             raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
         v_x = u.Quantity(hf['velocity_x'][i_time, :],
                          get_keys(hf['velocity_x'].attrs, ('unit', 'units')))
-        v_y = u.Quantity(hf['velocity_y'][i_time, :], 
+        v_y = u.Quantity(hf['velocity_y'][i_time, :],
                          get_keys(hf['velocity_y'].attrs, ('unit', 'units')))
-        v_z = u.Quantity(hf['velocity_z'][i_time, :], 
+        v_z = u.Quantity(hf['velocity_z'][i_time, :],
                          get_keys(hf['velocity_z'].attrs, ('unit', 'units')))
         v_los = instr.los_velocity(v_x, v_y, v_z)
 

@@ -12,8 +12,6 @@ import astropy.units as u
 import astropy.io.fits
 import h5py
 
-from synthesizAR.util import get_keys
-
 __all__ = ['EISCube']
 
 

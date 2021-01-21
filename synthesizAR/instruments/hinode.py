@@ -17,7 +17,7 @@ import h5py
 import plasmapy
 import dask
 
-from synthesizAR.util import SpatialPair, get_keys, is_visible
+from synthesizAR.util import SpatialPair, is_visible
 from synthesizAR.instruments import InstrumentBase
 from synthesizAR.analysis import EISCube
 
@@ -109,7 +109,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         Compute intensity for transitions observed by EIS
         """
         pass
-    
+
     def flatten_parallel(self, loops, interpolated_loop_coordinates, save_path, emission_model):
         """
         Build task graph for computing EIS spectra
@@ -311,7 +311,7 @@ class InstrumentHinodeXRT(InstrumentBase):
                 return 0.15/r
             elif r >= 11.1:
                 return (11.1)**2*0.15/(r**4)
-        
+
         # Create lon/lat grid
         lon = np.linspace(tmp.bottom_left_coord.Tx.value, tmp.top_right_coord.Tx.value, 250+1)
         lat = np.linspace(tmp.bottom_left_coord.Ty.value, tmp.top_right_coord.Ty.value, 250+1)

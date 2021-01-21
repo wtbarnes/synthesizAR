@@ -12,12 +12,10 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from sunpy.map import Map
 
-from synthesizAR.util import get_keys
-
 __all__ = ['plot_aia_channels', 'make_aia_animation']
 
 
-def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm=None, fontsize=14, 
+def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm=None, fontsize=14,
                       **kwargs):
     """
     Plot maps of the EUV channels of AIA for a given timestep
@@ -34,7 +32,7 @@ def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm
     if norm is None:
         norm = matplotlib.colors.SymLogNorm(1e-6, vmin=1, vmax=5e3)
     with h5py.File(aia.counts_file, 'r') as hf:
-        reference_time = u.Quantity(hf['time'], get_keys(hf['time'].attrs, ('unit', 'units')))
+        reference_time = u.Quantity(hf['time'], hf['time'].attrs['unit'])
     i_time = np.where(reference_time == time)[0][0]
     fig_format = os.path.join(root_dir, f'{aia.name}', '{}', f'map_t{i_time:06d}.fits')
     fig = plt.figure(figsize=figsize)
@@ -69,13 +67,13 @@ def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm
         return fig, ims
 
 
-def make_aia_animation(aia, start_time: u.s, stop_time: u.s, root_dir, figsize=None, norm=None, 
+def make_aia_animation(aia, start_time: u.s, stop_time: u.s, root_dir, figsize=None, norm=None,
                        fontsize=14, **kwargs):
     """
     Build animation from a series of synthesized AIA observations
     """
     with h5py.File(aia.counts_file, 'r') as hf:
-        reference_time = u.Quantity(hf['time'], get_keys(hf['time'].attrs, ('unit', 'units')))
+        reference_time = u.Quantity(hf['time'], hf['time'].attrs['unit'])
     start_index = np.where(reference_time == start_time)[0][0]
     stop_index = np.where(reference_time == stop_time)[0][0]
     fig_format = os.path.join(root_dir, f'{aia.name}', '{}', 'map_t{:06d}.fits')
