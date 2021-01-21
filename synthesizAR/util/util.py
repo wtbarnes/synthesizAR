@@ -11,7 +11,7 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 import astropy.constants as const
 import sunpy.coordinates
-from sunpy.sun import sun_const
+import sunpy.sun.constants as sun_const
 
 __all__ = ['SpatialPair', 'is_visible', 'from_pfsspack']
 
