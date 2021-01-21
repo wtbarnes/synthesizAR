@@ -130,13 +130,11 @@ def semi_circular_loop(length: u.cm,
         observer=observer,
         obstime=observer.obstime if obstime is None else obstime,
     )
-    origin = SkyCoord(x=0*u.km, y=0*u.km, z=const.R_sun, frame=hcc_frame)
     # Offset along the y-axis, convenient for creating loop arcades
-    offset = offset*np.ones(s.shape)
-    return SkyCoord(x=offset * np.sin(gamma) + x * np.cos(gamma) + origin.x,
-                    y=offset * np.cos(gamma) + x * np.sin(gamma) + origin.y,
-                    z=z + origin.z,
-                    frame=origin.frame)
+    return SkyCoord(x=-offset * np.sin(gamma) + x * np.cos(gamma),
+                    y=offset * np.cos(gamma) + x * np.sin(gamma),
+                    z=z + const.R_sun,
+                    frame=hcc_frame)
 
 
 @u.quantity_input
