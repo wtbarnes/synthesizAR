@@ -12,7 +12,7 @@ from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
 
 import synthesizAR
-from synthesizAR.extrapolate import semi_circular_loop
+from synthesizAR.models import semi_circular_loop
 
 
 @pytest.fixture
@@ -24,8 +24,8 @@ def coordinates():
         frame=HeliographicStonyhurst,
         obstime=astropy.time.Time.now(),
     )
-    coord_1 = semi_circular_loop(50*u.Mm, observer=obs, n_points=500)
-    coord_2 = semi_circular_loop(100*u.Mm, observer=obs)
+    coord_1 = semi_circular_loop(length=50*u.Mm, observer=obs, n_points=500)
+    coord_2 = semi_circular_loop(length=100*u.Mm, observer=obs)
     return coord_1, coord_2
 
 

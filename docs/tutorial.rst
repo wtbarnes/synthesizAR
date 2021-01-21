@@ -80,7 +80,7 @@ In order to compute the thermal structure along each loop, we need an interface 
 
     >>> from synthesizAR.interfaces import MartensInterface
     >>> martens = MartensInterface(1e-5*u.erg/(u.cm**3)/u.s)
-    >>> active_region.load_loop_simulations(martens, os.path.join(tmpdir, 'loops.zarr'))
+    >>> status = active_region.load_loop_simulations(martens, os.path.join(tmpdir, 'loops.zarr'))
 
 Synthesizing AIA Intensity Maps
 -------------------------------
