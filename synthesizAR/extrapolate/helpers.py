@@ -1,166 +1,20 @@
 """
 Helper routines for field extrapolation routines and dealing with vector field data
 """
-import warnings
-
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 import astropy.time
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-import astropy.constants as const
 import yt
 import sunpy.coordinates
 from sunpy.map import GenericMap, make_fitswcs_header
 
 __all__ = [
-    'from_pfsspack',
-    'semi_circular_loop',
-    'semi_circular_bundle',
     'synthetic_magnetogram',
     'magnetic_field_to_yt_dataset',
     'from_local',
     'to_local',
 ]
-
-
-def from_pfsspack(pfss_fieldlines):
-    """
-    Convert fieldline coordinates output from the SSW package `pfss <http://www.lmsal.com/~derosa/pfsspack/>`_
-    into `~astropy.coordinates.SkyCoord` objects.
-
-    Parameters
-    ----------
-    pfss_fieldlines : `~numpy.recarray`
-        Structure produced by reading pfss output with `~scipy.io.readsav`
-
-    Returns
-    -------
-    fieldlines : `list`
-        Each entry is a `tuple` containing a `~astropy.coordinates.SkyCoord` object and a
-        `~astropy.units.Quantity` object listing the coordinates and field strength along the loop.
-    """
-    # Fieldline coordinates
-    num_fieldlines = pfss_fieldlines['ptr'].shape[0]
-    # Use HGC frame if possible
-    try:
-        frame = sunpy.coordinates.HeliographicCarrington(
-            obstime=sunpy.time.parse_time(pfss_fieldlines['now'].decode('utf-8')))
-    except ValueError:
-        warnings.warn('Assuming HGS frame because no date available for HGC frame')
-        frame = sunpy.coordinates.HeliographicStonyhurst()
-    fieldlines = []
-    for i in range(num_fieldlines):
-        # NOTE: For an unknown reason, there are a number of invalid points for each line output
-        # by pfss
-        n_valid = pfss_fieldlines['nstep'][i]
-        lon = (pfss_fieldlines['ptph'][i, :] * u.radian).to(u.deg)[:n_valid]
-        lat = 90 * u.deg - (pfss_fieldlines['ptth'][i, :] * u.radian).to(u.deg)[:n_valid]
-        radius = ((pfss_fieldlines['ptr'][i, :]) * const.R_sun.to(u.cm))[:n_valid]
-        coord = SkyCoord(lon=lon, lat=lat, radius=radius, frame=frame)
-        fieldlines.append(coord)
-
-    # Magnetic field strengths
-    lon_grid = (pfss_fieldlines['phi'] * u.radian - np.pi * u.radian).to(u.deg).value
-    lat_grid = (np.pi / 2. * u.radian - pfss_fieldlines['theta'] * u.radian).to(u.deg).value
-    radius_grid = pfss_fieldlines['rix'] * const.R_sun.to(u.cm).value
-    B_radius = pfss_fieldlines['br']
-    B_lat = pfss_fieldlines['bth']
-    B_lon = pfss_fieldlines['bph']
-    # Create interpolators
-    B_radius_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_radius,
-                                                    bounds_error=False, fill_value=None)
-    B_lat_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_lat,
-                                                 bounds_error=False, fill_value=None)
-    B_lon_interpolator = RegularGridInterpolator((radius_grid, lat_grid, lon_grid), B_lon,
-                                                 bounds_error=False, fill_value=None)
-    # Interpolate values through each line
-    field_strengths = []
-    for f in fieldlines:
-        points = np.stack([f.spherical.distance.to(u.cm).value,
-                           f.spherical.lat.to(u.deg).value,
-                           f.spherical.lon.to(u.deg).value], axis=1)
-        b_r = B_radius_interpolator(points)
-        b_lat = B_lat_interpolator(points)
-        b_lon = B_lon_interpolator(points)
-        field_strengths.append(np.sqrt(b_r**2 + b_lat**2 + b_lon**2) * u.Gauss)
-
-    return [(l, b) for l, b in zip(fieldlines, field_strengths)]
-
-
-@u.quantity_input
-def semi_circular_loop(length: u.cm,
-                       observer=None,
-                       obstime=None,
-                       n_points=1000,
-                       offset: u.cm = 0*u.cm,
-                       gamma: u.deg = 0*u.deg):
-    """
-    Generate coordinates for a semi-circular loop
-
-    Parameters
-    ----------
-    length : `~astropy.units.Quantity`
-        Full length of the loop
-    observer : `~astropy.coordinates.SkyCoord`, optional
-        Observer that defines te HCC coordinate system. Effectively, this is the
-        coordinate of the midpoint of the loop.
-    obstime : parsable by `~astropy.time.Time`, optional
-        Observation time of the HCC frame. If `None`, will default to the `obstime`
-        of the `observer`.
-    n_points : `int`, optional
-        Number of points in the coordinate
-    offset : `~astropy.units.Quantity`
-        Offset in the direction perpendicular to the arcade
-    gamma : `~astropy.units.Quantity`
-        Orientation of the arcade relative to the HCC y-axis
-    """
-    # Calculate a semi-circular loop
-    s = np.linspace(0, length, n_points)
-    z = length / np.pi * np.sin(np.pi * u.rad * s/length)
-    x = np.sqrt((length / np.pi)**2 - z**2)
-    x = np.where(s < length/2, -x, x)
-    # Define origin in HCC coordinates such that the midpoint of the loop
-    # is centered on the origin at the solar surface
-    if observer is None:
-        observer = SkyCoord(lon=0*u.deg,
-                            lat=0*u.deg,
-                            frame=sunpy.coordinates.HeliographicStonyhurst)
-    hcc_frame = sunpy.coordinates.Heliocentric(
-        observer=observer,
-        obstime=observer.obstime if obstime is None else obstime,
-    )
-    # Offset along the y-axis, convenient for creating loop arcades
-    return SkyCoord(x=-offset * np.sin(gamma) + x * np.cos(gamma),
-                    y=offset * np.cos(gamma) + x * np.sin(gamma),
-                    z=z + const.R_sun,
-                    frame=hcc_frame)
-
-
-@u.quantity_input
-def semi_circular_bundle(length: u.cm, radius: u.cm, num_strands, **kwargs):
-    """
-    Generate a cylindrical bundle of semi-circular strands.
-
-    Parameters
-    ----------
-    length : `~astropy.units.Quantity`
-        Nominal full loop length
-    radius : `~astropy.units.Quantity`
-        Cross-sectional radius
-    num_strands : `int`
-        Number of strands in the bundle
-
-    See Also
-    ---------
-    semi_circular_loop
-    """
-    length_max = length + np.pi*radius
-    length_min = length - np.pi*radius
-    lengths = np.random.random_sample(size=num_strands) * (length_max - length_min) + length_min
-    max_offset = np.sqrt(radius**2 - (1/np.pi * (lengths - length))**2)
-    offset = np.random.random_sample(size=num_strands)*2*max_offset - max_offset
-    return [semi_circular_loop(l, offset=o, **kwargs) for l,o in zip(lengths, offset)]
 
 
 @u.quantity_input
