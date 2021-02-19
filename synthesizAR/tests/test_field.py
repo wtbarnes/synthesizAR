@@ -10,9 +10,12 @@ import astropy.constants as const
 import astropy.time
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
+import distributed
+from distributed.utils_test import client, loop, cluster_fixture
 
 import synthesizAR
-from synthesizAR.models import semi_circular_loop
+from synthesizAR.models import semi_circular_arcade
+from synthesizAR.interfaces import MartensInterface
 
 
 @pytest.fixture
@@ -24,37 +27,63 @@ def coordinates():
         frame=HeliographicStonyhurst,
         obstime=astropy.time.Time.now(),
     )
-    coord_1 = semi_circular_loop(length=50*u.Mm, observer=obs, n_points=500)
-    coord_2 = semi_circular_loop(length=100*u.Mm, observer=obs)
-    return coord_1, coord_2
+    return semi_circular_arcade(100*u.Mm, 20*u.deg, 20, obs, gamma=90*u.deg)
 
 
 @pytest.fixture
 def field_strengths(coordinates):
-    B_mag_1 = u.Quantity(len(coordinates[0])*[np.nan], 'Gauss')
-    B_mag_2 = u.Quantity(len(coordinates[1])*[np.nan], 'Gauss')
-    return B_mag_1, B_mag_2
+    return [np.nan * np.ones(c.shape) * u.G for c in coordinates]
 
 
 @pytest.fixture
-def skeleton(coordinates, field_strengths):
-    return synthesizAR.Skeleton.from_coordinates(coordinates, field_strengths)
+def interface():
+    return MartensInterface(1*u.erg/u.cm**3/u.s)
 
 
-def test_field_loops(skeleton):
+@pytest.fixture
+def skeleton(coordinates, field_strengths, interface, tmpdir, client):
+    skeleton = synthesizAR.Skeleton.from_coordinates(coordinates, field_strengths)
+    zarr_file = pathlib.Path(tmpdir.mkdir('loop_results')) / 'results.zarr'
+    status = skeleton.load_loop_simulations(interface, str(zarr_file))
+    distributed.wait(status)  # wait until all simulations loaded
+    return skeleton
+
+
+def test_skeleton_has_loops(skeleton, coordinates):
     assert hasattr(skeleton, 'loops')
     assert type(skeleton.loops) is list
-    assert len(skeleton.loops) == 2
+    assert len(skeleton.loops) == len(coordinates)
 
 
-def test_field_from_loops(coordinates, field_strengths):
+def test_loops_have_model_type(skeleton, interface):
+    for l in skeleton.loops:
+        assert l.simulation_type == interface.name
+
+@pytest.mark.parametrize(
+    'name',
+    ['time',
+     'electron_temperature',
+     'ion_temperature',
+     'density',
+     'velocity',
+     'velocity_x',
+     'velocity_y',
+     'velocity_z',]
+)
+def test_loops_have_model_quantities(skeleton, name):
+    "These quantities exist only after an interface is defined"
+    for l in skeleton.loops:
+        assert isinstance(getattr(l, name), u.Quantity)
+
+
+def test_create_skeleton_from_loops(coordinates, field_strengths):
     loops = []
     for i, (coord, mag) in enumerate(zip(coordinates, field_strengths)):
         loops.append(synthesizAR.Loop(f'loop{i}', coord, mag))
     skeleton = synthesizAR.Skeleton(loops)
     assert hasattr(skeleton, 'loops')
     assert type(skeleton.loops) is list
-    assert len(skeleton.loops) == 2
+    assert len(skeleton.loops) == len(coordinates)
 
 
 def test_roundtrip(skeleton, tmpdir):
@@ -66,4 +95,4 @@ def test_roundtrip(skeleton, tmpdir):
     for i in range(len(skeleton.loops)):
         l1 = skeleton.loops[i].coordinate.cartesian.xyz
         l2 = skeleton_2.loops[i].coordinate.cartesian.xyz
-        assert u.quantity.allclose(l2, l1, atol=0.*u.cm, rtol=1e-9)
+        assert u.allclose(l2, l1, rtol=1e-9)

@@ -49,9 +49,12 @@ class Isothermal(object):
     @property
     @u.quantity_input
     def pressure(self) -> u.dyne / u.cm**2:
-        g_sun = sun_const.equatorial_surface_gravity
-        scale_height = 2*const.k_B*self.temperature / const.m_p / g_sun
-        return self.pressure0 * np.exp(-const.R_sun**2 / scale_height * self._integral)
+        return self.pressure0 * np.exp(-const.R_sun**2 / self.pressure_scale_height * self._integral)
+
+    @property
+    @u.quantity_input
+    def pressure_scale_height(self) -> u.cm:
+        return 2 * const.k_B * self.temperature / const.m_p / sun_const.equatorial_surface_gravity
 
     @property
     @u.quantity_input

@@ -48,7 +48,7 @@ def semi_circular_loop(length: u.cm=None,
         angles = np.linspace(0, 1, n_points) * np.pi * u.rad
     elif length is None:
         length = s[-1]
-        angles = s / length
+        angles = (s / length).decompose() * np.pi * u.rad
     else:
         raise ValueError('Specify either length or field-aligned coordinate but not both.')
     z = length / np.pi * np.sin(angles)
