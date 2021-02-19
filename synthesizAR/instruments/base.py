@@ -61,7 +61,8 @@ class InstrumentBase(object):
         Compute the LOS velocity for the instrument observer
         """
         # NOTE: transform from HEEQ to HCC with respect to the instrument observer
-        Phi_0, B_0 = self.observer.lon.to(u.radian), self.observer.lat.to(u.radian)
+        Phi_0 = self.observer.lon.to(u.radian)
+        B_0 = self.observer.lat.to(u.radian)
         v_los = v_z*np.sin(B_0) + v_x*np.cos(B_0)*np.cos(Phi_0) + v_y*np.cos(B_0)*np.sin(Phi_0)
         # NOTE: Negative sign to be consistent with convention v_los > 0 away from observer
         return -v_los
@@ -71,13 +72,13 @@ class InstrumentBase(object):
         return Helioprojective(observer=self.observer, obstime=self.observer.obstime)
 
     @property
-    def cross_section_ratio(self):
+    @u.quantity_input
+    def pixel_area(self) -> u.cm**2:
         """
-        Ratio between loop cross-sectional area and pixel area. This essentially defines
-        our filling factor.
+        Pixel area
         """
         w_x, w_y = (1*u.pix * self.resolution).to(u.radian).value * self.observer.radius
-        return (self.assumed_cross_section / (w_x * w_y)).decompose()
+        return w_x * w_y
 
     def convolve_with_psf(self, data):
         # TODO: do the convolution here!
@@ -152,6 +153,7 @@ class InstrumentBase(object):
         # Compute weights
         i_time = np.where(time == self.observing_time)[0][0]
         widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
+        loop_area = np.concatenate([l.cross_sectional_area for l in skeleton.loops])
         root = skeleton.loops[0].zarr_root
         # NOTE: do this outside of the client.map call to make Dask happy
         path = f'{{}}/{self.name}/{channel.name}'
@@ -161,7 +163,8 @@ class InstrumentBase(object):
         )))
         unit_kernel = u.Unit(
             root[f'{skeleton.loops[0].name}/{self.name}/{channel.name}'].attrs['unit'])
-        weights = self.cross_section_ratio * widths * (kernels*unit_kernel)
+        area_ratio = (loop_area / self.pixel_area).decompose()
+        weights = area_ratio * widths * (kernels*unit_kernel)
         visible = is_visible(coords, self.observer)
         # Bin
         bins, (blc, trc) = self.get_detector_array(coordinates)
