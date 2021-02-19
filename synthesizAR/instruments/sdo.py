@@ -14,6 +14,8 @@ from scipy.interpolate import interp1d, interpn
 
 from synthesizAR.instruments import InstrumentBase
 
+__all__ = ['InstrumentSDOAIA', 'aia_kernel_quick']
+
 _TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
     'synthesizAR', 'instruments/data/aia_temperature_response.asdf')
 with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r') as af:
@@ -90,9 +92,7 @@ class InstrumentSDOAIA(InstrumentBase):
                 kernel += tmp
         else:
             # Use tabulated temperature respone functions
-            T, K = _TEMPERATURE_RESPONSE['temperature'], _TEMPERATURE_RESPONSE[channel.name]
-            K_interp = np.interp(loop.electron_temperature, T, K)
-            kernel = K_interp * loop.density**2
+            kernel = aia_kernel_quick(channel.name, loop.electron_temperature, loop.density)
         return kernel
 
     def convolve_emissivities(self, channel, emission_model, **kwargs):
@@ -153,3 +153,30 @@ class InstrumentSDOAIA(InstrumentBase):
                     ds.attrs['unit'] = em_convolved[k].unit.to_string()
 
         super().observe(skeleton, save_directory, channels=channels, **kwargs)
+
+
+@u.quantity_input
+def aia_kernel_quick(channel,
+                     temperature: u.K,
+                     density: u.cm**(-3)) -> u.Unit('ct pix-1 s-1 cm-1'):
+    """
+    Calculate AIA intensity kernel for a given channel
+
+    Compute the integrand of the AIA intensity integral,
+
+    .. math::
+
+        p_c = \int\mathrm{d}h\,K_c(T_e)n_e^2
+
+    by interpolating the tabulated response curve to ``temperature``
+    and multiplying by the square of ``density``.
+
+    Parameters
+    ----------
+    channel : `str`
+        Name of the AIA channel
+    temperature : `~astropy.units.Quantity`
+    density : `astropy.units.Quantity`
+    """
+    T, K = _TEMPERATURE_RESPONSE['temperature'], _TEMPERATURE_RESPONSE[channel]
+    return np.interp(temperature, T, K) * density**2

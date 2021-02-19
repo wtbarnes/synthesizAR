@@ -55,8 +55,12 @@ class MartensInterface(object):
         # Interpolate to centers of extrapolated fieldline grid cells
         s_center = loop.field_aligned_coordinate_center.to(s_full.unit).value
         temperature = interp1d(
-            s_full.value, T_full.value, kind='slinear', bounds_error=False,
-            fill_value=T_full[-1].value)(s_center)
+            s_full.value,
+            T_full.value,
+            kind='slinear',
+            bounds_error=False,
+            fill_value=T_full[-1].value
+        )(s_center)
         temperature = temperature[np.newaxis, :] * T_full.unit
         # Martens loops are isobaric, use ideal gas law to get density
         density = msl.pressure[0] / (2*const.k_B*temperature)
