@@ -123,19 +123,11 @@ class HYDRADInterface(object):
         )
 
     def configure_gravity_fit(self, loop):
-        r_hat = u.Quantity(np.stack([
-            np.sin(loop.coordinate.spherical.lat)*np.cos(loop.coordinate.spherical.lon),
-            np.sin(loop.coordinate.spherical.lat)*np.sin(loop.coordinate.spherical.lon),
-            np.cos(loop.coordinate.spherical.lat)
-        ]))
-        r_hat_dot_s_hat = (r_hat * loop.coordinate_direction).sum(axis=0)
-        g_parallel = -sun_const.surface_gravity * (
-            (const.R_sun / loop.coordinate.spherical.distance)**2) * r_hat_dot_s_hat
         return {
             'order': self.base_config['general']['poly_fit_gravity']['order'],
             'domains': self.base_config['general']['poly_fit_gravity']['domains'],
             'x': loop.field_aligned_coordinate_norm.decompose().value,
-            'y': g_parallel,
+            'y': loop.gravity,
         }
 
     def configure_magnetic_field_fit(self, loop):

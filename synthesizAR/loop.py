@@ -5,7 +5,9 @@ import numpy as np
 from scipy.interpolate import splprep, splev
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+import astropy.constants as const
 from sunpy.coordinates import HeliographicStonyhurst
+import sunpy.sun.constants as sun_const
 import zarr
 
 
@@ -43,13 +45,19 @@ class Loop(object):
     """
 
     @u.quantity_input
-    def __init__(self, name, coordinate, field_strength: u.G, model_results_filename=None):
+    def __init__(self,
+                 name,
+                 coordinate,
+                 field_strength: u.G,
+                 cross_sectional_area: u.cm**2=1e14*u.cm**2,
+                 model_results_filename=None):
         if coordinate.shape != field_strength.shape:
             raise ValueError('Coordinates and field strength must have same shape.')
         self.name = name
         self.coordinate = coordinate.transform_to(HeliographicStonyhurst)
         self.coordinate.representation_type = 'cartesian'
         self.field_strength = field_strength
+        self._cross_sectional_area = cross_sectional_area
         self.model_results_filename = model_results_filename
 
     @property
@@ -145,11 +153,34 @@ Simulation Type: {self.simulation_type}'''
 
     @property
     @u.quantity_input
+    def cross_sectional_area(self) -> u.cm**2:
+        """
+        Cross-sectional area of each field-aligned coordinate grid cell
+        """
+        return self._cross_sectional_area * np.ones(self.field_aligned_coordinate_width.shape)
+
+    @property
+    @u.quantity_input
     def length(self) -> u.cm:
         """
         Loop full-length :math:`L`, from footpoint to footpoint
         """
         return self.field_aligned_coordinate_width.sum()
+
+    @property
+    @u.quantity_input
+    def gravity(self) -> u.cm / (u.s**2):
+        """
+        Gravitational acceleration in the field-aligned direction.
+        """
+        r_hat = u.Quantity(np.stack([
+            np.sin(self.coordinate.spherical.lat)*np.cos(self.coordinate.spherical.lon),
+            np.sin(self.coordinate.spherical.lat)*np.sin(self.coordinate.spherical.lon),
+            np.cos(self.coordinate.spherical.lat)
+        ]))
+        r_hat_dot_s_hat = (r_hat * self.coordinate_direction).sum(axis=0)
+        return -sun_const.surface_gravity * (
+            (const.R_sun / self.coordinate.spherical.distance)**2) * r_hat_dot_s_hat
 
     @property
     def simulation_type(self) -> str:
@@ -161,85 +192,38 @@ Simulation Type: {self.simulation_type}'''
         else:
             return self.zarr_root[self.name].attrs['simulation_type']
 
-    @property
-    @u.quantity_input
-    def time(self) -> u.s:
-        """
-        Simulation time
-        """
-        dset = self.zarr_root[f'{self.name}/time']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def electron_temperature(self) -> u.K:
-        """
-        Loop electron temperature as function of coordinate and time.
-        """
-        dset = self.zarr_root[f'{self.name}/electron_temperature']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def ion_temperature(self) -> u.K:
-        """
-        Loop ion temperature as function of coordinate and time.
-        """
-        dset = self.zarr_root[f'{self.name}/ion_temperature']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def density(self) -> u.cm**(-3):
-        """
-        Loop density as a function of coordinate and time.
-        """
-        dset = self.zarr_root[f'{self.name}/density']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def velocity(self) -> u.cm/u.s:
-        """
-        Velcoity in the field-aligned direction of the loop as a function of loop coordinate and
-        time.
-        """
-        dset = self.zarr_root[f'{self.name}/velocity']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def velocity_x(self) -> u.cm/u.s:
-        """
-        X-component of velocity in the HEEQ Cartesian coordinate system as a function of loop
-        coordinate and time.
-        """
-        dset = self.zarr_root[f'{self.name}/velocity_x']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def velocity_y(self) -> u.cm/u.s:
-        """
-        Y-component of velocity in the HEEQ Cartesian coordinate system as a function of
-        loop coordinate and time.
-        """
-        dset = self.zarr_root[f'{self.name}/velocity_y']
-        return u.Quantity(dset, dset.attrs['unit'])
-
-    @property
-    @u.quantity_input
-    def velocity_z(self) -> u.cm/u.s:
-        """
-        Z-component of velocity in the HEEQ Cartesian coordinate system as a function of
-        loop coordinate and time.
-        """
-        dset = self.zarr_root[f'{self.name}/velocity_z']
+    def _get_quantity(self, quantity):
+        dset = self.zarr_root[f'{self.name}/{quantity}']
         return u.Quantity(dset, dset.attrs['unit'])
 
     def get_ionization_fraction(self, ion):
         """
         Return the ionization fraction for a particular ion.
         """
-        dset = self.zarr_root[f'{self.name}/ionization_fraction/{ion.ion_name}']
-        return u.Quantity(dset)
+        return self._get_quantity(f'ionization_fraction/{ion.ion_name}')
+
+
+def add_property(name, unit, doc):
+    """
+    Auto-generate properties for various pieces of data
+    """
+    @u.quantity_input
+    def property_template(self) -> u.Unit(unit):
+        return self._get_quantity(name)
+    property_template.__doc__ = doc
+    property_template.__name__ = name
+    setattr(Loop, property_template.__name__, property(property_template))
+
+
+properties = [
+    ('time', 's', 'Simulation time'),
+    ('electron_temperature', 'K', 'Electron temperature as function of loop coordinate and time.'),
+    ('ion_temperature', 'K', 'Ion temperature as function of loop coordinate and time.'),
+    ('density', 'cm-3', 'Density as function of loop coordinate and time.'),
+    ('velocity', 'cm s-1', 'Velocity as function of loop coordinate and time.'),
+    ('velocity_x', 'cm s-1', 'X-component of velocity in HEEQ as function of loop coordinate and time.'),
+    ('velocity_y', 'cm s-1', 'Y-component of velocity in HEEQ as function of loop coordinate and time.'),
+    ('velocity_z', 'cm s-1', 'Z-component of velocity in HEEQ as function of loop coordinate and time.'),
+]
+for p in properties:
+    add_property(*p)

@@ -218,16 +218,16 @@ Number of loops: {len(self.loops)}'''
         """
         Load in loop parameters from hydrodynamic results.
         """
-        client = distributed.get_client()
         root = zarr.open(store=filename, mode='w', **kwargs)
+        for loop in self.loops:
+            loop.model_results_filename = filename
+        client = distributed.get_client()
         status = client.map(
             self._load_loop_simulation,
             self.loops,
             root=root,
             interface=interface,
         )
-        for l in self.loops:
-            l.model_results_filename = filename
         return status
 
     def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
