@@ -5,7 +5,6 @@ import numpy as np
 from scipy.interpolate import splprep, splev
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-import astropy.constants as const
 from sunpy.coordinates import HeliographicStonyhurst
 import sunpy.sun.constants as sun_const
 import zarr
@@ -174,13 +173,13 @@ Simulation Type: {self.simulation_type}'''
         Gravitational acceleration in the field-aligned direction.
         """
         r_hat = u.Quantity(np.stack([
-            np.sin(self.coordinate.spherical.lat)*np.cos(self.coordinate.spherical.lon),
-            np.sin(self.coordinate.spherical.lat)*np.sin(self.coordinate.spherical.lon),
-            np.cos(self.coordinate.spherical.lat)
+            np.cos(self.coordinate.spherical.lat)*np.cos(self.coordinate.spherical.lon),
+            np.cos(self.coordinate.spherical.lat)*np.sin(self.coordinate.spherical.lon),
+            np.sin(self.coordinate.spherical.lat)
         ]))
         r_hat_dot_s_hat = (r_hat * self.coordinate_direction).sum(axis=0)
         return -sun_const.surface_gravity * (
-            (const.R_sun / self.coordinate.spherical.distance)**2) * r_hat_dot_s_hat
+            (sun_const.radius / self.coordinate.spherical.distance)**2) * r_hat_dot_s_hat
 
     @property
     def simulation_type(self) -> str:
