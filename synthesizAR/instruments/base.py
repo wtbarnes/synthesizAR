@@ -2,6 +2,7 @@
 Base class for instrument objects.
 """
 import os
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -15,9 +16,15 @@ import zarr
 
 from synthesizAR.util import is_visible
 
+__all__ = ['ChannelBase', 'InstrumentBase']
 
-# TODO: some sort of base channel object that all instruments can use by default
-# should look something like those in aiapy; use data classes?
+
+@dataclass
+class ChannelBase:
+    telescope_number: int
+    channel: u.Quantity
+    name: str
+
 
 class InstrumentBase(object):
     """
@@ -31,23 +38,30 @@ class InstrumentBase(object):
         Tuple of start and end observing times
     observer_coordinate : `~astropy.coordinates.SkyCoord`
         Coordinate of the observing instrument
-    assumed_cross_section : `~astropy.units.Quantity`, optional
-        Approximation of the loop cross-section. This defines the filling factor.
     pad_fov : `~astropy.units.Quantity`, optional
         Two-dimensional array specifying the padding to apply to the field of view of the synthetic
         image in both directions. If None, no padding is applied and the field of view is defined
         by the maximal extent of the loop coordinates in each direction.
+    fov_center : `~astropy.coordinates.SkyCoord`, optional
+    fov_width : `~astropy.units.Quantity`, optional
+    average_over_los : `bool`, optional
     """
     fits_template = MetaDict()
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observer, assumed_cross_section=1e14 * u.cm**2,
-                 pad_fov=None):
+    def __init__(self,
+                 observing_time: u.s,
+                 observer, pad_fov=None,
+                 fov_center=None,
+                 fov_width=None,
+                 average_over_los=False):
         self.observing_time = np.arange(*observing_time.to('s').value,
                                         self.cadence.to('s').value)*u.s
         self.observer = observer.transform_to(HeliographicStonyhurst)
-        self.assumed_cross_section = assumed_cross_section
         self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
+        self.fov_center = fov_center
+        self.fov_width = fov_width
+        self.average_over_los = average_over_los
 
     def calculate_intensity_kernel(self, *args, **kwargs):
         """
@@ -55,17 +69,6 @@ class InstrumentBase(object):
         a new instrument class, this method should be overridden.
         """
         raise NotImplementedError('No detect method implemented.')
-
-    def los_velocity(self, v_x, v_y, v_z):
-        """
-        Compute the LOS velocity for the instrument observer
-        """
-        # NOTE: transform from HEEQ to HCC with respect to the instrument observer
-        Phi_0 = self.observer.lon.to(u.radian)
-        B_0 = self.observer.lat.to(u.radian)
-        v_los = v_z*np.sin(B_0) + v_x*np.cos(B_0)*np.cos(Phi_0) + v_y*np.cos(B_0)*np.sin(Phi_0)
-        # NOTE: Negative sign to be consistent with convention v_los > 0 away from observer
-        return -v_los
 
     @property
     def projected_frame(self):
@@ -175,6 +178,16 @@ class InstrumentBase(object):
             range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
             weights=weights.value * visible,
         )
+        # For some quantities, need to average over all components along a given LOS
+        if self.average_over_los:
+            _hist, _, _ = np.histogram2d(
+                coords.Tx.value,
+                coords.Ty.value,
+                bins=bins,
+                range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
+                weights=visible,
+            )
+            hist /= np.where(_hist == 0, 1, _hist)
         header = self.get_header(channel, coordinates)
         header['bunit'] = weights.unit.decompose().to_string()
         header['date-obs'] = (self.observer.obstime + time).isot
@@ -203,22 +216,40 @@ class InstrumentBase(object):
         Calculate the number of pixels in the detector FOV and the physical coordinates of the
         bottom left and top right corners.
         """
-        coordinates = coordinates.transform_to(self.projected_frame)
-        # NOTE: this is the coordinate of the bottom left corner of the bottom left corner pixel,
-        # NOT the coordinate at the center of the pixel!
-        bottom_left_corner = SkyCoord(
-            Tx=coordinates.Tx.min() - self.pad_fov[0],
-            Ty=coordinates.Ty.min() - self.pad_fov[1],
-            frame=coordinates.frame
-        )
-        bins_x = int(np.ceil((coordinates.Tx.max() + self.pad_fov[0] - bottom_left_corner.Tx) / self.resolution[0]).value)
-        bins_y = int(np.ceil((coordinates.Ty.max() + self.pad_fov[1] - bottom_left_corner.Ty) / self.resolution[1]).value)
-        # Compute right corner after the fact to account for rounding in bin numbers
-        # NOTE: this is the coordinate of the top right corner of the top right corner pixel, NOT
-        # the coordinate at the center of the pixel!
-        top_right_corner = SkyCoord(
-            Tx=bottom_left_corner.Tx + self.resolution[0]*bins_x*u.pixel,
-            Ty=bottom_left_corner.Ty + self.resolution[1]*bins_y*u.pixel,
-            frame=coordinates.frame
-        )
+        if self.fov_center is not None and self.fov_width is not None:
+            center = self.fov_center.transform_to(self.projected_frame)
+            bins_x = int(np.ceil((self.fov_width[0] / self.resolution[0]).decompose()).value)
+            bins_y = int(np.ceil((self.fov_width[1] / self.resolution[1]).decompose()).value)
+            bottom_left_corner = SkyCoord(
+                Tx=center.Tx - self.fov_width[0]/2,
+                Ty=center.Ty - self.fov_width[1]/2,
+                frame=center.frame,
+            )
+            top_right_corner = SkyCoord(
+                Tx=bottom_left_corner.Tx + self.fov_width[0],
+                Ty=bottom_left_corner.Ty + self.fov_width[1],
+                frame=bottom_left_corner.frame
+            )
+        else:
+            # If not specified, derive FOV from loop coordinates
+            coordinates = coordinates.transform_to(self.projected_frame)
+            # NOTE: this is the coordinate of the bottom left corner of the bottom left corner pixel,
+            # NOT the coordinate at the center of the pixel!
+            bottom_left_corner = SkyCoord(
+                Tx=coordinates.Tx.min() - self.pad_fov[0],
+                Ty=coordinates.Ty.min() - self.pad_fov[1],
+                frame=coordinates.frame
+            )
+            delta_x = coordinates.Tx.max() + self.pad_fov[0] - bottom_left_corner.Tx
+            delta_y = coordinates.Ty.max() + self.pad_fov[1] - bottom_left_corner.Ty
+            bins_x = int(np.ceil((delta_x / self.resolution[0]).decompose()).value)
+            bins_y = int(np.ceil((delta_y / self.resolution[1]).decompose()).value)
+            # Compute right corner after the fact to account for rounding in bin numbers
+            # NOTE: this is the coordinate of the top right corner of the top right corner pixel, NOT
+            # the coordinate at the center of the pixel!
+            top_right_corner = SkyCoord(
+                Tx=bottom_left_corner.Tx + self.resolution[0]*bins_x*u.pixel,
+                Ty=bottom_left_corner.Ty + self.resolution[1]*bins_y*u.pixel,
+                frame=coordinates.frame
+            )
         return (bins_x, bins_y), (bottom_left_corner, top_right_corner)

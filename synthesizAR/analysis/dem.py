@@ -12,7 +12,7 @@ from sunpy.util.metadata import MetaDict
 
 from synthesizAR.util import is_visible
 
-__all__ = ['EMCube', 'make_emission_measure_map']
+__all__ = ['EMCube']
 
 
 class EMCube(MapSequence):
@@ -201,64 +201,3 @@ class EMCube(MapSequence):
                 header[key] = hf['meta'].attrs[key]
 
         return cls(data, header, temperature_bin_edges, **kwargs)
-
-
-@u.quantity_input
-def make_emission_measure_map(time: u.s, field, instr, temperature_bin_edges=None,
-                              **kwargs) -> EMCube:
-    """
-    Compute true emission meausure in each pixel as a function of electron temperature.
-
-    Parameters
-    ----------
-    time : `~astropy.units.Quantity`
-    field : `~synthesizAR.Skeleton`
-    instr : `~synthesizAR.instruments.InstrumentBase`
-    temperature_bin_edges : `~astropy.units.Quantity`
-
-    Other Parameters
-    ----------------
-    plot_settings : `dict`
-    """
-    plot_settings = {'cmap': cm.get_cmap('magma'),
-                     'norm': colors.SymLogNorm(1, vmin=1e25, vmax=1e29)}
-    plot_settings.update(kwargs.get('plot_settings', {}))
-
-    # read unbinned temperature and density
-    with h5py.File(instr.counts_file, 'r') as hf:
-        try:
-            i_time = np.where(u.Quantity(hf['time'],
-                              get_keys(hf['time'].attrs), ('unit', 'units')) == time)[0][0]
-        except IndexError:
-            raise IndexError(f'{time} is not a valid time in observing time for {instr.name}')
-        unbinned_temperature = np.array(hf['electron_temperature'][i_time, :])
-        unbinned_density = np.array(hf['density'][i_time, :])
-        density_unit = u.Unit(get_keys(hf['density'].attrs, ('unit', 'units')))
-
-    # setup bin edges and weights
-    if temperature_bin_edges is None:
-        temperature_bin_edges = 10.**(np.arange(5.5, 7.5, 0.1))*u.K
-    bins, bin_range = instr.make_detector_array(field)
-    x_bin_edges = (np.diff(bin_range.x) / bins.x.value
-                   * np.arange(bins.x.value + 1) + bin_range.x[0])
-    y_bin_edges = (np.diff(bin_range.y) / bins.y.value
-                   * np.arange(bins.y.value + 1) + bin_range.y[0])
-    dh = np.diff(bin_range.z).cgs[0] / bins.z * (1. * u.pixel)
-    visible = is_visible(instr.total_coordinates, instr.observer_coordinate)
-    emission_measure_weights = (unbinned_density**2) * dh * visible
-    # bin in x,y,T space with emission measure weights
-    xyT_coordinates = np.append(np.stack([instr.total_coordinates.Tx,
-                                          instr.total_coordinates.Ty], axis=1),
-                                unbinned_temperature[:, np.newaxis], axis=1)
-    hist, _ = np.histogramdd(xyT_coordinates,
-                             bins=[x_bin_edges, y_bin_edges, temperature_bin_edges.value],
-                             weights=emission_measure_weights)
-
-    meta_base = instr.make_fits_header(field, instr.channels[0])
-    del meta_base['wavelnth']
-    del meta_base['waveunit']
-    meta_base['detector'] = r'Emission measure'
-    meta_base['comment'] = 'LOS Emission Measure distribution'
-    data = np.transpose(hist, (1, 0, 2)) * density_unit * density_unit * dh.unit
-
-    return EMCube(data, meta_base, temperature_bin_edges, plot_settings=plot_settings)

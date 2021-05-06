@@ -13,10 +13,49 @@ import astropy.constants as const
 import sunpy.coordinates
 import sunpy.sun.constants as sun_const
 
-__all__ = ['SpatialPair', 'is_visible', 'from_pfsspack']
+__all__ = ['SpatialPair', 'los_velocity', 'is_visible', 'from_pfsspack']
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
+
+
+@u.quantity_input
+def los_velocity(v_x: u.cm/u.s, v_y: u.cm/u.s, v_z: u.cm/u.s, observer):
+    """
+    Compute the LOS velocity for some observing angle. The sign of the result
+    is consistent with the convention that LOS velocity is :math:`>0` away from
+    the observer, i.e. red shifts are positive, blue shifts are negative
+
+    Parameters
+    ----------
+    v_x, v_y, v_z : `~astropy.units.Quantity`
+        Cartesian velocity components in the Heliographic Stonyhurst coordinate
+        system
+    observer : `~astropy.coordinates.SkyCoord`
+        Heliographic Stonyhurst observer coordinate
+    """
+    # NOTE: transform from HEEQ to HCC with respect to the instrument observer
+    Phi_0 = observer.lon.to(u.radian)
+    B_0 = observer.lat.to(u.radian)
+    v_los = v_z*np.sin(B_0) + v_x*np.cos(B_0)*np.cos(Phi_0) + v_y*np.cos(B_0)*np.sin(Phi_0)
+    return -v_los
+
+
+def coord_in_fov(coord, width, height, center=None, bottom_left_corner=None):
+    # NOTE: this does not work for frames other than HPC
+    if center is None and bottom_left_corner is None:
+        raise ValueError('Must specify either center or bottom left corner')
+    if bottom_left_corner is None:
+        bottom_left_corner = SkyCoord(Tx=center.Tx-width/2,
+                                      Ty=center.Ty-height/2,
+                                      frame=center.frame)
+    coord = coord.transform_to(bottom_left_corner.frame)
+    top_right_corner = SkyCoord(Tx=bottom_left_corner.Tx+width,
+                                Ty=bottom_left_corner.Ty+height,
+                                frame=bottom_left_corner.frame)
+    in_x = np.logical_and(coord.Tx > bottom_left_corner.Tx, coord.Tx < top_right_corner.Tx)
+    in_y = np.logical_and(coord.Ty > bottom_left_corner.Ty, coord.Ty < top_right_corner.Ty)
+    return np.logical_and(in_x, in_y)
 
 
 def is_visible(coords, observer):

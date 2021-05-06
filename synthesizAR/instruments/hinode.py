@@ -21,6 +21,8 @@ from synthesizAR.util import SpatialPair, is_visible
 from synthesizAR.instruments import InstrumentBase
 from synthesizAR.analysis import EISCube
 
+__all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
+
 
 class InstrumentHinodeEIS(InstrumentBase):
     """
