@@ -13,7 +13,7 @@ import astropy.constants as const
 import sunpy.coordinates
 import sunpy.sun.constants as sun_const
 
-__all__ = ['SpatialPair', 'los_velocity', 'is_visible', 'from_pfsspack']
+__all__ = ['SpatialPair', 'los_velocity', 'coord_in_fov', 'is_visible', 'from_pfsspack']
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')

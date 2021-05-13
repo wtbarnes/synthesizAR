@@ -10,8 +10,6 @@ import astropy.units as u
 from sunpy.map import MapSequence, GenericMap
 from sunpy.util.metadata import MetaDict
 
-from synthesizAR.util import is_visible
-
 __all__ = ['EMCube']
 
 

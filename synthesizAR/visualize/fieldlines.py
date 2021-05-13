@@ -105,4 +105,4 @@ def plot_fieldlines(*coords,
         image_map.draw_grid(axes=ax, **grid_kwargs)
     if axes_limits is not None:
         set_ax_lims(ax, *axes_limits, image_map)
-    return fig, ax
+    return fig, ax, image_map
