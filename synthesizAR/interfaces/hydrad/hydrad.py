@@ -46,6 +46,9 @@ class HYDRADInterface(object):
         If specified, `general.footpoint_height` will be set to this ratio times the
         loop length if ``2 * general.footpoint_height / length`` is greater than this
         ratio.
+    sample_cadence: `int`, optional
+        Frequency with which to select timesteps from the HYDRAD simulation. Default is
+        1 which selects every time step, 2 would select every other time step, etc.
     """
     name = 'HYDRAD'
 
@@ -58,7 +61,8 @@ class HYDRADInterface(object):
                  use_gravity=True,
                  use_magnetic_field=True,
                  use_initial_conditions=False,
-                 maximum_chromosphere_ratio=None):
+                 maximum_chromosphere_ratio=None,
+                 sample_cadence=1):
         self.base_config = base_config
         self.hydrad_dir = hydrad_dir
         self.output_dir = output_dir
@@ -67,6 +71,7 @@ class HYDRADInterface(object):
         self.use_magnetic_field = use_magnetic_field
         self.use_initial_conditions = use_initial_conditions
         self.maximum_chromosphere_ratio = maximum_chromosphere_ratio
+        self.sample_cadence = sample_cadence
 
     def configure_input(self, loop):
         config = self.base_config.copy()
@@ -92,7 +97,7 @@ class HYDRADInterface(object):
 
     def load_results(self, loop):
         loop_coord_center = loop.field_aligned_coordinate_center.to(u.cm).value
-        s = Strand(os.path.join(self.output_dir, loop.name))
+        s = Strand(os.path.join(self.output_dir, loop.name))[::self.sample_cadence]
         if self.use_initial_conditions:
             time = s.initial_conditions.time.reshape((1,))
             s = [s.initial_conditions]
