@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from sunpy.util.metadata import MetaDict
@@ -38,6 +39,8 @@ class InstrumentBase(object):
         Tuple of start and end observing times
     observer_coordinate : `~astropy.coordinates.SkyCoord`
         Coordinate of the observing instrument
+    cadence : `~astropy.units.Quantity`
+    resolution : `~astropy.units.Quantity`
     pad_fov : `~astropy.units.Quantity`, optional
         Two-dimensional array specifying the padding to apply to the field of view of the synthetic
         image in both directions. If None, no padding is applied and the field of view is defined
@@ -51,17 +54,30 @@ class InstrumentBase(object):
     @u.quantity_input
     def __init__(self,
                  observing_time: u.s,
-                 observer, pad_fov=None,
+                 observer,
+                 cadence: u.s,
+                 resolution,
+                 pad_fov=None,
                  fov_center=None,
                  fov_width=None,
                  average_over_los=False):
+        self.observer = observer.transform_to(HeliographicStonyhurst)
+        self.cadence = cadence
         self.observing_time = np.arange(*observing_time.to('s').value,
                                         self.cadence.to('s').value)*u.s
-        self.observer = observer.transform_to(HeliographicStonyhurst)
+        self.resolution = resolution
         self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
         self.fov_center = fov_center
         self.fov_width = fov_width
         self.average_over_los = average_over_los
+
+    @property
+    def telescope(self):
+        return self.name
+
+    @property
+    def detector(self):
+        return self.name
 
     def calculate_intensity_kernel(self, *args, **kwargs):
         """
@@ -83,9 +99,14 @@ class InstrumentBase(object):
         w_x, w_y = (1*u.pix * self.resolution).to(u.radian).value * self.observer.radius
         return w_x * w_y
 
-    def convolve_with_psf(self, data):
-        # TODO: do the convolution here!
-        return data
+    def convolve_with_psf(self, smap, channel):
+        """
+        Perform a simple convolution with a Gaussian kernel
+        """
+        # Specify in order x, y (axis 1, axis 2)
+        w = getattr(channel, 'gaussian_width', (1,1)*u.pixel)
+        # gaussian filter takes order (row, column)
+        return smap._new_instance(gaussian_filter(smap.data, w.value[::-1]), smap.meta)
 
     def observe(self, skeleton, save_directory, channels=None, **kwargs):
         """
@@ -110,16 +131,22 @@ class InstrumentBase(object):
                                         kernels,
                                         skeleton.loops,
                                         observing_time=self.observing_time)
-            files = client.map(self.write_kernel_to_file,
-                               kernels_interp,
-                               skeleton.loops,
-                               channel=channel,
-                               name=self.name)
-            # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
-            distributed.wait(files)
+            if kwargs.get('save_kernels_to_disk', True):
+                files = client.map(self.write_kernel_to_file,
+                                kernels_interp,
+                                skeleton.loops,
+                                channel=channel,
+                                name=self.name)
+                # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
+                distributed.wait(files)
+                _kernels = self.observing_time.shape[0]*[None]
+            else:
+                # NOTE: this can really blow up your memory if you are not careful
+                distributed.wait(kernels_interp)  # do not gather before the computation is complete!
+                _kernels = np.concatenate(client.gather(kernels_interp), axis=1)
             for i, t in enumerate(self.observing_time):
-                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers)
-                m = self.convolve_with_psf(m)
+                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers, kernels=_kernels[i])
+                m = self.convolve_with_psf(m, channel)
                 m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'), overwrite=True)
 
     @staticmethod
@@ -149,25 +176,30 @@ class InstrumentBase(object):
         f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=0, fill_value='extrapolate')
         return f_t(observing_time.value) * kernel.unit
 
-    def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers):
-        client = distributed.get_client()
+    def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers, kernels=None):
         # Get Coordinates
         coords = coordinates_centers.transform_to(self.projected_frame)
         # Compute weights
-        i_time = np.where(time == self.observing_time)[0][0]
         widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
         loop_area = np.concatenate([l.cross_sectional_area for l in skeleton.loops])
-        root = skeleton.loops[0].zarr_root
-        # NOTE: do this outside of the client.map call to make Dask happy
-        path = f'{{}}/{self.name}/{channel.name}'
-        kernels = np.concatenate(client.gather(client.map(
-            lambda l: root[path.format(l.name)][i_time, :],
-            skeleton.loops,
-        )))
-        unit_kernel = u.Unit(
-            root[f'{skeleton.loops[0].name}/{self.name}/{channel.name}'].attrs['unit'])
-        area_ratio = (loop_area / self.pixel_area).decompose()
-        weights = area_ratio * widths * (kernels*unit_kernel)
+        if kernels is None:
+            i_time = np.where(time == self.observing_time)[0][0]
+            client = distributed.get_client()
+            root = skeleton.loops[0].zarr_root
+            # NOTE: do this outside of the client.map call to make Dask happy
+            path = f'{{}}/{self.name}/{channel.name}'
+            kernels = np.concatenate(client.gather(client.map(
+                lambda l: root[path.format(l.name)][i_time, :],
+                skeleton.loops,
+            )))
+            unit_kernel = u.Unit(
+                root[f'{skeleton.loops[0].name}/{self.name}/{channel.name}'].attrs['unit'])
+            kernels = kernels * unit_kernel
+        # If a volumetric quantity, integrate over the cell and normalize by pixel area.
+        # For some quantities (e.g. temperature, velocity), we just want to know the
+        # average along the LOS
+        if not self.average_over_los:
+            kernels *= (loop_area / self.pixel_area).decompose() * widths
         visible = is_visible(coords, self.observer)
         # Bin
         bins, (blc, trc) = self.get_detector_array(coordinates)
@@ -176,7 +208,7 @@ class InstrumentBase(object):
             coords.Ty.value,
             bins=bins,
             range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
-            weights=weights.value * visible,
+            weights=kernels.value * visible,
         )
         # For some quantities, need to average over all components along a given LOS
         if self.average_over_los:
@@ -189,7 +221,7 @@ class InstrumentBase(object):
             )
             hist /= np.where(_hist == 0, 1, _hist)
         header = self.get_header(channel, coordinates)
-        header['bunit'] = weights.unit.decompose().to_string()
+        header['bunit'] = kernels.unit.decompose().to_string()
         header['date-obs'] = (self.observer.obstime + time).isot
 
         return Map(hist.T, header)

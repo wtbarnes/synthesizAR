@@ -10,6 +10,7 @@ import asdf
 import zarr
 import astropy.units as u
 from aiapy.response import Channel
+from aiapy.psf import filter_mesh_parameters
 from scipy.interpolate import interp1d, interpn
 
 from synthesizAR.instruments import InstrumentBase
@@ -31,17 +32,13 @@ class InstrumentSDOAIA(InstrumentBase):
     observing_time : `tuple`
         start and end of observing time
     observer : `~astropy.coordinates.SkyCoord`
-    apply_psf : `bool`, optional
-        If True (default), apply AIA point-spread function to images
 
     Examples
     --------
     """
+    name = 'SDO_AIA'
 
     def __init__(self, observing_time, observer, **kwargs):
-        self.telescope = 'SDO/AIA'
-        self.detector = 'AIA'
-        self.name = 'SDO_AIA'
         self.channels = [
             Channel(94*u.angstrom),
             Channel(131*u.angstrom),
@@ -50,9 +47,21 @@ class InstrumentSDOAIA(InstrumentBase):
             Channel(211*u.angstrom),
             Channel(335*u.angstrom),
         ]
-        self.cadence = 12.0*u.s
-        self.resolution = [0.600698, 0.600698]*u.arcsec/u.pixel
-        super().__init__(observing_time, observer, **kwargs)
+        cadence = 12.0 * u.s
+        resolution = [0.600698, 0.600698] * u.arcsec/u.pixel
+        # Add the Gaussian width for the PSF convolution
+        psf_params = filter_mesh_parameters(use_preflightcore=True)
+        for c in self.channels:
+            c.gaussian_width = u.Quantity([psf_params[c.channel]['width'], psf_params[c.channel]['width']])
+        super().__init__(observing_time, observer, cadence, resolution, **kwargs)
+
+    @property
+    def detector(self):
+        return self.name.split('_')[-1]
+
+    @property
+    def telescope(self):
+        return '/'.join(self.name.split('_'))
 
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):

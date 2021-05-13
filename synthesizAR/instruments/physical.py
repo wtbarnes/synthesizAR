@@ -11,11 +11,11 @@ import numpy as np
 from synthesizAR.instruments import ChannelBase, InstrumentBase
 from synthesizAR.util import los_velocity
 
-__all__ = ['InstrumentDEM']
+__all__ = ['InstrumentDEM', 'InstrumentLOSVelocity', 'InstrumentTemperature']
 
 
 @dataclass
-class Channel(ChannelBase):
+class ChannelDEM(ChannelBase):
     bin_edges: u.Quantity
 
     def __post_init__(self):
@@ -24,17 +24,13 @@ class Channel(ChannelBase):
 
 
 class InstrumentDEM(InstrumentBase):
+    name = 'DEM'
 
     @u.quantity_input
-    def __init__(self, observing_time: u.s, observer, temperature_bin_edges: u.K, cadence: u.s, resolution: u.arcsec/u.pix, **kwargs):
-        self.telescope = 'DEM'
-        self.detector = 'DEM'
-        self.name = 'DEM'
+    def __init__(self, *args, temperature_bin_edges: u.K, **kwargs):
         bin_edges = [temperature_bin_edges[[i,i+1]] for i in range(temperature_bin_edges.shape[0]-1)]
-        self.channels = [Channel(1, 0*u.angstrom, None, be) for be in bin_edges]
-        self.cadence = cadence
-        self.resolution = resolution
-        super().__init__(observing_time, observer, **kwargs)
+        self.channels = [ChannelDEM(1, 0*u.angstrom, None, be) for be in bin_edges]
+        super().__init__(*args, **kwargs)
 
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):
@@ -48,24 +44,16 @@ class InstrumentDEM(InstrumentBase):
 class InstrumentQuantityBase(InstrumentBase):
 
     @u.quantity_input
-    def __init__(self, name, observing_time: u.s, observer, cadence: u.s, resolution: u.arcsec/u.pix, **kwargs):
-        self.telescope = name
-        self.detector = name
-        self.name = name
-        self.channels = [ChannelBase(1, 0*u.angstrom, name)]
-        self.cadence = cadence
-        self.resolution = resolution
-        super().__init__(observing_time, observer, average_over_los=True, **kwargs)
+    def __init__(self, *args, **kwargs):
+        self.channels = [ChannelBase(1, 0*u.angstrom, self.name)]
+        super().__init__(*args, average_over_los=True, **kwargs)
 
 
 class InstrumentLOSVelocity(InstrumentQuantityBase):
-
-    @u.quantity_input
-    def __init__(self, *args, **kwargs):
-        super().__init__('los_velocity', *args, **kwargs)
+    name = 'los_velocity'
 
     @staticmethod
-    def calculate_intensity_kernel(loop, channel, **kwargs):
+    def calculate_intensity_kernel(loop, *args, **kwargs):
         observer = kwargs.get('observer')
         if observer is None:
             raise ValueError('Must pass in observer to compute LOS velocity.')
@@ -73,11 +61,8 @@ class InstrumentLOSVelocity(InstrumentQuantityBase):
 
 
 class InstrumentTemperature(InstrumentQuantityBase):
-
-    @u.quantity_input
-    def __init__(self, *args, **kwargs):
-        super().__init__('temperature', *args, **kwargs)
+    name = 'temperature'
 
     @staticmethod
-    def calculate_intensity_kernel(loop, channel, **kwargs):
+    def calculate_intensity_kernel(loop, *args, **kwargs):
         return loop.electron_temperature
