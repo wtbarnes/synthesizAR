@@ -221,14 +221,19 @@ Number of loops: {len(self.loops)}'''
         root = zarr.open(store=filename, mode='w', **kwargs)
         for loop in self.loops:
             loop.model_results_filename = filename
-        client = distributed.get_client()
-        status = client.map(
-            self._load_loop_simulation,
-            self.loops,
-            root=root,
-            interface=interface,
-        )
-        return status
+        try:
+            client = distributed.get_client()
+        except ValueError:
+            for l in self.loops:
+                self._load_loop_simulation(l, root=root, interface=interface)
+        else:
+            status = client.map(
+                self._load_loop_simulation,
+                self.loops,
+                root=root,
+                interface=interface,
+            )
+            return status
 
     def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
         """
