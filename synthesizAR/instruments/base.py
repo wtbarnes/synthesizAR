@@ -61,7 +61,7 @@ class InstrumentBase(object):
                  fov_center=None,
                  fov_width=None,
                  average_over_los=False):
-        self.observer = observer.transform_to(HeliographicStonyhurst)
+        self.observer = observer
         self.cadence = cadence
         self.observing_time = np.arange(*observing_time.to('s').value,
                                         self.cadence.to('s').value)*u.s
@@ -70,6 +70,14 @@ class InstrumentBase(object):
         self.fov_center = fov_center
         self.fov_width = fov_width
         self.average_over_los = average_over_los
+
+    @property
+    def observer(self):
+        return self._observer.transform_to(HeliographicStonyhurst)
+
+    @observer.setter
+    def observer(self, value):
+        self._observer = value
 
     @property
     def telescope(self):
@@ -221,7 +229,7 @@ class InstrumentBase(object):
             )
             hist /= np.where(_hist == 0, 1, _hist)
         header = self.get_header(channel, coordinates)
-        header['bunit'] = kernels.unit.decompose().to_string()
+        header['bunit'] = kernels.unit.to_string()
         header['date-obs'] = (self.observer.obstime + time).isot
 
         return Map(hist.T, header)

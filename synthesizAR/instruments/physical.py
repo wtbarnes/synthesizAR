@@ -57,7 +57,7 @@ class InstrumentLOSVelocity(InstrumentQuantityBase):
         observer = kwargs.get('observer')
         if observer is None:
             raise ValueError('Must pass in observer to compute LOS velocity.')
-        return los_velocity(loop.velocity_x, loop.velocity_y, loop.velocity_z, observer)
+        return los_velocity(loop.velocity_xyz, observer)
 
 
 class InstrumentTemperature(InstrumentQuantityBase):

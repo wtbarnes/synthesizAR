@@ -52,7 +52,7 @@ def semi_circular_loop(length: u.cm=None,
     else:
         raise ValueError('Specify either length or field-aligned coordinate but not both.')
     z = length / np.pi * np.sin(angles)
-    x = length / np.pi * np.cos(angles)
+    x = -length / np.pi * np.cos(angles)  # add negative sign so that s=0 is the left foot point
     # Define origin in HCC coordinates such that the midpoint of the loop
     # is centered on the origin at the solar surface
     if observer is None:
@@ -120,11 +120,14 @@ def semi_circular_arcade(length: u.cm, width: u.deg, num_strands, observer, **kw
     --------
     semi_circular_loop
     """
+    hcc_frame = sunpy.coordinates.Heliocentric(observer=observer,obstime=observer.obstime)
     gamma = kwargs.pop('gamma', 90*u.deg)
     strands = []
     for o in np.linspace(-width/2, width/2, num_strands):
         obs = SkyCoord(lon=observer.lon - o*np.sin(gamma),
                        lat=observer.lat + o*np.cos(gamma),
+                       radius=observer.radius,
                        frame=observer.frame)
-        strands.append(semi_circular_loop(length=length, observer=obs, gamma=gamma, **kwargs))
+        s = semi_circular_loop(length=length, observer=obs, gamma=gamma, **kwargs)
+        strands.append(s.transform_to(hcc_frame))
     return strands
