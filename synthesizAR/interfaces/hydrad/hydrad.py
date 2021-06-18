@@ -71,7 +71,6 @@ class HYDRADInterface(object):
         self.use_magnetic_field = use_magnetic_field
         self.use_initial_conditions = use_initial_conditions
         self.maximum_chromosphere_ratio = maximum_chromosphere_ratio
-        self.sample_cadence = sample_cadence
 
     def configure_input(self, loop):
         config = self.base_config.copy()
@@ -96,19 +95,26 @@ class HYDRADInterface(object):
                            verbose=False)
 
     def load_results(self, loop):
+        return self._load_results_from_strand(
+            loop,
+            Strand(os.path.join(self.output_dir, loop.name)),
+            use_initial_conditions=self.use_initial_conditions,
+        )
+
+    @staticmethod
+    def _load_results_from_strand(loop, strand, use_initial_conditions=False):
         loop_coord_center = loop.field_aligned_coordinate_center.to(u.cm).value
-        s = Strand(os.path.join(self.output_dir, loop.name))[::self.sample_cadence]
-        if self.use_initial_conditions:
-            time = s.initial_conditions.time.reshape((1,))
-            s = [s.initial_conditions]
+        if use_initial_conditions:
+            time = strand.initial_conditions.time.reshape((1,))
+            strand = [strand.initial_conditions]
         else:
-            time = s.time
+            time = strand.time
         shape = time.shape + loop_coord_center.shape
         electron_temperature = np.zeros(shape)
         ion_temperature = np.zeros(shape)
         density = np.zeros(shape)
         velocity = np.zeros(shape)
-        for i, p in enumerate(s):
+        for i, p in enumerate(strand):
             coord = p.coordinate.to(u.cm).value
             tsk = splrep(coord, p.electron_temperature.to(u.K).value,)
             electron_temperature[i, :] = splev(loop_coord_center, tsk, ext=0)
@@ -131,7 +137,7 @@ class HYDRADInterface(object):
         return {
             'order': self.base_config['general']['poly_fit_gravity']['order'],
             'domains': self.base_config['general']['poly_fit_gravity']['domains'],
-            'x': loop.field_aligned_coordinate_norm.decompose().value,
+            'x': loop.field_aligned_coordinate,
             'y': loop.gravity,
         }
 
@@ -139,6 +145,6 @@ class HYDRADInterface(object):
         return {
             'order': self.base_config['general']['poly_fit_magnetic_field']['order'],
             'domains': self.base_config['general']['poly_fit_magnetic_field']['domains'],
-            'x': loop.field_aligned_coordinate_norm.decompose().value,
+            'x': loop.field_aligned_coordinate,
             'y': loop.field_strength,
         }
