@@ -20,7 +20,7 @@ SpatialPair = namedtuple('SpatialPair', 'x y z')
 
 
 @u.quantity_input
-def los_velocity(v_x: u.cm/u.s, v_y: u.cm/u.s, v_z: u.cm/u.s, observer):
+def los_velocity(v_xyz: u.cm/u.s, observer):
     """
     Compute the LOS velocity for some observing angle. The sign of the result
     is consistent with the convention that LOS velocity is :math:`>0` away from
@@ -28,16 +28,16 @@ def los_velocity(v_x: u.cm/u.s, v_y: u.cm/u.s, v_z: u.cm/u.s, observer):
 
     Parameters
     ----------
-    v_x, v_y, v_z : `~astropy.units.Quantity`
+    v_xyz : `~astropy.units.Quantity`
         Cartesian velocity components in the Heliographic Stonyhurst coordinate
-        system
+        system, with shape ``(3,...)``
     observer : `~astropy.coordinates.SkyCoord`
         Heliographic Stonyhurst observer coordinate
     """
     # NOTE: transform from HEEQ to HCC with respect to the instrument observer
     Phi_0 = observer.lon.to(u.radian)
     B_0 = observer.lat.to(u.radian)
-    v_los = v_z*np.sin(B_0) + v_x*np.cos(B_0)*np.cos(Phi_0) + v_y*np.cos(B_0)*np.sin(Phi_0)
+    v_los = v_xyz[2]*np.sin(B_0) + v_xyz[0]*np.cos(B_0)*np.cos(Phi_0) + v_xyz[1]*np.cos(B_0)*np.sin(Phi_0)
     return -v_los
 
 

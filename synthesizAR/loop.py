@@ -2,7 +2,7 @@
 Loop object for holding field-aligned coordinates and quantities
 """
 import numpy as np
-from scipy.interpolate import splprep, splev
+from scipy.interpolate import splprep, splev, interp1d
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
@@ -105,6 +105,19 @@ Simulation Type: {self.simulation_type}'''
 
     @property
     @u.quantity_input
+    def coordinate_direction_center(self):
+        """
+        Unit vector indicating the direction of :math:`s` in HEEQ evaluated
+        at the center of the grids
+        """
+        return interp1d(
+            self.field_aligned_coordinate.to(u.Mm).value,
+            self.coordinate_direction,
+            axis=1,
+        )(self.field_aligned_coordinate_center.to(u.Mm).value)
+
+    @property
+    @u.quantity_input
     def field_aligned_coordinate(self) -> u.cm:
         """
         Field-aligned coordinate :math:`s` such that :math:`0<s<L`.
@@ -186,14 +199,31 @@ Simulation Type: {self.simulation_type}'''
         """
         The model used to produce the field-aligned hydrodynamic quantities
         """
-        if self.model_results_filename is None:
-            return None
-        else:
-            return self.zarr_root[self.name].attrs['simulation_type']
+        try:
+            return self._simulation_type
+        except AttributeError:
+            if self.model_results_filename is None:
+                return None
+            else:
+                return self.zarr_root[self.name].attrs['simulation_type']
+
+    @property
+    @u.quantity_input
+    def velocity_xyz(self) -> u.cm/u.s:
+        """Cartesian velocity components in HEEQ as function of loop coordinate and time"""
+        s_hat = self.coordinate_direction_center
+        return u.Quantity([self.velocity * s_hat[0],
+                           self.velocity * s_hat[1],
+                           self.velocity * s_hat[2]])
 
     def _get_quantity(self, quantity):
-        dset = self.zarr_root[f'{self.name}/{quantity}']
-        return u.Quantity(dset, dset.attrs['unit'])
+        try:
+            q = getattr(self, f'_{quantity}')
+        except AttributeError:
+            dset = self.zarr_root[f'{self.name}/{quantity}']
+            return u.Quantity(dset, dset.attrs['unit'])
+        else:
+            return q
 
     def get_ionization_fraction(self, ion):
         """
@@ -220,9 +250,6 @@ properties = [
     ('ion_temperature', 'K', 'Ion temperature as function of loop coordinate and time.'),
     ('density', 'cm-3', 'Density as function of loop coordinate and time.'),
     ('velocity', 'cm s-1', 'Velocity as function of loop coordinate and time.'),
-    ('velocity_x', 'cm s-1', 'X-component of velocity in HEEQ as function of loop coordinate and time.'),
-    ('velocity_y', 'cm s-1', 'Y-component of velocity in HEEQ as function of loop coordinate and time.'),
-    ('velocity_z', 'cm s-1', 'Z-component of velocity in HEEQ as function of loop coordinate and time.'),
 ]
 for p in properties:
     add_property(*p)

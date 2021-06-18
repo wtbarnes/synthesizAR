@@ -66,9 +66,7 @@ def test_loops_have_model_type(skeleton, interface):
      'ion_temperature',
      'density',
      'velocity',
-     'velocity_x',
-     'velocity_y',
-     'velocity_z',]
+     'velocity_xyz']
 )
 def test_loops_have_model_quantities(skeleton, name):
     "These quantities exist only after an interface is defined"
