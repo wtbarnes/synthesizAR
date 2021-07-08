@@ -7,6 +7,7 @@ import numpy as np
 import astropy.units as u
 import zarr
 import fiasco
+from fiasco.util.exceptions import MissingDatasetException
 import asdf
 
 
@@ -85,9 +86,10 @@ class EmissionModel(fiasco.IonCollection):
             # to assume any abundance at this stage so that we can change it later without having
             # to recalculate the level populations, and (iii) we want to exclude the hc/lambda
             # factor.
-            pop = ion.level_populations(self.density, include_protons=include_protons)
-            # NOTE: populations not available for every ion
-            if pop is None:
+            try:
+                pop = ion.level_populations(self.density, include_protons=include_protons)
+            except MissingDatasetException:
+                # NOTE: populations not available for every ion
                 warnings.warn(f'Cannot compute level populations for {ion.ion_name}')
                 continue
             upper_level = ion.transitions.upper_level[~ion.transitions.is_twophoton]
