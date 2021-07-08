@@ -92,7 +92,7 @@ def plot_fieldlines(*coords,
     imshow_kwargs.update(kwargs.get('imshow_kwargs', {}))
     # Plot coordinates
     fig = kwargs.get('fig', plt.figure(figsize=kwargs.get('figsize', None)))
-    ax = kwargs.get('ax', fig.gca(projection=image_map))
+    ax = kwargs.get('ax', fig.add_subplot(111, projection=image_map))
     image_map.plot(axes=ax, **imshow_kwargs)
     for coord in coords:
         c = coord.transform_to(image_map.coordinate_frame)

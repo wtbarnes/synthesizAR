@@ -1,7 +1,6 @@
 """
 Container for fieldlines in three-dimensional magnetic skeleton
 """
-from distributed import client
 import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
 import astropy.units as u
@@ -107,21 +106,33 @@ Number of loops: {len(self.loops)}'''
         """
         new_loops = []
         for l in self.loops:
-            tck, _ = splprep(l.coordinate.cartesian.xyz.value, u=l.field_aligned_coordinate_norm)
-            new_s = np.arange(0, l.length.to(u.Mm).value, delta_s.to(u.Mm).value) * u.Mm
-            x, y, z = splev((new_s/l.length).decompose(), tck)
-            unit = l.coordinate.cartesian.xyz.unit
-            new_coord = SkyCoord(x=x*unit, y=y*unit, z=z*unit, frame=l.coordinate.frame,
-                                 representation_type=l.coordinate.representation_type)
-            f_B = interp1d(l.field_aligned_coordinate.to(u.Mm), l.field_strength)
-            new_field_strength = f_B(new_s.to(u.Mm)) * l.field_strength.unit
-            new_loops.append(Loop(l.name,
-                                  new_coord,
-                                  new_field_strength,
-                                  cross_sectional_area=l._cross_sectional_area,
-                                  model_results_filename=l.model_results_filename))
+            _l = self.refine_loop(l, delta_s)
+            new_loops.append(_l)
 
         return Skeleton(new_loops)
+
+    @staticmethod
+    @u.quantity_input
+    def refine_loop(loop, delta_s: u.cm):
+        try:
+            tck, _ = splprep(loop.coordinate.cartesian.xyz.value, u=loop.field_aligned_coordinate_norm)
+            new_s = np.arange(0, loop.length.to(u.Mm).value, delta_s.to(u.Mm).value) * u.Mm
+            x, y, z = splev((new_s/loop.length).decompose(), tck)
+        except ValueError as e:
+            raise Exception(f'Failed to refine {loop.name}') from e
+        unit = loop.coordinate.cartesian.xyz.unit
+        new_coord = SkyCoord(x=x*unit,
+                             y=y*unit,
+                             z=z*unit,
+                             frame=loop.coordinate.frame,
+                             representation_type=loop.coordinate.representation_type)
+        f_B = interp1d(loop.field_aligned_coordinate.to(u.Mm), loop.field_strength)
+        new_field_strength = f_B(new_s.to(u.Mm)) * loop.field_strength.unit
+        return Loop(loop.name,
+                    new_coord,
+                    new_field_strength,
+                    cross_sectional_area=loop._cross_sectional_area,
+                    model_results_filename=loop.model_results_filename)
 
     @property
     def all_coordinates(self):
