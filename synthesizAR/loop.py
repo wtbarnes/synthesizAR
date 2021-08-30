@@ -9,6 +9,8 @@ from sunpy.coordinates import HeliographicStonyhurst
 import sunpy.sun.constants as sun_const
 import zarr
 
+__all__ = ['Loop']
+
 
 class Loop(object):
     """

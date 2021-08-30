@@ -13,6 +13,8 @@ from synthesizAR import Loop
 from synthesizAR.visualize import plot_fieldlines
 from synthesizAR.atomic import Element
 
+__all__ = ['Skeleton']
+
 
 class Skeleton(object):
     """
