@@ -15,8 +15,9 @@ class RTVInterface(object):
 
     Parameters
     ----------
-    plasma_beta : `float`, optional
-        Ratio of plasma to magnetic pressure
+    heating_rate : `~astropy.units.Quantity`, optional
+        Uniform heating rate. If None, you must override the `get_heating_rate`
+        method to return a loop-dependent heating rate.
     rtv_kwargs : `dict`, optional
         Keyword arguments to `synthesizAR.models.RTVScalingLaws`
 
@@ -27,12 +28,13 @@ class RTVInterface(object):
     """
     name = 'RTV'
 
-    def __init__(self, heating_model, rtv_kwargs=None):
-        self.heating_model = heating_model
+    @u.quantity_input
+    def __init__(self, heating_rate: (u.Unit('erg cm-3 s-1'), None)=None, rtv_kwargs=None):
+        self._heating_rate = heating_rate
         self.rtv_kwargs = {} if rtv_kwargs is None else rtv_kwargs
 
     def load_results(self, loop):
-        heating_rate = self.heating_model.get_heating_rate(loop)
+        heating_rate = self.get_heating_rate(loop)
         rtv = RTVScalingLaws(loop.length/2, heating_rate=heating_rate, **self.rtv_kwargs)
         time = u.Quantity([0, ], 's')
         shape = time.shape+loop.field_aligned_coordinate_center.shape
@@ -42,3 +44,7 @@ class RTVInterface(object):
         velocity = np.ones(shape) * np.nan * u.cm/u.s
 
         return time, temperature, temperature, density, velocity
+
+    @u.quantity_input
+    def get_heating_rate(self, loop) -> u.Unit('erg cm-3 s-1'):
+        return self._heating_rate

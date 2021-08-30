@@ -63,6 +63,9 @@ class InstrumentSDOAIA(InstrumentBase):
     def telescope(self):
         return '/'.join(self.name.split('_'))
 
+    def get_instrument_name(self, channel):
+        return f'{self.detector}_{channel.telescope_number}'
+
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):
         em_model = kwargs.get('emission_model', None)

@@ -22,7 +22,6 @@ __all__ = ['ChannelBase', 'InstrumentBase']
 
 @dataclass
 class ChannelBase:
-    telescope_number: int
     channel: u.Quantity
     name: str
 
@@ -85,6 +84,9 @@ class InstrumentBase(object):
 
     @property
     def detector(self):
+        return self.name
+
+    def get_instrument_name(self, channel):
         return self.name
 
     def calculate_intensity_kernel(self, *args, **kwargs):
@@ -245,10 +247,15 @@ class InstrumentBase(object):
             bin_range[0],  # align with the lower left corner of the lower left pixel
             reference_pixel=(-0.5, -0.5)*u.pixel,  # center of the lower left pixel is (0,0)
             scale=self.resolution,
-            instrument=f'{self.detector}_{channel.telescope_number}',
+            instrument=self.get_instrument_name(channel),  # sometimes this depends on the channel
             telescope=self.telescope,
             wavelength=channel.channel,
         )
+        # FIXME: These can be removed once the lonpole bugfix is merged
+        if 'lonpole' in header:
+            del header['lonpole']
+        if 'latpole' in header:
+            del header['latpole']
         return header
 
     def get_detector_array(self, coordinates):

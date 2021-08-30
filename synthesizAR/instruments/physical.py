@@ -28,9 +28,15 @@ class InstrumentDEM(InstrumentBase):
 
     @u.quantity_input
     def __init__(self, *args, temperature_bin_edges: u.K, **kwargs):
+        self.temperature_bin_edges = temperature_bin_edges
         bin_edges = [temperature_bin_edges[[i,i+1]] for i in range(temperature_bin_edges.shape[0]-1)]
-        self.channels = [ChannelDEM(1, 0*u.angstrom, None, be) for be in bin_edges]
+        self.channels = [ChannelDEM(0*u.angstrom, None, be) for be in bin_edges]
         super().__init__(*args, **kwargs)
+
+    @property
+    @u.quantity_input
+    def temperature_bin_centers(self) -> u.K:
+        return (self.temperature_bin_edges[1:] + self.temperature_bin_edges[:-1])/2
 
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):

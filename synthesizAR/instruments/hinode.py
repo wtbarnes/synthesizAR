@@ -2,11 +2,11 @@
 Class for Hinode/EIS instrument. Holds information about spectral, temporal, and spatial resolution
 and other instrument-specific information.
 """
+from dataclasses import dataclass
 import json
 import pkg_resources
 
 import numpy as np
-from scipy.interpolate import splrep, splev
 from scipy.ndimage.filters import gaussian_filter
 from sunpy.map import Map
 import astropy.units as u
@@ -17,11 +17,113 @@ import h5py
 import plasmapy
 import dask
 
-from synthesizAR.util import SpatialPair, is_visible
-from synthesizAR.instruments import InstrumentBase
+from synthesizAR.util import SpatialPair
+from synthesizAR.instruments import InstrumentBase, ChannelBase
 from synthesizAR.analysis import EISCube
 
 __all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
+
+
+@dataclass
+class ChannelXRT(ChannelBase):
+    temperature: u.Quantity
+    response: u.Quantity
+    filter_wheel_1: str
+    filter_wheel_2: str
+
+    def __post_init__(self):
+        self.name = f'{self.filter_wheel_1}_{self.filter_wheel_2}'
+
+
+class InstrumentHinodeXRT(InstrumentBase):
+    name = 'Hinode_XRT'
+
+    def __init__(self, observing_time, observer, **kwargs):
+        self.channels = self._setup_channels()
+        cadence = 20 * u.s
+        resolution = [2.05719995499, 2.05719995499] * u.arcsec/u.pixel
+        super().__init__(observing_time, observer, cadence, resolution, **kwargs)
+
+    def _setup_channels(self):
+        with open(pkg_resources.resource_filename('synthesizAR', 'instruments/data/hinode_xrt.json'), 'r') as f:
+            info = json.load(f)
+        channels = []
+        for k in info:
+            if k in ('name', 'description'):
+                continue
+            x = np.array(info[k]['temperature_response_x'], np.float64)
+            y = np.array(info[k]['temperature_response_y'], np.float64)
+            x = x * u.Unit(info[k]['temperature_response_x_units'])
+            y = y * u.Unit(info[k]['temperature_response_y_units'])
+            c = ChannelXRT(
+                name=k,
+                channel=50*u.angstrom,  # this is just a filler value, not important
+                temperature=x,
+                response=y,
+                filter_wheel_1=info[k]['filter_wheel_1'],
+                filter_wheel_2=info[k]['filter_wheel_2'],
+            )
+            channels.append(c)
+        return channels
+
+    @property
+    def detector(self):
+        return self.name.split('_')[-1]
+
+    @property
+    def telescope(self):
+        return self.name.split('_')[0]
+
+    def get_instrument_name(self, channel):
+        return self.detector
+
+    def get_header(self, channel, coordinates):
+        header = super().get_header(channel, coordinates)
+        header['EC_FW1_'] = channel.filter_wheel_1
+        header['EC_FW2_'] = channel.filter_wheel_2
+        return header
+
+    @staticmethod
+    def calculate_intensity_kernel(loop, channel, **kwargs):
+        return np.interp(loop.electron_temperature, channel.temperature, channel.response) * loop.density**2
+
+    def psf_smooth(self, counts, header):
+        """
+        Apply point-spread-function smoothing to XRT image using the PSF given in [1]_
+
+        .. note:: This is not currently used anywhere. Just leaving it in here.
+
+        References
+        ----------
+        .. [1] Afshari, M., et al., AJ, `152, 107 <http://iopscience.iop.org/article/10.3847/0004-6256/152/4/107/meta>`_
+        """
+        tmp = Map(counts, header)
+
+        # Define the PSF
+        def point_spread_function(x, y):
+            r = np.sqrt(x**2 + y**2)
+            a = 1.31946
+            gamma = 1.24891
+            if r <= 3.4176:
+                return a*np.exp(-(r/a)**2)/(gamma**2 + r**2)
+            elif 3.4176 < r <= 5:
+                return 0.03/r
+            elif 5 < r <= 11.1:
+                return 0.15/r
+            elif r >= 11.1:
+                return (11.1)**2*0.15/(r**4)
+
+        # Create lon/lat grid
+        lon = np.linspace(tmp.bottom_left_coord.Tx.value, tmp.top_right_coord.Tx.value, 250+1)
+        lat = np.linspace(tmp.bottom_left_coord.Ty.value, tmp.top_right_coord.Ty.value, 250+1)
+        lon_grid, lat_grid = np.meshgrid(lon, lat)
+        # Make PSF kernel
+        psf_kernel = astropy.convolution.kernels.CustomKernel(
+                        np.vectorize(point_spread_function)(lon_grid, lat_grid))
+        # Convolve with image
+        counts_blurred = astropy.convolution.convolve_fft(counts, psf_kernel)
+
+        return counts_blurred
 
 
 class InstrumentHinodeEIS(InstrumentBase):
@@ -167,161 +269,3 @@ class InstrumentHinodeEIS(InstrumentBase):
                       * counts.unit)
 
         return EISCube(data=counts, header=header, wavelength=response_x)
-
-
-class InstrumentHinodeXRT(InstrumentBase):
-
-    def __init__(self, observing_time, observer_coordinate, apply_psf=True):
-        self.name = 'Hinode_XRT'
-        self.cadence = 20*u.s
-        self.resolution = SpatialPair(x=2.05719995499*u.arcsec/u.pixel,
-                                      y=2.05719995499*u.arcsec/u.pixel, z=None)
-        self.fits_template['telescop'] = 'Hinode'
-        self.fits_template['instrume'] = 'XRT'
-        self.fits_template['waveunit'] = 'keV'
-        self.apply_psf = apply_psf
-        super().__init__(observing_time, observer_coordinate)
-        self._setup_channels()
-
-    def _setup_channels(self):
-        """
-        Setup XRT channel properties
-
-        Notes
-        -----
-        Need temperature response functions only for now
-        TODO: include wavelength response functions
-        """
-        fn = pkg_resources.resource_filename('synthesizAR', 'instruments/data/hinode_xrt.json')
-        with open(fn, 'r') as f:
-            info = json.load(f)
-
-        self.channels = []
-        for k in info:
-            if k in ('name', 'description'):
-                continue
-            x = np.array(info[k]['temperature_response_x'], np.float64)
-            y = np.array(info[k]['temperature_response_y'], np.float64)
-            name = f"{info[k]['filter_wheel_1']}-{info[k]['filter_wheel_2']}"
-            self.channels.append({
-                'name': name,
-                'temperature_response_spline': splrep(x, y),
-                'wavelength_range': None,
-            })
-
-    def make_fits_header(self, field, channel):
-        """
-        Build XRT FITS header file
-        """
-        header = super().make_fits_header(field, channel)
-        header['EC_FW1_'], header['EC_FW2_'] = channel['name'].split('-')
-        return header
-
-    def build_detector_file(self, file_template, dset_shape, chunks, *args, parallel=False):
-        """
-        Allocate space for counts data.
-        """
-        additional_fields = [channel['name'] for channel in self.channels]
-        super().build_detector_file(file_template, dset_shape, chunks, *args,
-                                    additional_fields=additional_fields,
-                                    parallel=parallel)
-
-    @staticmethod
-    def calculate_counts_simple(channel, loop, *args):
-        """
-        Use temperature response to calculate XRT intensity
-        """
-        response_function = splev(
-            np.ravel(loop.electron_temperature), channel['temperature_response_spline']
-        ) * u.count*u.cm**5/u.s/u.pixel
-        counts = np.reshape(np.ravel(loop.density**2)*response_function, loop.density.shape)
-        return counts
-
-    def flatten_parallel(self, loops, interpolated_loop_coordinates, save_path, emission_model=None):
-        """
-        Interpolate intensity in each channel to temporal resolution of the instrument
-        and appropriate spatial scale. Returns a dask task.
-        """
-        tasks = {}
-        for channel in self.channels:
-            tasks[channel['name']] = []
-            flattened_emissivities = []
-            for loop, interp_s in zip(loops, interpolated_loop_coordinates):
-                y = dask.delayed(self.calculate_counts_simple)(
-                    channel, loop, emission_model, flattened_emissivities)
-                tmp_path = save_path.format(channel['name'], loop.name)
-                task = dask.delayed(self.interpolate_and_store)(
-                    y, loop, self.observing_time, interp_s, tmp_path)
-                tasks[channel['name']].append(task)
-
-        return tasks
-
-    def _detect(self, channel, i_time, header, bins, bin_range):
-        """
-        For a given channel and timestep, map the intensity along the loop to the 3D field and
-        return the XRT data product.
-
-        Parameters
-        ----------
-        channel : `dict`
-        i_time : `int`
-        header : `~sunpy.util.metadata.MetaDict`
-        bins : `SpatialPair`
-        bin_range : `SpatialPair`
-
-        Returns
-        -------
-        XRT data product : `~sunpy.Map`
-        """
-        with h5py.File(self.counts_file, 'r') as hf:
-            weights = np.array(hf[channel['name']][i_time, :])
-            units = u.Unit(get_keys(hf[channel['name']].attrs, ('unit', 'units')))
-
-        hpc_coordinates = self.total_coordinates
-        dz = np.diff(bin_range.z).cgs[0] / bins.z * (1. * u.pixel)
-        visible = is_visible(hpc_coordinates, self.observer_coordinate)
-        hist, _, _ = np.histogram2d(hpc_coordinates.Tx.value, hpc_coordinates.Ty.value,
-                                    bins=(bins.x.value, bins.y.value),
-                                    range=(bin_range.x.value, bin_range.y.value),
-                                    weights=visible * weights * dz.value)
-        header['bunit'] = (units * dz.unit).to_string()
-
-        if self.apply_psf:
-            counts = self.psf_smooth(hist.T, header)
-        return Map(counts, header)
-
-    def psf_smooth(self, counts, header):
-        """
-        Apply point-spread-function smoothing to XRT image using the PSF given in [1]_
-
-        References
-        ----------
-        .. [1] Afshari, M., et al., AJ, `152, 107 <http://iopscience.iop.org/article/10.3847/0004-6256/152/4/107/meta>`_
-        """
-        tmp = Map(counts, header)
-
-        # Define the PSF
-        def point_spread_function(x, y):
-            r = np.sqrt(x**2 + y**2)
-            a = 1.31946
-            gamma = 1.24891
-            if r <= 3.4176:
-                return a*np.exp(-(r/a)**2)/(gamma**2 + r**2)
-            elif 3.4176 < r <= 5:
-                return 0.03/r
-            elif 5 < r <= 11.1:
-                return 0.15/r
-            elif r >= 11.1:
-                return (11.1)**2*0.15/(r**4)
-
-        # Create lon/lat grid
-        lon = np.linspace(tmp.bottom_left_coord.Tx.value, tmp.top_right_coord.Tx.value, 250+1)
-        lat = np.linspace(tmp.bottom_left_coord.Ty.value, tmp.top_right_coord.Ty.value, 250+1)
-        lon_grid, lat_grid = np.meshgrid(lon, lat)
-        # Make PSF kernel
-        psf_kernel = astropy.convolution.kernels.CustomKernel(
-                        np.vectorize(point_spread_function)(lon_grid, lat_grid))
-        # Convolve with image
-        counts_blurred = astropy.convolution.convolve_fft(counts, psf_kernel)
-
-        return counts_blurred
