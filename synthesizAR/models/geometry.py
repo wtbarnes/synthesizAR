@@ -17,7 +17,8 @@ def semi_circular_loop(length: u.cm=None,
                        obstime=None,
                        n_points=1000,
                        offset: u.cm = 0*u.cm,
-                       gamma: u.deg = 0*u.deg):
+                       gamma: u.deg = 0*u.deg,
+                       inclination: u.deg = 0*u.deg,):
     """
     Generate coordinates for a semi-circular loop
 
@@ -39,8 +40,13 @@ def semi_circular_loop(length: u.cm=None,
         Offset in the direction perpendicular to loop, convenient for simulating
         arcade geometries.
     gamma : `~astropy.units.Quantity`
-        Orientation of the arcade relative to the HCC y-axis. `gamma=0` corresponds
-        to a loop who's axis is oriented parallel to the HCC y-axis.
+        Angle between the loop axis and the HCC x-axis. This defines the orientation
+        of the loop in the HCC x-y plane. `gamma=0` corresponds to a loop who's
+        axis is perpendicular to the HCC y-axis.
+    inclination : `~astropy.units.Quantity`
+        Angle between the HCC z-axis and the loop plane. An inclination of 0 corresponds
+        to a loop that extends vertically only in the z-direction while an inclination
+        of 90 degrees corresponds to a loop that lies entirely in the HCC x-y plane.
     """
     if s is None and length is None:
         raise ValueError('Must specify field-aligned coordinate or loop length')
@@ -63,9 +69,9 @@ def semi_circular_loop(length: u.cm=None,
         observer=observer,
         obstime=observer.obstime if obstime is None else obstime,
     )
-    return SkyCoord(x=-offset * np.sin(gamma) + x * np.cos(gamma),
-                    y=offset * np.cos(gamma) + x * np.sin(gamma),
-                    z=z + const.R_sun,
+    return SkyCoord(x=-(offset + z * np.sin(inclination)) * np.sin(gamma) + x * np.cos(gamma),
+                    y=(offset + z * np.sin(inclination)) * np.cos(gamma) + x * np.sin(gamma),
+                    z=z * np.cos(inclination) + const.R_sun,
                     frame=hcc_frame)
 
 
