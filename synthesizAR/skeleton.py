@@ -67,6 +67,7 @@ Number of loops: {len(self.loops)}'''
             tree[l.name] = {
                 'field_strength': l.field_strength,
                 'coordinate': l.coordinate,
+                'cross_sectional_area': l.cross_sectional_area,
                 'model_results_filename': l.model_results_filename,
             }
         with asdf.AsdfFile(tree) as asdf_file:
@@ -93,6 +94,7 @@ Number of loops: {len(self.loops)}'''
                     k,
                     SkyCoord(af.tree[k]['coordinate']),
                     af.tree[k]['field_strength'],
+                    cross_sectional_area=af.tree[k]['cross_sectional_area'],
                     model_results_filename=model_results_filename,
                 ))
         return cls(loops)
@@ -130,10 +132,12 @@ Number of loops: {len(self.loops)}'''
                              representation_type=loop.coordinate.representation_type)
         f_B = interp1d(loop.field_aligned_coordinate.to(u.Mm), loop.field_strength)
         new_field_strength = f_B(new_s.to(u.Mm)) * loop.field_strength.unit
+        f_A = interp1d(loop.field_aligned_coordinate.to(u.Mm), loop.cross_sectional_area)
+        new_area = f_A(new_s.to(u.Mm)) * loop.cross_sectional_area.unit
         return Loop(loop.name,
                     new_coord,
                     new_field_strength,
-                    cross_sectional_area=loop._cross_sectional_area,
+                    cross_sectional_area=new_area,
                     model_results_filename=loop.model_results_filename)
 
     @property

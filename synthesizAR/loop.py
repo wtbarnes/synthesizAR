@@ -79,6 +79,13 @@ Footpoints : ({f0}),({f1})
 Maximum field strength : {np.max(self.field_strength):.2f}
 Simulation Type: {self.simulation_type}'''
 
+    def _interpolate_to_center_coordinate(self, y, **kwargs):
+        """
+        Interpolate a quantity defined at the cell edges to the center of the coordinate
+        """
+        return interp1d(self.field_aligned_coordinate.to(u.Mm).value, y.value, **kwargs)(
+            self.field_aligned_coordinate_center.to(u.Mm).value) * y.unit
+
     @property
     @u.quantity_input
     def coordinate_center(self):
@@ -98,25 +105,21 @@ Simulation Type: {self.simulation_type}'''
 
     @property
     @u.quantity_input
-    def coordinate_direction(self):
+    def coordinate_direction(self) -> u.dimensionless_unscaled:
         """
         Unit vector indicating the direction of :math:`s` in HEEQ
         """
         grad_xyz = np.gradient(self.coordinate.cartesian.xyz.value, axis=1)
-        return grad_xyz / np.linalg.norm(grad_xyz, axis=0)
+        return u.Quantity(grad_xyz / np.linalg.norm(grad_xyz, axis=0))
 
     @property
     @u.quantity_input
-    def coordinate_direction_center(self):
+    def coordinate_direction_center(self) -> u.dimensionless_unscaled:
         """
         Unit vector indicating the direction of :math:`s` in HEEQ evaluated
         at the center of the grids
         """
-        return interp1d(
-            self.field_aligned_coordinate.to(u.Mm).value,
-            self.coordinate_direction,
-            axis=1,
-        )(self.field_aligned_coordinate_center.to(u.Mm).value)
+        return self._interpolate_to_center_coordinate(self.coordinate_direction, axis=1)
 
     @property
     @u.quantity_input
@@ -171,7 +174,17 @@ Simulation Type: {self.simulation_type}'''
         """
         Cross-sectional area of each field-aligned coordinate grid cell
         """
-        return self._cross_sectional_area * np.ones(self.field_aligned_coordinate_width.shape)
+        return self._cross_sectional_area * np.ones(self.field_aligned_coordinate.shape)
+
+    @property
+    @u.quantity_input
+    def cross_sectional_area_center(self) -> u.cm**2:
+        return self._interpolate_to_center_coordinate(self.cross_sectional_area)
+
+    @property
+    @u.quantity_input
+    def field_strength_center(self) -> u.G:
+        return self._interpolate_to_center_coordinate(self.field_strength)
 
     @property
     @u.quantity_input
