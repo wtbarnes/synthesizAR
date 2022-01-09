@@ -128,12 +128,15 @@ def semi_circular_arcade(length: u.cm, width: u.deg, num_strands, observer, **kw
     """
     hcc_frame = sunpy.coordinates.Heliocentric(observer=observer,obstime=observer.obstime)
     gamma = kwargs.pop('gamma', 90*u.deg)
+    inclination=kwargs.pop('inclination', 0*u.deg)
+    offsets = np.linspace(-width/2, width/2, num_strands)
+    inclinations = np.linspace(-inclination, inclination, num_strands)
     strands = []
-    for o in np.linspace(-width/2, width/2, num_strands):
+    for o,i in zip(offsets, inclinations):
         obs = SkyCoord(lon=observer.lon - o*np.sin(gamma),
                        lat=observer.lat + o*np.cos(gamma),
                        radius=observer.radius,
                        frame=observer.frame)
-        s = semi_circular_loop(length=length, observer=obs, gamma=gamma, **kwargs)
+        s = semi_circular_loop(length=length, observer=obs, gamma=gamma, inclination=i, **kwargs)
         strands.append(s.transform_to(hcc_frame))
     return strands
