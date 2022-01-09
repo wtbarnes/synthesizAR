@@ -47,8 +47,8 @@ class InstrumentSDOAIA(InstrumentBase):
             Channel(211*u.angstrom),
             Channel(335*u.angstrom),
         ]
-        cadence = 12.0 * u.s
-        resolution = [0.600698, 0.600698] * u.arcsec/u.pixel
+        cadence = kwargs.pop('cadence', 12.0 * u.s)
+        resolution = kwargs.pop('resolution', [0.600698, 0.600698] * u.arcsec/u.pixel)
         # Add the Gaussian width for the PSF convolution
         psf_params = filter_mesh_parameters(use_preflightcore=True)
         for c in self.channels:
@@ -125,7 +125,7 @@ class InstrumentSDOAIA(InstrumentBase):
 
         return em_convolved
 
-    def observe(self, skeleton, save_directory, channels=None, **kwargs):
+    def observe(self, skeleton, save_directory=None, channels=None, **kwargs):
         em_model = kwargs.get('emission_model')
         if em_model:
             # TODO: skip if the file already exists?
@@ -164,7 +164,7 @@ class InstrumentSDOAIA(InstrumentBase):
                         ds = chan_grp.create_dataset(k, data=em_convolved[k].value)
                     ds.attrs['unit'] = em_convolved[k].unit.to_string()
 
-        super().observe(skeleton, save_directory, channels=channels, **kwargs)
+        return super().observe(skeleton, save_directory=save_directory, channels=channels, **kwargs)
 
 
 @u.quantity_input

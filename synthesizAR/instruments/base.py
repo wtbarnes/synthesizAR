@@ -118,46 +118,71 @@ class InstrumentBase(object):
         # gaussian filter takes order (row, column)
         return smap._new_instance(gaussian_filter(smap.data, w.value[::-1]), smap.meta)
 
-    def observe(self, skeleton, save_directory, channels=None, **kwargs):
+    def observe(self, skeleton, save_directory=None, channels=None, **kwargs):
         """
         Calculate the time dependent intensity for all loops and project them along
         the line-of-sight as defined by the instrument observer.
 
         Parameters
         ----------
-
+        skeleton : `~synthesizAR.Skeleton`
+        save_directory : `str` or path-like
         """
         if channels is None:
             channels = self.channels
-        client = distributed.get_client()
+        try:
+            client = distributed.get_client()
+        except ValueError:
+            client = None
         coordinates = skeleton.all_coordinates
         coordinates_centers = skeleton.all_coordinates_centers
+        maps = {}
         for channel in channels:
-            kernels = client.map(self.calculate_intensity_kernel,
-                                 skeleton.loops,
-                                 channel=channel,
-                                 **kwargs)
-            kernels_interp = client.map(self.interpolate_to_instrument_time,
-                                        kernels,
-                                        skeleton.loops,
-                                        observing_time=self.observing_time)
+            # Compute intensity as a function of time and field-aligned coordinate
+            if client:
+                # Parallel
+                kernel_futures = client.map(self.calculate_intensity_kernel,
+                                            skeleton.loops,
+                                            channel=channel,
+                                            **kwargs)
+                kernel_interp_futures = client.map(self.interpolate_to_instrument_time,
+                                                kernel_futures,
+                                                skeleton.loops,
+                                                observing_time=self.observing_time)
+            else:
+                # Seriel
+                kernels_interp = []
+                for l in skeleton.loops:
+                    k = self.calculate_intensity_kernel(l, channel=channel, **kwargs)
+                    k = self.interpolate_to_instrument_time(
+                        k, l, observing_time=self.observing_time,
+                    )
+                    kernels_interp.append(k)
+
             if kwargs.get('save_kernels_to_disk', True):
                 files = client.map(self.write_kernel_to_file,
-                                kernels_interp,
-                                skeleton.loops,
-                                channel=channel,
-                                name=self.name)
+                                   kernel_interp_futures,
+                                   skeleton.loops,
+                                   channel=channel,
+                                   name=self.name)
                 # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
                 distributed.wait(files)
-                _kernels = self.observing_time.shape[0]*[None]
+                kernels = self.observing_time.shape[0]*[None]  # placeholder so we know to read from a file
             else:
                 # NOTE: this can really blow up your memory if you are not careful
-                distributed.wait(kernels_interp)  # do not gather before the computation is complete!
-                _kernels = np.concatenate(client.gather(kernels_interp), axis=1)
+                kernels = np.concatenate(client.gather(kernel_interp_futures) if client else kernels_interp, axis=1)
+
+            maps[channel.name] = []
             for i, t in enumerate(self.observing_time):
-                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers, kernels=_kernels[i])
+                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers, kernels=kernels[i])
                 m = self.convolve_with_psf(m, channel)
-                m.save(os.path.join(save_directory, f'm_{channel.name}_t{i}.fits'), overwrite=True)
+                if save_directory is None:
+                    maps[channel.name].append(m)
+                else:
+                    fname = os.path.join(save_directory, f'm_{channel.name}_t{i}.fits')
+                    m.save(fname, overwrite=True)
+                    maps[channel.name].append(fname)
+        return maps
 
     @staticmethod
     def write_kernel_to_file(kernel, loop, channel, name):
@@ -191,7 +216,7 @@ class InstrumentBase(object):
         coords = coordinates_centers.transform_to(self.projected_frame)
         # Compute weights
         widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
-        loop_area = np.concatenate([l.cross_sectional_area for l in skeleton.loops])
+        loop_area = np.concatenate([l.cross_sectional_area_center for l in skeleton.loops])
         if kernels is None:
             i_time = np.where(time == self.observing_time)[0][0]
             client = distributed.get_client()
@@ -242,20 +267,18 @@ class InstrumentBase(object):
         that define the needed FOV.
         """
         bins, bin_range = self.get_detector_array(coordinates)
+        center = SkyCoord(Tx=(bin_range[1].Tx + bin_range[0].Tx)/2,
+                          Ty=(bin_range[1].Ty + bin_range[0].Ty)/2,
+                          frame=bin_range[0].frame)
         header = make_fitswcs_header(
             (bins[1], bins[0]),  # swap order because it expects (row,column)
-            bin_range[0],  # align with the lower left corner of the lower left pixel
-            reference_pixel=(-0.5, -0.5)*u.pixel,  # center of the lower left pixel is (0,0)
+            center,
+            reference_pixel=(u.Quantity(bins, 'pix') - 1*u.pix) / 2,  # center of the lower left pixel is (0,0)
             scale=self.resolution,
             instrument=self.get_instrument_name(channel),  # sometimes this depends on the channel
             telescope=self.telescope,
             wavelength=channel.channel,
         )
-        # FIXME: These can be removed once the lonpole bugfix is merged
-        if 'lonpole' in header:
-            del header['lonpole']
-        if 'latpole' in header:
-            del header['latpole']
         return header
 
     def get_detector_array(self, coordinates):
