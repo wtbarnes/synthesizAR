@@ -10,6 +10,8 @@ import fiasco
 from fiasco.util.exceptions import MissingDatasetException
 import asdf
 
+__all__ = ['EmissionModel']
+
 
 class EmissionModel(fiasco.IonCollection):
     """

@@ -8,10 +8,11 @@ from astropy.coordinates import SkyCoord
 import asdf
 import zarr
 import distributed
+from fiasco import Element
 
 from synthesizAR import Loop
 from synthesizAR.visualize import plot_fieldlines
-from synthesizAR.atomic import Element
+from synthesizAR.atomic import equilibrium_ionization
 
 __all__ = ['Skeleton']
 
@@ -266,20 +267,14 @@ Number of loops: {len(self.loops)}'''
             if frac is not None:
                 FROM_MODEL = True
         # Get the unique elements from all of our ions
-        elements = list(set([ion.element_name for ion in emission_model]))
-        elements = [Element(e, emission_model.temperature) for e in elements]
-        for el in elements:
+        element_names = list(set([ion.element_name for ion in emission_model]))
+        for el_name in element_names:
+            el = Element(el_name, emission_model.temperature)
             ions = [i for i in emission_model if i.element_name == el.element_name]
-            if not FROM_MODEL:
-                ioneq = el.equilibrium_ionization()
             for loop in self.loops:
                 chunks = (None,) + loop.field_aligned_coordinate_center.shape
                 if not FROM_MODEL:
-                    frac_el = interp1d(el.temperature,
-                                       ioneq,
-                                       axis=0,
-                                       kind='linear',
-                                       fill_value='extrapolate')(loop.electron_temperature)
+                    frac_el = equilibrium_ionization(el, loop.electron_temperature)
                 if 'ionization_fraction' in root[loop.name]:
                     grp = root[f'{loop.name}/ionization_fraction']
                 else:
@@ -287,10 +282,10 @@ Number of loops: {len(self.loops)}'''
                 for ion in ions:
                     if FROM_MODEL:
                         frac = interface.load_ionization_fraction(loop, ion)
-                        desc = f'Ionization fraction of {ion.ion_name} as computed by {interface.name}'
+                        desc = f'{ion.ion_name} ionization fraction computed by {interface.name}'
                     else:
                         frac = frac_el[:, :, ion.charge_state]
-                        desc = f'Ionization fraction of {ion.ion_name} in equilibrium.'
+                        desc = f'{ion.ion_name} ionization fraction in equilibrium.'
                     dset = grp.create_dataset(f'{ion.ion_name}', data=frac, chunks=chunks)
                     dset.attrs['unit'] = ''
                     dset.attrs['description'] = desc
