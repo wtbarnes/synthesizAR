@@ -9,12 +9,13 @@ import toolz
 import numpy as np
 import h5py
 import astropy.units as u
+from fiasco import Element
 try:
     import distributed
 except ImportError:
     warnings.warn('Dask library required for NEI calculation')
 
-from synthesizAR.atomic import Element
+from synthesizAR.atomic import non_equilibrium_ionization
 from .util import run_ebtel
 
 
@@ -118,10 +119,7 @@ class EbtelInterface(object):
         futures = {}
         for el_name in unique_elements:
             el = Element(el_name, temperature)
-            rate_matrix = el._rate_matrix()
-            ioneq = el.equilibrium_ionization()
-            partial_nei = toolz.curry(EbtelInterface.compute_nei)(
-                el, rate_matrix=rate_matrix, initial_condition=ioneq)
+            partial_nei = toolz.curry(EbtelInterface.compute_nei)(el)
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
             y = client.map(partial_nei, skeleton.loops, pure=False)
@@ -132,13 +130,14 @@ class EbtelInterface(object):
         return futures
 
     @staticmethod
-    def compute_nei(element, loop, rate_matrix, initial_condition):
+    def compute_nei(element, loop):
         """
         Compute NEI populations for a given element and loop
         """
-        y = element.non_equilibrium_ionization(
-            loop.time, loop.electron_temperature[:, 0], loop.density[:, 0], rate_matrix,
-            initial_condition)
+        y = non_equilibrium_ionization(element,
+                                       loop.time,
+                                       loop.electron_temperature[:, 0],
+                                       loop.density[:, 0])
         # Fake a spatial axis by tiling the same result at each s coordinate
         return np.repeat(y.value[:, np.newaxis, :], loop.field_aligned_coordinate.shape[0], axis=1)
 
