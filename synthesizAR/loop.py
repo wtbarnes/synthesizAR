@@ -22,7 +22,8 @@ class Loop(object):
     coordinate : `astropy.coordinates.SkyCoord`
         Loop coordinates; should be able to transform to HEEQ
     field_strength : `astropy.units.Quantity`
-        Scalar magnetic field strength along the loop
+        Scalar magnetic field strength along the loop. If not specified, defaults
+        to NaN with same shape as ``coordinate``.
     model_results_filename : `str`, optional
         Path to file where model results are stored. This will be set by
         `~synthesizAR.Skeleton` when the model results are loaded.
@@ -49,17 +50,19 @@ class Loop(object):
     def __init__(self,
                  name,
                  coordinate,
-                 field_strength: u.G,
+                 field_strength: u.G=None,
                  cross_sectional_area: u.cm**2=1e14*u.cm**2,
                  model_results_filename=None):
-        if coordinate.shape != field_strength.shape:
-            raise ValueError('Coordinates and field strength must have same shape.')
         self.name = name
         self.coordinate = coordinate.transform_to(HeliographicStonyhurst)
         self.coordinate.representation_type = 'cartesian'
+        if field_strength is None:
+            field_strength = np.nan * np.ones(self.coordinate.shape) * u.G
         self.field_strength = field_strength
         self._cross_sectional_area = cross_sectional_area
         self.model_results_filename = model_results_filename
+        if self.coordinate.shape != self.field_strength.shape:
+            raise ValueError('Coordinates and field strength must have same shape.')
 
     @property
     def zarr_root(self):
