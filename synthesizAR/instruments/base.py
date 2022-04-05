@@ -50,25 +50,35 @@ class InstrumentBase(object):
     """
     fits_template = MetaDict()
 
-    @u.quantity_input
+    @u.quantity_input(observing_time=u.s,
+                      cadence=u.s,
+                      pad_fov=u.arcsec,
+                      fov_width=u.arcsec)
     def __init__(self,
                  observing_time: u.s,
                  observer,
-                 cadence: u.s,
                  resolution,
+                 cadence=None,
                  pad_fov=None,
                  fov_center=None,
                  fov_width=None,
                  average_over_los=False):
         self.observer = observer
         self.cadence = cadence
-        self.observing_time = np.arange(*observing_time.to('s').value,
-                                        self.cadence.to('s').value)*u.s
+        self._observing_time = observing_time
         self.resolution = resolution
         self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
         self.fov_center = fov_center
         self.fov_width = fov_width
         self.average_over_los = average_over_los
+
+    @property
+    def observing_time(self) -> u.s:
+        if self.cadence is None or len(self._observing_time) > 2:
+            return self._observing_time
+        else:
+            return np.arange(*self._observing_time.to('s').value,
+                             self.cadence.to('s').value) * u.s
 
     @property
     def observer(self):
@@ -198,7 +208,7 @@ class InstrumentBase(object):
         ds.attrs['unit'] = kernel.unit.to_string()
 
     @staticmethod
-    def interpolate_to_instrument_time(kernel, loop, observing_time):
+    def interpolate_to_instrument_time(kernel, loop, observing_time, axis=0):
         """
         Interpolate the intensity kernel from the simulation time to the cadence
         of the instrument for the desired observing window.
@@ -208,7 +218,7 @@ class InstrumentBase(object):
             if time != observing_time:
                 raise ValueError('Model and observing times are not equal for a single model time step.')
             return kernel
-        f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=0, fill_value='extrapolate')
+        f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=axis, fill_value='extrapolate')
         return f_t(observing_time.value) * kernel.unit
 
     def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers, kernels=None):
@@ -257,6 +267,8 @@ class InstrumentBase(object):
             hist /= np.where(_hist == 0, 1, _hist)
         header = self.get_header(channel, coordinates)
         header['bunit'] = kernels.unit.to_string()
+        # FIXME: not sure we really want to do this...this changes our coordinate
+        # frame but maybe we don't want it to change!
         header['date-obs'] = (self.observer.obstime + time).isot
 
         return Map(hist.T, header)
@@ -270,6 +282,8 @@ class InstrumentBase(object):
         center = SkyCoord(Tx=(bin_range[1].Tx + bin_range[0].Tx)/2,
                           Ty=(bin_range[1].Ty + bin_range[0].Ty)/2,
                           frame=bin_range[0].frame)
+        # FIXME: reference_pixel should be center of the frame in the pixel
+        # coordinate system of the image.
         header = make_fitswcs_header(
             (bins[1], bins[0]),  # swap order because it expects (row,column)
             center,
