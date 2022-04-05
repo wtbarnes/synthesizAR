@@ -46,9 +46,11 @@ class HYDRADInterface(object):
         If specified, `general.footpoint_height` will be set to this ratio times the
         loop length if ``2 * general.footpoint_height / length`` is greater than this
         ratio.
-    sample_cadence: `int`, optional
-        Frequency with which to select timesteps from the HYDRAD simulation. Default is
-        1 which selects every time step, 2 would select every other time step, etc.
+    interpolate_to_norm: `bool`, optional
+        If True, the loop quantities are interpolated using the coordinates normalized
+        by the loop length. In cases where the length of the simulated loop does not
+        match that of the geometric loop model, using this option will "stretch" or
+        "squash" the simulated solution appropriately 
     """
     name = 'HYDRAD'
 
@@ -62,7 +64,7 @@ class HYDRADInterface(object):
                  use_magnetic_field=True,
                  use_initial_conditions=False,
                  maximum_chromosphere_ratio=None,
-                 sample_cadence=1):
+                 interpolate_to_norm=False):
         self.base_config = base_config
         self.hydrad_dir = hydrad_dir
         self.output_dir = output_dir
@@ -71,6 +73,7 @@ class HYDRADInterface(object):
         self.use_magnetic_field = use_magnetic_field
         self.use_initial_conditions = use_initial_conditions
         self.maximum_chromosphere_ratio = maximum_chromosphere_ratio
+        self.interpolate_to_norm = interpolate_to_norm
 
     def configure_input(self, loop):
         config = self.base_config.copy()
@@ -99,11 +102,17 @@ class HYDRADInterface(object):
             loop,
             Strand(os.path.join(self.output_dir, loop.name)),
             use_initial_conditions=self.use_initial_conditions,
+            interpolate_to_norm=self.interpolate_to_norm,
         )
 
     @staticmethod
-    def _load_results_from_strand(loop, strand, use_initial_conditions=False):
+    def _load_results_from_strand(loop,
+                                  strand,
+                                  use_initial_conditions=False,
+                                  interpolate_to_norm=False):
         loop_coord_center = loop.field_aligned_coordinate_center.to(u.cm).value
+        if interpolate_to_norm:
+            loop_coord_center /= loop.length.to(u.cm).value
         if use_initial_conditions:
             time = strand.initial_conditions.time.reshape((1,))
             strand = [strand.initial_conditions]
@@ -116,6 +125,8 @@ class HYDRADInterface(object):
         velocity = np.zeros(shape)
         for i, p in enumerate(strand):
             coord = p.coordinate.to(u.cm).value
+            if interpolate_to_norm:
+                coord /= strand.loop_length.to(u.cm).value
             tsk = splrep(coord, p.electron_temperature.to(u.K).value,)
             electron_temperature[i, :] = splev(loop_coord_center, tsk, ext=0)
             tsk = splrep(coord, p.ion_temperature.to(u.K).value,)
