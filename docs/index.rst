@@ -18,7 +18,6 @@ synthesizAR is designed to be modular and extensible. Extensions for new hydrody
    :maxdepth: 2
 
    getting_started
-   tutorial
-   examples
+   generated/gallery/index
    code_ref/index
    develop
