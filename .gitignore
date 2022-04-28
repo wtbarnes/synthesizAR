@@ -1,3 +1,6 @@
+# Sphinx gallery
+docs/generated
+
 # Coverage reports
 coverage.xml
 
