@@ -169,7 +169,7 @@ class InstrumentBase(object):
                     )
                     kernels_interp.append(k)
 
-            if kwargs.get('save_kernels_to_disk', True):
+            if kwargs.get('save_kernels_to_disk', False):
                 files = client.map(self.write_kernel_to_file,
                                    kernel_interp_futures,
                                    skeleton.loops,
