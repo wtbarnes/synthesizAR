@@ -93,12 +93,16 @@ def semi_circular_bundle(length: u.cm, radius: u.cm, num_strands, **kwargs):
     ---------
     semi_circular_loop
     """
-    length_max = length + np.pi*radius
-    length_min = length - np.pi*radius
-    lengths = np.random.random_sample(size=num_strands) * (length_max - length_min) + length_min
-    max_offset = np.sqrt(radius**2 - (1/np.pi * (lengths - length))**2)
-    offset = np.random.random_sample(size=num_strands)*2*max_offset - max_offset
-    return [semi_circular_loop(length=l, offset=o, **kwargs) for l,o in zip(lengths, offset)]
+    # Randomly sample points around the right footpoint within radius
+    # See https://stackoverflow.com/a/50746409/4717663
+    r = np.sqrt(np.random.random_sample(size=num_strands)) * radius
+    theta = np.random.random_sample(size=num_strands) * 2 * np.pi * u.radian
+    # The resulting X Cartesian coordinate is the difference between the length
+    # and nominal length
+    lengths = length + np.pi * r * np.cos(theta)
+    # The resulting Y Cartesian coordinate is the offset from the HCC origin
+    offset = r * np.sin(theta)
+    return [semi_circular_loop(length=l, offset=o, **kwargs) for l, o in zip(lengths, offset)]
 
 
 @u.quantity_input

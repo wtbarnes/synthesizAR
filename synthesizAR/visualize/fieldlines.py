@@ -12,7 +12,7 @@ from sunpy.map import GenericMap, make_fitswcs_header
 from sunpy.coordinates import Helioprojective
 from sunpy.coordinates.ephemeris import get_earth
 
-from synthesizAR.util import is_visible
+from synthesizAR.util import is_visible, find_minimum_fov
 
 __all__ = ['set_ax_lims', 'plot_fieldlines']
 
@@ -30,7 +30,7 @@ def set_ax_lims(ax, xlim, ylim, smap):
 def plot_fieldlines(*coords,
                     image_map=None,
                     observer=None,
-                    check_visible=True,
+                    check_visible=False,
                     draw_grid=True,
                     axes_limits=None,
                     **kwargs):
@@ -88,21 +88,28 @@ def plot_fieldlines(*coords,
         # Show the full disk, make the dummy map transparent
         imshow_kwargs.update({'alpha': 0})
     else:
-        imshow_kwargs.update({'cmap': 'hmimag', 'norm': ImageNormalize(vmin=-1.5e3, vmax=1.5e3)})
+        imshow_kwargs.update({
+            'cmap': 'hmimag', 'norm': ImageNormalize(vmin=-1.5e3, vmax=1.5e3)
+        })
     imshow_kwargs.update(kwargs.get('imshow_kwargs', {}))
     # Plot coordinates
     fig = kwargs.get('fig', plt.figure(figsize=kwargs.get('figsize', None)))
     ax = kwargs.get('ax', fig.add_subplot(111, projection=image_map))
     image_map.plot(axes=ax, **imshow_kwargs)
+    transformed_coords = []
     for coord in coords:
         c = coord.transform_to(image_map.coordinate_frame)
         if check_visible:
             c = c[is_visible(c, image_map.observer_coordinate)]
+        transformed_coords.append(c)
         if len(c) == 0:
             continue  # Matplotlib throws exception when no points are visible
         ax.plot_coord(c, **plot_kwargs)
     if draw_grid:
         image_map.draw_grid(axes=ax, **grid_kwargs)
-    if axes_limits is not None:
-        set_ax_lims(ax, *axes_limits, image_map)
+    if axes_limits is None:
+        transformed_coords = SkyCoord(transformed_coords)
+        blc, trc = find_minimum_fov(transformed_coords, padding=(10, 10)*u.arcsec)
+        axes_limits = (u.Quantity([blc.Tx, trc.Tx]), u.Quantity([blc.Ty, trc.Ty]))
+    set_ax_lims(ax, *axes_limits, image_map)
     return fig, ax, image_map

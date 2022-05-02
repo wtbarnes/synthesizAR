@@ -15,7 +15,7 @@ from sunpy.map import make_fitswcs_header, Map
 import distributed
 import zarr
 
-from synthesizAR.util import is_visible
+from synthesizAR.util import is_visible, find_minimum_fov
 
 __all__ = ['ChannelBase', 'InstrumentBase']
 
@@ -138,6 +138,7 @@ class InstrumentBase(object):
         skeleton : `~synthesizAR.Skeleton`
         save_directory : `str` or path-like
         """
+        check_visible = kwargs.pop('check_visible', False)
         if channels is None:
             channels = self.channels
         try:
@@ -184,7 +185,7 @@ class InstrumentBase(object):
 
             maps[channel.name] = []
             for i, t in enumerate(self.observing_time):
-                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers, kernels=kernels[i])
+                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers, kernels=kernels[i], check_visible=check_visible)
                 m = self.convolve_with_psf(m, channel)
                 if save_directory is None:
                     maps[channel.name].append(m)
@@ -221,7 +222,7 @@ class InstrumentBase(object):
         f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=axis, fill_value='extrapolate')
         return f_t(observing_time.value) * kernel.unit
 
-    def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers, kernels=None):
+    def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers, kernels=None, check_visible=False):
         # Get Coordinates
         coords = coordinates_centers.transform_to(self.projected_frame)
         # Compute weights
@@ -245,7 +246,10 @@ class InstrumentBase(object):
         # average along the LOS
         if not self.average_over_los:
             kernels *= (loop_area / self.pixel_area).decompose() * widths
-        visible = is_visible(coords, self.observer)
+        if check_visible:
+            visible = is_visible(coords, self.observer)
+        else:
+            visible = np.ones(kernels.shape)
         # Bin
         bins, (blc, trc) = self.get_detector_array(coordinates)
         hist, _, _ = np.histogram2d(
@@ -317,23 +321,11 @@ class InstrumentBase(object):
         else:
             # If not specified, derive FOV from loop coordinates
             coordinates = coordinates.transform_to(self.projected_frame)
-            # NOTE: this is the coordinate of the bottom left corner of the bottom left corner pixel,
-            # NOT the coordinate at the center of the pixel!
-            bottom_left_corner = SkyCoord(
-                Tx=coordinates.Tx.min() - self.pad_fov[0],
-                Ty=coordinates.Ty.min() - self.pad_fov[1],
-                frame=coordinates.frame
+            bottom_left_corner, top_right_corner = find_minimum_fov(
+                coordinates, padding=self.pad_fov,
             )
-            delta_x = coordinates.Tx.max() + self.pad_fov[0] - bottom_left_corner.Tx
-            delta_y = coordinates.Ty.max() + self.pad_fov[1] - bottom_left_corner.Ty
+            delta_x = top_right_corner.Tx - bottom_left_corner.Tx
+            delta_y = top_right_corner.Ty - bottom_left_corner.Ty
             bins_x = int(np.ceil((delta_x / self.resolution[0]).decompose()).value)
             bins_y = int(np.ceil((delta_y / self.resolution[1]).decompose()).value)
-            # Compute right corner after the fact to account for rounding in bin numbers
-            # NOTE: this is the coordinate of the top right corner of the top right corner pixel, NOT
-            # the coordinate at the center of the pixel!
-            top_right_corner = SkyCoord(
-                Tx=bottom_left_corner.Tx + self.resolution[0]*bins_x*u.pixel,
-                Ty=bottom_left_corner.Ty + self.resolution[1]*bins_y*u.pixel,
-                frame=coordinates.frame
-            )
         return (bins_x, bins_y), (bottom_left_corner, top_right_corner)
