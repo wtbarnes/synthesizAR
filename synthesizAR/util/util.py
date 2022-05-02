@@ -13,7 +13,14 @@ import astropy.constants as const
 import sunpy.coordinates
 import sunpy.sun.constants as sun_const
 
-__all__ = ['SpatialPair', 'los_velocity', 'coord_in_fov', 'is_visible', 'from_pfsspack']
+__all__ = [
+    'SpatialPair',
+    'los_velocity',
+    'coord_in_fov',
+    'find_minimum_fov',
+    'is_visible',
+    'from_pfsspack'
+]
 
 
 SpatialPair = namedtuple('SpatialPair', 'x y z')
@@ -56,6 +63,33 @@ def coord_in_fov(coord, width, height, center=None, bottom_left_corner=None):
     in_x = np.logical_and(coord.Tx > bottom_left_corner.Tx, coord.Tx < top_right_corner.Tx)
     in_y = np.logical_and(coord.Ty > bottom_left_corner.Ty, coord.Ty < top_right_corner.Ty)
     return np.logical_and(in_x, in_y)
+
+
+def find_minimum_fov(coordinates, padding=None):
+    """
+    Given an HPC coordinate, find the coordinates of the corners of the
+    FOV that includes all of the coordinates.
+    """
+    if padding is None:
+        padding = [0, 0] * u.arcsec
+    Tx = coordinates.Tx
+    Ty = coordinates.Ty
+    bottom_left_corner = SkyCoord(
+        Tx=Tx.min() - padding[0],
+        Ty=Ty.min() - padding[1],
+        frame=coordinates.frame
+    )
+    delta_x = Tx.max() + padding[0] - bottom_left_corner.Tx
+    delta_y = Ty.max() + padding[1] - bottom_left_corner.Ty
+    # Compute right corner after the fact to account for rounding in bin numbers
+    # NOTE: this is the coordinate of the top right corner of the top right corner pixel, NOT
+    # the coordinate at the center of the pixel!
+    top_right_corner = SkyCoord(
+        Tx=bottom_left_corner.Tx + delta_x,
+        Ty=bottom_left_corner.Ty + delta_y,
+        frame=coordinates.frame
+    )
+    return bottom_left_corner, top_right_corner
 
 
 def is_visible(coords, observer):
