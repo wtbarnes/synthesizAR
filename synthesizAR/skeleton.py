@@ -7,12 +7,9 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 import asdf
 import zarr
-import distributed
-from fiasco import Element
 
 from synthesizAR import Loop
 from synthesizAR.visualize import plot_fieldlines
-from synthesizAR.atomic import equilibrium_ionization
 
 __all__ = ['Skeleton']
 
@@ -232,8 +229,9 @@ Number of loops: {len(self.loops)}'''
         for loop in self.loops:
             loop.model_results_filename = filename
         try:
+            import distributed
             client = distributed.get_client()
-        except ValueError:
+        except (ImportError, ValueError):
             for l in self.loops:
                 self._load_loop_simulation(l, root=root, interface=interface)
         else:
@@ -261,6 +259,9 @@ Number of loops: {len(self.loops)}'''
         the ion population fractions in equilibrium. This should be done after
         calling `load_loop_simulations`.
         """
+        from fiasco import Element
+        from synthesizAR.atomic import equilibrium_ionization
+
         root = zarr.open(store=self.loops[0].model_results_filename, mode='a', **kwargs)
         # Check if we can load from the model
         FROM_MODEL = False
