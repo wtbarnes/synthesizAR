@@ -50,7 +50,7 @@ class HYDRADInterface(object):
         If True, the loop quantities are interpolated using the coordinates normalized
         by the loop length. In cases where the length of the simulated loop does not
         match that of the geometric loop model, using this option will "stretch" or
-        "squash" the simulated solution appropriately 
+        "squash" the simulated solution appropriately
     """
     name = 'HYDRAD'
 

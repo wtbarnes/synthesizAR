@@ -26,7 +26,7 @@ class RandomNanoflares(object):
     def __init__(self, duration: u.s, stress):
         self.duration = duration.to(u.s).value
         self.stress = stress
-        
+
     def calculate_event_properties(self, loop):
         self.number_events = 1
         start_time = np.random.uniform(low=0, high=self.base_config['total_time'] - self.duration)
@@ -75,11 +75,11 @@ class HeatingBase(object):
         """
         Calculate the onset times of phases of all heating events
         """
-        start_times = np.array([i*(self.heating_options['duration'] 
+        start_times = np.array([i*(self.heating_options['duration']
                                    + self.heating_options['average_waiting_time']) for i in range(self.number_events)])
         end_rise_times = start_times+self.heating_options['duration_rise']
         start_decay_times = end_rise_times+(self.heating_options['duration']
-                                            - self.heating_options['duration_rise'] 
+                                            - self.heating_options['duration_rise']
                                             - self.heating_options['duration_decay'])
         end_decay_times = start_times + self.heating_options['duration']
 
@@ -88,7 +88,7 @@ class HeatingBase(object):
 
 class UniformHeating(HeatingBase):
     """
-    A model for uniform, equally-spaced heating pulses. Accessed through the 
+    A model for uniform, equally-spaced heating pulses. Accessed through the
     `calculate_event_properties` method.
     """
 
@@ -99,21 +99,21 @@ class UniformHeating(HeatingBase):
         available_energy = calculate_free_energy(loop.field_aligned_coordinate,
                                                  loop.field_strength,
                                                  stress_level=self.heating_options['stress_level'])
-        uniform_heating_rate = 2.0*available_energy/(self.number_events*(2.0*self.heating_options['duration'] 
-                                                                         - self.heating_options['duration_rise'] 
+        uniform_heating_rate = 2.0*available_energy/(self.number_events*(2.0*self.heating_options['duration']
+                                                                         - self.heating_options['duration_rise']
                                                                          - self.heating_options['duration_decay']))
         rates = np.array(self.number_events*[uniform_heating_rate.value])
         tsr, ter, tsd, ted = self._calculate_event_times()
 
-        return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd, 
+        return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd,
                 'decay_end': ted}
 
 
 class PowerLawBase(HeatingBase):
     """
-    Base class for power-law models. 
+    Base class for power-law models.
 
-    The bounds of the distribution are iteratively 
+    The bounds of the distribution are iteratively
     determined such that the total energy released by all events is equal to the
     input available energy.
     """
@@ -124,8 +124,8 @@ class PowerLawBase(HeatingBase):
         """
 
         # calculate uniform heating rate for convenience
-        uniform_heating_rate = 2.0*available_energy/(2.0*self.heating_options['duration'] 
-                                                     - (self.heating_options['duration_rise'] 
+        uniform_heating_rate = 2.0*available_energy/(2.0*self.heating_options['duration']
+                                                     - (self.heating_options['duration_rise']
                                                      + self.heating_options['duration_decay']))/self.number_events
         # initial guess of bounds
         a0 = 2./(self.heating_options['delta_power_law_bounds'] - 1.)*uniform_heating_rate
@@ -138,8 +138,8 @@ class PowerLawBase(HeatingBase):
             x = np.random.rand(self.number_events)
             h = power_law_transform(x, a0, a1, self.heating_options['alpha'])
             pl_sum = np.sum(h)
-            chi = 2.0*available_energy/(2.0*self.heating_options['duration'] 
-                                        - (self.heating_options['duration_rise'] 
+            chi = 2.0*available_energy/(2.0*self.heating_options['duration']
+                                        - (self.heating_options['duration_rise']
                                         + self.heating_options['duration_decay']))/pl_sum
             a0 = chi*a0
             a1 = self.heating_options['delta_power_law_bounds']*a0
@@ -172,7 +172,7 @@ class PowerLawUnscaledWaitingTimes(PowerLawBase):
         rates = self._constrain_distribution(available_energy)
         tsr, ter, tsd, ted = self._calculate_event_times()
 
-        return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd, 
+        return {'magnitude': rates, 'rise_start': tsr, 'rise_end': ter, 'decay_start': tsd,
                 'decay_end': ted}
 
 
@@ -221,7 +221,7 @@ class PowerLawScaledWaitingTimes(PowerLawBase):
         time_start_rise = self._calculate_start_times(rates)
         time_end_rise = time_start_rise+self.heating_options['duration_rise']
         time_start_decay = time_end_rise + (self.heating_options['duration']
-                                            - self.heating_options['duration_rise'] 
+                                            - self.heating_options['duration_rise']
                                             - self.heating_options['duration_decay'])
         time_end_decay = time_start_decay + self.heating_options['duration_decay']
         return time_start_rise, time_end_rise, time_start_decay, time_end_decay

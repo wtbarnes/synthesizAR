@@ -133,7 +133,7 @@ class DistributedAIACube(object):
         if 'tunit' in self.maps[0].meta:
             return u.Quantity([m.meta['t_obs'] for m in self.maps], self.maps[0].meta['tunit'])
         else:
-            return u.Quantity([(Time(m.meta['t_obs']) - Time(self.maps[0].meta['t_obs'])).to(u.s) 
+            return u.Quantity([(Time(m.meta['t_obs']) - Time(self.maps[0].meta['t_obs'])).to(u.s)
                                for m in self.maps])
 
     @property
