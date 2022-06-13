@@ -13,15 +13,17 @@ import astropy.units as u
 import astropy.io.fits
 import astropy.constants as const
 import astropy.convolution
-import h5py
-import plasmapy
-import dask
 
 from synthesizAR.util import SpatialPair
 from synthesizAR.instruments import InstrumentBase, ChannelBase
 from synthesizAR.analysis import EISCube
 
 __all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
+
+_TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
+    'synthesizAR', 'instruments/data/hinode_xrt.json')
+with open(_TEMPERATURE_RESPONSE_FILE, 'r') as f:
+    _TEMPERATURE_RESPONSE = json.load(f)
 
 
 @dataclass
@@ -45,23 +47,21 @@ class InstrumentHinodeXRT(InstrumentBase):
         super().__init__(observing_time, observer, cadence, resolution, **kwargs)
 
     def _setup_channels(self):
-        with open(pkg_resources.resource_filename('synthesizAR', 'instruments/data/hinode_xrt.json'), 'r') as f:
-            info = json.load(f)
         channels = []
-        for k in info:
+        for k in _TEMPERATURE_RESPONSE:
             if k in ('name', 'description'):
                 continue
-            x = np.array(info[k]['temperature_response_x'], np.float64)
-            y = np.array(info[k]['temperature_response_y'], np.float64)
-            x = x * u.Unit(info[k]['temperature_response_x_units'])
-            y = y * u.Unit(info[k]['temperature_response_y_units'])
+            x = np.array(_TEMPERATURE_RESPONSE[k]['temperature_response_x'], np.float64)
+            y = np.array(_TEMPERATURE_RESPONSE[k]['temperature_response_y'], np.float64)
+            x = x * u.Unit(_TEMPERATURE_RESPONSE[k]['temperature_response_x_units'])
+            y = y * u.Unit(_TEMPERATURE_RESPONSE[k]['temperature_response_y_units'])
             c = ChannelXRT(
                 name=k,
                 channel=50*u.angstrom,  # this is just a filler value, not important
                 temperature=x,
                 response=y,
-                filter_wheel_1=info[k]['filter_wheel_1'],
-                filter_wheel_2=info[k]['filter_wheel_2'],
+                filter_wheel_1=_TEMPERATURE_RESPONSE[k]['filter_wheel_1'],
+                filter_wheel_2=_TEMPERATURE_RESPONSE[k]['filter_wheel_2'],
             )
             channels.append(c)
         return channels
@@ -224,6 +224,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Calculate response of Hinode/EIS detector for given loop object.
         """
+        import plasmapy
         # trim the instrument response to the appropriate wavelengths
         trimmed_indices = []
         for w in channel['model_wavelengths']:

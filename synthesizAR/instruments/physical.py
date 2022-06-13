@@ -3,7 +3,6 @@ Instruments for calculating physical quantities, rather than
 observed counts, projected along a LOS
 """
 from dataclasses import dataclass
-from multiprocessing import Value
 
 import astropy.units as u
 import numpy as np

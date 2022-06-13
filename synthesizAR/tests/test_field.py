@@ -11,7 +11,7 @@ import astropy.time
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import HeliographicStonyhurst
 import distributed
-from distributed.utils_test import client, loop, cluster_fixture
+from distributed.utils_test import client, loop, cluster_fixture, cleanup
 
 import synthesizAR
 from synthesizAR.models import semi_circular_arcade

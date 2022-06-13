@@ -31,11 +31,11 @@ repos:
       - id: check-ast
       - id: check-case-conflict
       - id: trailing-whitespace
-        exclude: ".*(.fits|.fts|.fit|.txt)$"
+        exclude: ".*(.fits|.fts|.fit|.txt|.asdf|.json)$"
       - id: check-yaml
       - id: debug-statements
       - id: check-added-large-files
       - id: end-of-file-fixer
-        exclude: ".*(.fits|.fts|.fit|.txt|tca.*)$"
+        exclude: ".*(.fits|.fts|.fit|.txt|tca.*|.asdf|.json)$"
       - id: mixed-line-ending
-        exclude: ".*(.fits|.fts|.fit|.txt|tca.*)$"
+        exclude: ".*(.fits|.fts|.fit|.txt|tca.*|.asdf|.json)$"

@@ -12,7 +12,6 @@ from astropy.coordinates import SkyCoord
 from sunpy.util.metadata import MetaDict
 from sunpy.coordinates.frames import Helioprojective, HeliographicStonyhurst
 from sunpy.map import make_fitswcs_header, Map
-import distributed
 import zarr
 
 from synthesizAR.util import is_visible, find_minimum_fov
@@ -142,8 +141,9 @@ class InstrumentBase(object):
         if channels is None:
             channels = self.channels
         try:
+            import distributed
             client = distributed.get_client()
-        except ValueError:
+        except (ImportError, ValueError):
             client = None
         coordinates = skeleton.all_coordinates
         coordinates_centers = skeleton.all_coordinates_centers
