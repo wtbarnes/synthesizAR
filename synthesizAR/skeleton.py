@@ -117,10 +117,11 @@ Number of loops: {len(self.loops)}'''
     @u.quantity_input
     def refine_loop(loop, delta_s: u.cm):
         try:
-            tck, _ = splprep(loop.coordinate.cartesian.xyz.value, u=loop.field_aligned_coordinate_norm)
+            tck, _ = splprep(loop.coordinate.cartesian.xyz.value,
+                             u=loop.field_aligned_coordinate_norm)
             new_s = np.arange(0, loop.length.to(u.Mm).value, delta_s.to(u.Mm).value) * u.Mm
             x, y, z = splev((new_s/loop.length).decompose(), tck)
-        except ValueError as e:
+        except (ValueError, TypeError) as e:
             raise Exception(f'Failed to refine {loop.name}') from e
         unit = loop.coordinate.cartesian.xyz.unit
         new_coord = SkyCoord(x=x*unit,
