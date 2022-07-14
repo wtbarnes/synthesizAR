@@ -157,9 +157,9 @@ class InstrumentBase(object):
                                             channel=channel,
                                             **kwargs)
                 kernel_interp_futures = client.map(self.interpolate_to_instrument_time,
-                                                kernel_futures,
-                                                skeleton.loops,
-                                                observing_time=self.observing_time)
+                                                   kernel_futures,
+                                                   skeleton.loops,
+                                                   observing_time=self.observing_time)
             else:
                 # Seriel
                 kernels_interp = []
@@ -185,7 +185,8 @@ class InstrumentBase(object):
 
             maps[channel.name] = []
             for i, t in enumerate(self.observing_time):
-                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers, kernels=kernels[i], check_visible=check_visible)
+                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers,
+                                       kernels=kernels[i], check_visible=check_visible)
                 m = self.convolve_with_psf(m, channel)
                 if save_directory is None:
                     maps[channel.name].append(m)
@@ -219,8 +220,12 @@ class InstrumentBase(object):
             if time != observing_time:
                 raise ValueError('Model and observing times are not equal for a single model time step.')
             return kernel
-        f_t = interp1d(time.to(observing_time.unit).value, kernel.value, axis=axis, fill_value='extrapolate')
-        return f_t(observing_time.value) * kernel.unit
+        f_t = interp1d(time.to(observing_time.unit).value,
+                       kernel.value,
+                       axis=axis,
+                       fill_value='extrapolate')
+        kernel_interp = u.Quantity(f_t(observing_time.value), kernel.unit)
+        return kernel_interp
 
     def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers, kernels=None, check_visible=False):
         # Get Coordinates
@@ -229,6 +234,7 @@ class InstrumentBase(object):
         widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
         loop_area = np.concatenate([l.cross_sectional_area_center for l in skeleton.loops])
         if kernels is None:
+            import distributed
             i_time = np.where(time == self.observing_time)[0][0]
             client = distributed.get_client()
             root = skeleton.loops[0].zarr_root

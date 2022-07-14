@@ -44,7 +44,8 @@ class InstrumentDEM(InstrumentBase):
     def calculate_intensity_kernel(loop, channel, **kwargs):
         T = loop.electron_temperature
         n = loop.density
-        bin_mask = np.where(np.logical_and(T>=channel.bin_edges[0], T<channel.bin_edges[1]), 1, 0)
+        bin_mask = np.where(
+            np.logical_and(T >= channel.bin_edges[0], T < channel.bin_edges[1]), 1, 0)
         kernel = n**2 * bin_mask
         return kernel
 
