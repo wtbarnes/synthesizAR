@@ -6,6 +6,9 @@ from dataclasses import dataclass
 
 import astropy.units as u
 import numpy as np
+import ndcube
+from ndcube.extra_coords.table_coord import QuantityTableCoordinate, MultipleTableCoordinate
+from ndcube.wcs.wrappers import CompoundLowLevelWCS
 
 from synthesizAR.instruments import ChannelBase, InstrumentBase
 from synthesizAR.util import los_velocity
@@ -44,6 +47,24 @@ class InstrumentDEM(InstrumentBase):
         bin_mask = np.where(np.logical_and(T>=channel.bin_edges[0], T<channel.bin_edges[1]), 1, 0)
         kernel = n**2 * bin_mask
         return kernel
+
+    def dem_maps_to_cube(self, dem_list):
+        """
+        Convert a list of DEM maps to a DEM NDCube
+        """
+        # Construct WCS
+        celestial_wcs = dem_list[0].wcs
+        temp_table = QuantityTableCoordinate(self.temperature_bin_centers,
+                                             names='temperature',
+                                             physical_types='phys.temperature')
+        temp_table_coord = MultipleTableCoordinate(temp_table)
+        mapping = list(range(celestial_wcs.pixel_n_dim))
+        mapping.extend([celestial_wcs.pixel_n_dim] * temp_table_coord.wcs.pixel_n_dim)
+        compound_wcs = CompoundLowLevelWCS(celestial_wcs, temp_table_coord.wcs, mapping=mapping)
+        # Stack arrays
+        dem_array = u.Quantity([d.quantity for d in dem_list])
+
+        return ndcube.NDCube(dem_array, wcs=compound_wcs, )
 
 
 class InstrumentQuantityBase(InstrumentBase):
