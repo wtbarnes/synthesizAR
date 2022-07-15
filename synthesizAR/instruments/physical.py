@@ -49,10 +49,12 @@ class InstrumentDEM(InstrumentBase):
         kernel = n**2 * bin_mask
         return kernel
 
-    def dem_maps_to_cube(self, dem_list):
+    def dem_maps_to_cube(self, dem, time_index):
         """
         Convert a list of DEM maps to a DEM NDCube
         """
+        # NOTE: this is the format that .observe returns
+        dem_list = [dem[c.name][time_index] for c in self.channels]
         # Construct WCS
         celestial_wcs = dem_list[0].wcs
         temp_table = QuantityTableCoordinate(self.temperature_bin_centers,
