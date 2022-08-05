@@ -14,7 +14,7 @@ KAPPA_0 = 1e-6 * u.erg / u.cm / u.s * u.K**(-7/2)
 
 
 class Isothermal(object):
-    """
+    r"""
     Hydrostatic loop solutions for an isothermal atmosphere
 
     Parameters

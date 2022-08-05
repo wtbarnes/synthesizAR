@@ -52,7 +52,8 @@ class InstrumentSDOAIA(InstrumentBase):
         # Add the Gaussian width for the PSF convolution
         psf_params = filter_mesh_parameters(use_preflightcore=True)
         for c in self.channels:
-            c.gaussian_width = u.Quantity([psf_params[c.channel]['width'], psf_params[c.channel]['width']])
+            psf_width = psf_params[c.channel]['width']
+            c.gaussian_width = u.Quantity([psf_width, psf_width])
         super().__init__(observing_time, observer, resolution, cadence=cadence, **kwargs)
 
     @property
@@ -171,7 +172,7 @@ class InstrumentSDOAIA(InstrumentBase):
 def aia_kernel_quick(channel,
                      temperature: u.K,
                      density: u.cm**(-3)) -> u.Unit('ct pix-1 s-1 cm-1'):
-    """
+    r"""
     Calculate AIA intensity kernel for a given channel
 
     Compute the integrand of the AIA intensity integral,

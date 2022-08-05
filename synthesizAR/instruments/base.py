@@ -28,8 +28,8 @@ class ChannelBase:
 class InstrumentBase(object):
     """
     Base class for instruments. This object is not meant to be instantiated directly. Instead,
-    specific instruments should subclass this base object and implement a `calculate_intensity_kernel`
-    method for that specific instrument.
+    specific instruments should subclass this base object and implement a
+    `calculate_intensity_kernel` method for that specific instrument.
 
     Parameters
     ----------
@@ -123,7 +123,7 @@ class InstrumentBase(object):
         Perform a simple convolution with a Gaussian kernel
         """
         # Specify in order x, y (axis 1, axis 2)
-        w = getattr(channel, 'gaussian_width', (1,1)*u.pixel)
+        w = getattr(channel, 'gaussian_width', (1, 1)*u.pixel)
         # gaussian filter takes order (row, column)
         return smap._new_instance(gaussian_filter(smap.data, w.value[::-1]), smap.meta)
 
