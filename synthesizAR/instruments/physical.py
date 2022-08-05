@@ -5,15 +5,22 @@ observed counts, projected along a LOS
 from dataclasses import dataclass
 
 import astropy.units as u
+import astropy.wcs
 import numpy as np
+from scipy.interpolate import interp1d
 import ndcube
 from ndcube.extra_coords.table_coord import QuantityTableCoordinate, MultipleTableCoordinate
 from ndcube.wcs.wrappers import CompoundLowLevelWCS
 
 from synthesizAR.instruments import ChannelBase, InstrumentBase
 from synthesizAR.util import los_velocity
+from synthesizAR.instruments.util import add_wave_keys_to_header
 
-__all__ = ['InstrumentDEM', 'InstrumentLOSVelocity', 'InstrumentTemperature']
+__all__ = [
+    'InstrumentDEM',
+    'InstrumentLOSVelocity',
+    'InstrumentTemperature'
+]
 
 
 @dataclass
@@ -31,7 +38,8 @@ class InstrumentDEM(InstrumentBase):
     @u.quantity_input
     def __init__(self, *args, temperature_bin_edges: u.K, **kwargs):
         self.temperature_bin_edges = temperature_bin_edges
-        bin_edges = [temperature_bin_edges[[i,i+1]] for i in range(temperature_bin_edges.shape[0]-1)]
+        n_bins = temperature_bin_edges.shape[0]-1
+        bin_edges = [temperature_bin_edges[[i, i+1]] for i in range(n_bins)]
         self.channels = [ChannelDEM(0*u.angstrom, None, be) for be in bin_edges]
         super().__init__(*args, **kwargs)
 
@@ -68,6 +76,52 @@ class InstrumentDEM(InstrumentBase):
         dem_array = u.Quantity([d.quantity for d in dem_list])
 
         return ndcube.NDCube(dem_array, wcs=compound_wcs, )
+
+    @staticmethod
+    def calculate_intensity(dem, spectra, header,
+                            meta=None,
+                            wavelength_instr=None,
+                            response_instr=None):
+        """
+        Compute intensity from a DEM and a temperature-dependent spectra
+
+        Parameters
+        ----------
+        dem: `~ndcube.NDCube`
+            The first axis should correspond to temperature
+        spectra: `~ndcube.NDCube`
+        header: `dict` or header-like
+            Header information corresponding to the spatial axes of the DEM cube
+        meta: `dict`, optional
+            Additional metadata
+        wavelength
+        """
+        temperature_bin_centers = dem.axis_world_coords(0)[0]
+        wavelength_spectra = spectra.axis_world_coords(1)[0]
+        temperature_spectra = spectra.axis_world_coords(0)[0].to(temperature_bin_centers.unit)
+        # Interpolate spectral cube to DEM temperatures
+        spectra_interp = interp1d(temperature_spectra.value, spectra.data, axis=0)(
+                                  temperature_bin_centers.value)
+        # If a wavelength response and wavelength array are passed in, then interpolate the
+        # spectra to that wavelength
+        if response_instr and wavelength_instr:
+            spectra_interp = interp1d(wavelength_spectra.value, spectra_interp, axis=1)(
+                                      wavelength_instr.to_value(wavelength_spectra.unit))
+            wave_header = add_wave_keys_to_header(wavelength_instr, header)
+        else:
+            response_instr = np.ones(wavelength_spectra.shape)
+            wave_header = add_wave_keys_to_header(wavelength_spectra, header)
+        spectra_interp = spectra_interp * spectra.unit * response_instr
+        # Take dot product between DEM and spectra
+        intensity = np.tensordot(spectra_interp, u.Quantity(dem.data, dem.unit), axes=([0], [0]))
+        # Construct cube
+        wave_header['BUNIT'] = intensity.unit.to_string()
+        wave_header['NAXIS'] = len(intensity.shape)
+        wave_header['WCSAXES'] = len(intensity.shape)
+        meta = {} if meta is None else meta
+        meta = {**meta, **wave_header}
+        wcs = astropy.wcs.WCS(header=wave_header)
+        return ndcube.NDCube(intensity, wcs=wcs, meta=meta)
 
 
 class InstrumentQuantityBase(InstrumentBase):
