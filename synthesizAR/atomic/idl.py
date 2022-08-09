@@ -98,6 +98,11 @@ def compute_spectral_table(temperature: u.K,
     spectra: `~astropy.units.Quantity`
         Resulting spectra
     """
+    # NOTE: Each string in the list must be string in IDL
+    # which is why it is double quoted
+    # FIXME: this should really be a filter in hissw
+    if ion_list is not None:
+        ion_list = [f"'{i}'" for i in ion_list]
     # setup SSW environment and inputs
     input_args = {
         'wave_min': wave_min,
@@ -131,7 +136,20 @@ def compute_spectral_table(temperature: u.K,
             all_spectra[i] = u.Quantity(np.zeros(wavelength.shape),
                                         'cm3 ph Angstrom-1 s-1 sr-1')
 
-    return wavelength, u.Quantity(all_spectra)
+    # Build NDCube
+    spectrum = u.Quantity(all_spectra)
+    meta = {
+        'ioneq_filename': ioneq_filename,
+        'abundance_filename': abundance_filename,
+        'ion_list': 'all' if ion_list is None else ion_list,
+    }
+    cube = spectrum_to_cube(spectrum,
+                            wavelength,
+                            temperature,
+                            density=density,
+                            meta=meta)
+
+    return cube
 
 
 def _get_isothermal_spectra(env, input_args):
@@ -166,25 +184,19 @@ def _get_isothermal_spectra(env, input_args):
     return wavelength.to('Angstrom'), spectrum.to('cm3 ph Angstrom-1 s-1 sr-1')
 
 
-def write_spectral_table(filename,
-                         spectrum,
-                         temperature,
-                         density,
-                         wavelength,
-                         ioneq_filename,
-                         abundance_filename,
-                         ion_list=None):
+def write_spectral_table(filename, cube):
     """
     Write result of `compute_spectral_table` to an ASDF file
     """
     tree = {}
-    tree['temperature'] = temperature
-    tree['density'] = density
-    tree['wavelength'] = wavelength
-    tree['ioneq_filename'] = ioneq_filename
-    tree['abundance_filename'] = abundance_filename
-    tree['ion_list'] = 'all' if ion_list is None else ion_list
-    tree['spectrum'] = spectrum
+    tree['spectrum'] = u.Quantity(cube.data, cube.unit)
+    tree['temperature'] = cube.axis_world_coords(0)[0]
+    if 'density' in cube.extra_coords.keys():
+        # FIXME: there has to be a better way of accessing the data for the extra coord
+        tree['density'] = cube.extra_coords['density']._lookup_tables[0][1].model.lookup_table
+    tree['wavelength'] = cube.axis_world_coords(1)[0]
+    for k, v in cube.meta.items():
+        tree[k] = v
     with asdf.AsdfFile(tree) as asdf_file:
         asdf_file.write_to(filename)
 
