@@ -116,7 +116,7 @@ def compute_spectral_table(temperature: u.K,
     # NOTE: do not want this as a hard dependency, particularly if
     # just reading a spectral file
     import hissw
-    env = hissw.Environment(ssw_packages=['chianti'])
+    env = hissw.Environment(ssw_packages=['chianti'], ssw_paths=['chianti'])
 
     # Iterate over T and n values
     all_spectra = []
@@ -139,6 +139,7 @@ def compute_spectral_table(temperature: u.K,
     # Build NDCube
     spectrum = u.Quantity(all_spectra)
     meta = {
+        'version': get_chianti_version(env),
         'ioneq_filename': ioneq_filename,
         'abundance_filename': abundance_filename,
         'ion_list': 'all' if ion_list is None else ion_list,
@@ -182,6 +183,11 @@ def _get_isothermal_spectra(env, input_args):
     spectrum = spectrum / input_args['emission_measure']
 
     return wavelength.to('Angstrom'), spectrum.to('cm3 ph Angstrom-1 s-1 sr-1')
+
+
+def get_chianti_version(env):
+    output = env.run('version = ch_get_version()', save_vars=['version'])
+    return output['version'].decode('utf-8')
 
 
 def write_spectral_table(filename, cube):
@@ -255,9 +261,11 @@ def read_spectral_table(filename):
         abundance_filename = af['abundance_filename']
         ion_list = af['ion_list']
         spectrum = af['spectrum']
+        version = af['version']
     meta = {
         'ioneq_filename': ioneq_filename,
         'abundance_filename': abundance_filename,
         'ion_list': ion_list,
+        'version': version,
     }
     return spectrum_to_cube(spectrum, wavelength, temperature, density=density, meta=meta)
