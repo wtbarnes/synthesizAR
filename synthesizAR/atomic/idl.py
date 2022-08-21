@@ -35,7 +35,7 @@ ch_synthetic, wave_min,$
               ioneq_name=ioneq_name,$
               logt_isothermal=log_temperature,$
               logem_isothermal=log_em,$
-              {% if ion_list -%}sngl_ion=[{{ ion_list | join(',') }}],${%- endif %}
+              {% if ion_list -%}sngl_ion=[{{ ion_list | string_list | join(',') }}],${%- endif %}
               density=density
 
 ;compute the spectra as a function of lambda and T
@@ -45,7 +45,7 @@ make_chianti_spec, transitions,$
                    bin_size=delta_wave,$
                    wrange=wave_range,$
                    abund_name=abund_name,$
-                   /continuum,$
+                   {% if include_continuum -%}/continuum,${%- endif %}
                    /photons
 '''
 
@@ -59,7 +59,8 @@ def compute_spectral_table(temperature: u.K,
                            ioneq_filename,
                            abundance_filename,
                            emission_measure=1*u.Unit('cm-5'),
-                           ion_list=None):
+                           ion_list=None,
+                           include_continuum=True):
     """
     Compute spectra for a range of temperatures using CHIANTI IDL in SSW.
 
@@ -90,6 +91,9 @@ def compute_spectral_table(temperature: u.K,
     ion_list: `list`, optional
         List of ions to include in the synthetic spectra, e.g. 'fe_13' for
         Fe XIII. If None, all ions will be included.
+    include_continuum: `bool`, optional
+        If True, include free-free, free-bound, and two-photon continuum
+        contributions to the spectra.
 
     Returns
     --------
@@ -98,11 +102,6 @@ def compute_spectral_table(temperature: u.K,
     spectra: `~astropy.units.Quantity`
         Resulting spectra
     """
-    # NOTE: Each string in the list must be string in IDL
-    # which is why it is double quoted
-    # FIXME: this should really be a filter in hissw
-    if ion_list is not None:
-        ion_list = [f"'{i}'" for i in ion_list]
     # setup SSW environment and inputs
     input_args = {
         'wave_min': wave_min,
@@ -112,6 +111,7 @@ def compute_spectral_table(temperature: u.K,
         'ioneq_file': ioneq_filename,
         'abundance_file': abundance_filename,
         'ion_list': ion_list,
+        'include_continuum': include_continuum,
     }
     # NOTE: do not want this as a hard dependency, particularly if
     # just reading a spectral file
@@ -143,6 +143,7 @@ def compute_spectral_table(temperature: u.K,
         'ioneq_filename': ioneq_filename,
         'abundance_filename': abundance_filename,
         'ion_list': 'all' if ion_list is None else ion_list,
+        'include_continuum': include_continuum,
     }
     cube = spectrum_to_cube(spectrum,
                             wavelength,
