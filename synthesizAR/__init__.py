@@ -21,3 +21,7 @@ except ValueError:
 
 from .loop import *
 from .skeleton import *
+
+# Set up logger
+from synthesizAR.util.logger import _init_log
+log = _init_log()
