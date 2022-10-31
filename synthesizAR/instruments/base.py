@@ -122,10 +122,11 @@ class InstrumentBase(object):
         """
         Perform a simple convolution with a Gaussian kernel
         """
-        # Specify in order x, y (axis 1, axis 2)
-        w = getattr(channel, 'gaussian_width', (1, 1)*u.pixel)
-        # gaussian filter takes order (row, column)
-        return smap._new_instance(gaussian_filter(smap.data, w.value[::-1]), smap.meta)
+        w = getattr(channel, 'psf_width', (0, 0)*u.pix)
+        # PSF width is specified in order (x-like, y-like) but
+        # gaussian_filter expects array index ordering
+        w = w.to_value('pixel')[::-1]
+        return smap._new_instance(gaussian_filter(smap.data, w), smap.meta)
 
     def observe(self, skeleton, save_directory=None, channels=None, **kwargs):
         """

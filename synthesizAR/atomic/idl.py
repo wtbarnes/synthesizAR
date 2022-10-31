@@ -3,6 +3,7 @@ Functions for computing isothermal spectra from CHIANTI IDL
 """
 import contextlib
 import io
+import os
 
 import asdf
 import astropy.units as u
@@ -36,6 +37,7 @@ ch_synthetic, wave_min,$
               logt_isothermal=log_temperature,$
               logem_isothermal=log_em,$
               {% if ion_list -%}sngl_ion=[{{ ion_list | string_list | join(',') }}],${%- endif %}
+              {% if use_lookup_table %}/lookup,${%- endif%}
               density=density
 
 ;compute the spectra as a function of lambda and T
@@ -46,7 +48,8 @@ make_chianti_spec, transitions,$
                    wrange=wave_range,$
                    abund_name=abund_name,$
                    {% if include_continuum -%}/continuum,${%- endif %}
-                   /photons
+                   /photons,$
+                   /no_thermal_width
 '''
 
 
@@ -60,7 +63,9 @@ def compute_spectral_table(temperature: u.K,
                            abundance_filename,
                            emission_measure=1*u.Unit('cm-5'),
                            ion_list=None,
-                           include_continuum=True):
+                           include_continuum=True,
+                           use_lookup_table=False,
+                           chianti_dir=None):
     """
     Compute spectra for a range of temperatures using CHIANTI IDL in SSW.
 
@@ -94,14 +99,21 @@ def compute_spectral_table(temperature: u.K,
     include_continuum: `bool`, optional
         If True, include free-free, free-bound, and two-photon continuum
         contributions to the spectra.
+    chianti_dir: `str` or path-like, optional
+        Path to the top level of CHIANTI installation, including directories
+        for IDL code and database files. If not specified, the default CHIANTI
+        available in the local SSW installation will be used.
+    use_lookup_table: `bool`, optional
+        If True, use the `/lookup` option for `ch_synthetic` to speed up the
+        level populations calculation.
 
     Returns
     --------
-    wavelength: `~astropy.units.Quantity`
-        Wavelength axis of the spectra
-    spectra: `~astropy.units.Quantity`
-        Resulting spectra
+    spectra: `~ndcube.NDCube`
+        Resulting spectra as a function of temperature and wavelength
     """
+    # Import here to avoid circular imports
+    from synthesizAR import log
     # setup SSW environment and inputs
     input_args = {
         'wave_min': wave_min,
@@ -112,17 +124,43 @@ def compute_spectral_table(temperature: u.K,
         'abundance_file': abundance_filename,
         'ion_list': ion_list,
         'include_continuum': include_continuum,
+        'use_lookup_table': use_lookup_table,
     }
     # NOTE: do not want this as a hard dependency, particularly if
     # just reading a spectral file
     import hissw
-    env = hissw.Environment(ssw_packages=['chianti'], ssw_paths=['chianti'])
+    if chianti_dir is not None:
+        ssw_packages = None
+        ssw_paths = None
+        idl_root = os.path.join(chianti_dir, 'idl')
+        dbase_root = os.path.join(chianti_dir, 'dbase')
+        # Set up extra paths
+        extra_paths = [d for d, _, _ in os.walk(idl_root)]
+        header = f'''
+        defsysv,'!xuvtop','{dbase_root}'
+        defsysv,'!abund_file','{os.path.join(dbase_root, 'abundance', abundance_filename)}'
+        defsysv,'!ioneq_file','{os.path.join(dbase_root, 'ioneq', ioneq_filename)}'
+        '''
+        # Set up header
+    else:
+        # Use SSW installed CHIANTI
+        ssw_packages = ['chianti']
+        ssw_paths = ['chianti']
+        header = None
+        extra_paths = None
+    env = hissw.Environment(
+        ssw_packages=ssw_packages,
+        ssw_paths=ssw_paths,
+        header=header,
+        extra_paths=extra_paths,
+    )
 
     # Iterate over T and n values
     all_spectra = []
     for T, n in zip(temperature, density):
         input_args['temperature'] = T
         input_args['density'] = n
+        log.debug(f'Computing spectra for (T,n) = ({T}, {n})')
         _wavelength, spec = _get_isothermal_spectra(env, input_args)
         all_spectra.append(spec)
         # This ensures that wavelength is never None unless
@@ -134,7 +172,7 @@ def compute_spectral_table(temperature: u.K,
     for i, spec in enumerate(all_spectra):
         if spec is None:
             all_spectra[i] = u.Quantity(np.zeros(wavelength.shape),
-                                        'cm3 ph Angstrom-1 s-1 sr-1')
+                                        'cm3 ph angstrom-1 s-1 sr-1')
 
     # Build NDCube
     spectrum = u.Quantity(all_spectra)
@@ -155,6 +193,9 @@ def compute_spectral_table(temperature: u.K,
 
 
 def _get_isothermal_spectra(env, input_args):
+    # Import here to avoid circular imports
+    from synthesizAR import log
+    log.debug(input_args)
     # NOTE: capturing the STDOUT here as when there are no relevant
     # transitions in the wavelength and temperature range, CHIANTI
     # returns nothing and so we have to treat this as an exception
@@ -164,7 +205,9 @@ def _get_isothermal_spectra(env, input_args):
         output = env.run(_chianti_script, args=input_args,
                          save_vars=['spectrum'])
     idl_msg = f.getvalue()
+    log.debug(idl_msg)
     if 'No lines in the selected wavelength range !' in idl_msg:
+        log.warning(idl_msg)
         return None, None
     spectrum = output['spectrum']['spectrum'][0]
     wavelength = output['spectrum']['lambda'][0]
@@ -181,13 +224,15 @@ def _get_isothermal_spectra(env, input_args):
     spectrum = u.Quantity(spectrum, spectrum_unit)
     # Originally, the spectrum was computed assuming unit EM.
     # Divide through to get the units right
-    spectrum = spectrum / input_args['emission_measure']
+    spectrum /= input_args['emission_measure']
 
-    return wavelength.to('Angstrom'), spectrum.to('cm3 ph Angstrom-1 s-1 sr-1')
+    return wavelength.to('Angstrom'), spectrum.to('cm3 ph angstrom-1 s-1 sr-1')
 
 
 def get_chianti_version(env):
-    output = env.run('version = ch_get_version()', save_vars=['version'])
+    output = env.run('version = ch_get_version()',
+                     save_vars=['version'],
+                     verbose=False)
     return output['version'].decode('utf-8')
 
 
@@ -200,6 +245,7 @@ def write_spectral_table(filename, cube):
     tree['temperature'] = cube.axis_world_coords(0)[0]
     if 'density' in cube.extra_coords.keys():
         # FIXME: there has to be a better way of accessing the data for the extra coord
+        # FIXME: use gwcs instead?
         tree['density'] = cube.extra_coords['density']._lookup_tables[0][1].model.lookup_table
     tree['wavelength'] = cube.axis_world_coords(1)[0]
     for k, v in cube.meta.items():
@@ -258,15 +304,10 @@ def read_spectral_table(filename):
         temperature = af['temperature']
         density = af['density']
         wavelength = af['wavelength']
-        ioneq_filename = af['ioneq_filename']
-        abundance_filename = af['abundance_filename']
-        ion_list = af['ion_list']
         spectrum = af['spectrum']
-        version = af['version']
-    meta = {
-        'ioneq_filename': ioneq_filename,
-        'abundance_filename': abundance_filename,
-        'ion_list': ion_list,
-        'version': version,
-    }
+        meta_keys = ['ioneq_filename',
+                     'abundance_filename',
+                     'ion_list',
+                     'version']
+        meta = {k: af[k] if k in af else None for k in meta_keys}
     return spectrum_to_cube(spectrum, wavelength, temperature, density=density, meta=meta)

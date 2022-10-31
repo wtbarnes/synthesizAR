@@ -53,7 +53,7 @@ class InstrumentSDOAIA(InstrumentBase):
         psf_params = filter_mesh_parameters(use_preflightcore=True)
         for c in self.channels:
             psf_width = psf_params[c.channel]['width']
-            c.gaussian_width = u.Quantity([psf_width, psf_width])
+            c.psf_width = u.Quantity([psf_width, psf_width])
         super().__init__(observing_time, observer, resolution, cadence=cadence, **kwargs)
 
     @property
