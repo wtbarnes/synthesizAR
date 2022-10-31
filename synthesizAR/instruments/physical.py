@@ -9,12 +9,10 @@ import astropy.wcs
 import numpy as np
 from scipy.interpolate import interp1d
 import ndcube
-from ndcube.extra_coords.table_coord import QuantityTableCoordinate, MultipleTableCoordinate
-from ndcube.wcs.wrappers import CompoundLowLevelWCS
 
 from synthesizAR.instruments import ChannelBase, InstrumentBase
 from synthesizAR.util import los_velocity
-from synthesizAR.instruments.util import add_wave_keys_to_header
+from synthesizAR.instruments.util import add_wave_keys_to_header, extend_celestial_wcs
 
 __all__ = [
     'InstrumentDEM',
@@ -64,24 +62,17 @@ class InstrumentDEM(InstrumentBase):
         # NOTE: this is the format that .observe returns
         dem_list = [dem[c.name][time_index] for c in self.channels]
         # Construct WCS
-        celestial_wcs = dem_list[0].wcs
-        temp_table = QuantityTableCoordinate(self.temperature_bin_centers,
-                                             names='temperature',
-                                             physical_types='phys.temperature')
-        temp_table_coord = MultipleTableCoordinate(temp_table)
-        mapping = list(range(celestial_wcs.pixel_n_dim))
-        mapping.extend([celestial_wcs.pixel_n_dim] * temp_table_coord.wcs.pixel_n_dim)
-        compound_wcs = CompoundLowLevelWCS(celestial_wcs, temp_table_coord.wcs, mapping=mapping)
+        compound_wcs = extend_celestial_wcs(dem_list[0].wcs,
+                                            self.temperature_bin_centers,
+                                            'temperature',
+                                            'phys.temperature')
         # Stack arrays
         dem_array = u.Quantity([d.quantity for d in dem_list])
 
         return ndcube.NDCube(dem_array, wcs=compound_wcs, )
 
     @staticmethod
-    def calculate_intensity(dem, spectra, header,
-                            meta=None,
-                            wavelength_instr=None,
-                            response_instr=None):
+    def calculate_intensity(dem, spectra, header, meta=None):
         """
         Compute intensity from a DEM and a temperature-dependent spectra
 
@@ -102,19 +93,11 @@ class InstrumentDEM(InstrumentBase):
         # Interpolate spectral cube to DEM temperatures
         spectra_interp = interp1d(temperature_spectra.value, spectra.data, axis=0)(
                                   temperature_bin_centers.value)
-        # If a wavelength response and wavelength array are passed in, then interpolate the
-        # spectra to that wavelength
-        if response_instr and wavelength_instr:
-            spectra_interp = interp1d(wavelength_spectra.value, spectra_interp, axis=1)(
-                                      wavelength_instr.to_value(wavelength_spectra.unit))
-            wave_header = add_wave_keys_to_header(wavelength_instr, header)
-        else:
-            response_instr = np.ones(wavelength_spectra.shape)
-            wave_header = add_wave_keys_to_header(wavelength_spectra, header)
-        spectra_interp = spectra_interp * spectra.unit * response_instr
+        spectra_interp = spectra_interp * spectra.unit
         # Take dot product between DEM and spectra
         intensity = np.tensordot(spectra_interp, u.Quantity(dem.data, dem.unit), axes=([0], [0]))
         # Construct cube
+        wave_header = add_wave_keys_to_header(wavelength_spectra, header)
         wave_header['BUNIT'] = intensity.unit.to_string()
         wave_header['NAXIS'] = len(intensity.shape)
         wave_header['WCSAXES'] = len(intensity.shape)
