@@ -24,6 +24,9 @@ class Loop(object):
     field_strength : `astropy.units.Quantity`
         Scalar magnetic field strength along the loop. If not specified, defaults
         to NaN with same shape as ``coordinate``.
+    cross_sectional_area : `astropy.units.Quantity`, optional
+        Cross-sectional area of the loop. If not specified, defaults to :math:`10^14` cm:math:`^2`.
+        This is used to compute the filling factor when computing the line-of-sight intensity.
     model_results_filename : `str`, optional
         Path to file where model results are stored. This will be set by
         `~synthesizAR.Skeleton` when the model results are loaded.
@@ -51,15 +54,12 @@ class Loop(object):
                  name,
                  coordinate,
                  field_strength: u.G=None,
-                 cross_sectional_area: u.cm**2=1e14*u.cm**2,
+                 cross_sectional_area: u.cm**2=None,
                  model_results_filename=None):
         self.name = name
-        self.coordinate = coordinate.transform_to(HeliographicStonyhurst)
-        self.coordinate.representation_type = 'cartesian'
-        if field_strength is None:
-            field_strength = np.nan * np.ones(self.coordinate.shape) * u.G
+        self.coordinate = coordinate
         self.field_strength = field_strength
-        self._cross_sectional_area = cross_sectional_area
+        self.cross_sectional_area = cross_sectional_area
         self.model_results_filename = model_results_filename
         if self.coordinate.shape != self.field_strength.shape:
             raise ValueError('Coordinates and field strength must have same shape.')
@@ -88,6 +88,15 @@ Simulation Type: {self.simulation_type}'''
         """
         return interp1d(self.field_aligned_coordinate.to(u.Mm).value, y.value, **kwargs)(
             self.field_aligned_coordinate_center.to(u.Mm).value) * y.unit
+
+    @property
+    def coordinate(self):
+        return self._coordinate
+
+    @coordinate.setter
+    def coordinate(self, value):
+        self._coordinate = value.transform_to(HeliographicStonyhurst)
+        self._coordinate.representation_type = 'cartesian'
 
     @property
     @u.quantity_input
@@ -177,12 +186,31 @@ Simulation Type: {self.simulation_type}'''
         """
         Cross-sectional area of each field-aligned coordinate grid cell
         """
-        return self._cross_sectional_area * np.ones(self.field_aligned_coordinate.shape)
+        return self._cross_sectional_area
+
+    @cross_sectional_area.setter
+    def cross_sectional_area(self, value):
+        if value is None:
+            value = 1e14*u.cm**2
+        # Ensure that is always has the same shape as the coordinate
+        self._cross_sectional_area = value * np.ones(self.field_aligned_coordinate.shape)
 
     @property
     @u.quantity_input
     def cross_sectional_area_center(self) -> u.cm**2:
         return self._interpolate_to_center_coordinate(self.cross_sectional_area)
+
+    @property
+    @u.quantity_input
+    def field_strength(self) -> u.G:
+        return self._field_strength
+
+    @field_strength.setter
+    def field_strength(self, value):
+        if value is None:
+            self._field_strength = np.nan * np.ones(self.coordinate.shape) * u.G
+        else:
+            self._field_strength = value
 
     @property
     @u.quantity_input

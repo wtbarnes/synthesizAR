@@ -135,7 +135,7 @@ Number of loops: {len(self.loops)}'''
         new_area = f_A(new_s.to(u.Mm)) * loop.cross_sectional_area.unit
         return Loop(loop.name,
                     new_coord,
-                    new_field_strength,
+                    field_strength=new_field_strength,
                     cross_sectional_area=new_area,
                     model_results_filename=loop.model_results_filename)
 
