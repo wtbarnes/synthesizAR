@@ -57,12 +57,16 @@ class InstrumentSDOAIA(InstrumentBase):
         super().__init__(observing_time, observer, resolution, cadence=cadence, **kwargs)
 
     @property
+    def observatory(self):
+        return 'SDO'
+
+    @property
     def detector(self):
-        return self.name.split('_')[-1]
+        return 'AIA'
 
     @property
     def telescope(self):
-        return '/'.join(self.name.split('_'))
+        return 'SDO/AIA'
 
     def get_instrument_name(self, channel):
         return f'{self.detector}_{channel.telescope_number}'

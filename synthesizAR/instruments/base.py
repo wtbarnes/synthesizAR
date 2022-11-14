@@ -95,6 +95,10 @@ class InstrumentBase(object):
     def detector(self):
         return self.name
 
+    @property
+    def observatory(self):
+        return self.name
+
     def get_instrument_name(self, channel):
         return self.name
 
@@ -276,15 +280,14 @@ class InstrumentBase(object):
                 weights=visible,
             )
             hist /= np.where(_hist == 0, 1, _hist)
-        header = self.get_header(channel, coordinates)
-        header['bunit'] = kernels.unit.to_string()
+        header = self.get_header(channel, coordinates, kernels.unit)
         # FIXME: not sure we really want to do this...this changes our coordinate
         # frame but maybe we don't want it to change!
         header['date-obs'] = (self.observer.obstime + time).isot
 
         return Map(hist.T, header)
 
-    def get_header(self, channel, coordinates):
+    def get_header(self, channel, coordinates, unit):
         """
         Create the FITS header for a given channel and set of loop coordinates
         that define the needed FOV.
@@ -300,10 +303,14 @@ class InstrumentBase(object):
             center,
             reference_pixel=(u.Quantity(bins, 'pix') - 1*u.pix) / 2,  # center of the lower left pixel is (0,0)
             scale=self.resolution,
+            observatory=self.observatory,
             instrument=self.get_instrument_name(channel),  # sometimes this depends on the channel
             telescope=self.telescope,
             wavelength=channel.channel,
         )
+        header['detector'] = self.detector
+        # NOTE: once sunpy 4.1 is released, just put this straight into the header helper
+        header['bunit'] = unit.to_string('fits')
         return header
 
     def get_detector_array(self, coordinates):
