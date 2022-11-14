@@ -13,13 +13,18 @@ import astropy.constants as const
 import sunpy.coordinates
 import sunpy.sun.constants as sun_const
 
+import synthesizAR
+
 __all__ = [
     'SpatialPair',
     'los_velocity',
     'coord_in_fov',
     'find_minimum_fov',
     'is_visible',
-    'from_pfsspack'
+    'from_pfsspack',
+    'from_pfsspy',
+    'change_obstime',
+    'change_obstime_frame',
 ]
 
 
@@ -176,3 +181,98 @@ def from_pfsspack(pfss_fieldlines):
         field_strengths.append(np.sqrt(b_r**2 + b_lat**2 + b_lon**2) * u.Gauss)
 
     return [(l, b) for l, b in zip(fieldlines, field_strengths)]
+
+
+def change_obstime(coord, obstime):
+    """
+    Change the obstime of a coordinate, including its observer.
+    """
+    new_observer = coord.observer.replicate(obstime=obstime)
+    return SkyCoord(coord.replicate(observer=new_observer, obstime=obstime))
+
+
+def change_obstime_frame(frame, obstime):
+    """
+    Change the obstime of a coordinate frame, including its observer.
+    """
+    new_observer = frame.observer.replicate(obstime=obstime)
+    return frame.replicate_without_data(observer=new_observer, obstime=obstime)
+
+
+@u.quantity_input
+def from_pfsspy(fieldlines,
+                n_min=0,
+                obstime=None,
+                length_min=20*u.Mm,
+                length_max=3e3*u.Mm,
+                name_template=None,
+                cross_sectional_area=None):
+    """
+    Convert a `pfsspy.fieldline.FieldLines` structure into a list of `~synthesizAR.Loop` objects.
+
+    Parameters
+    ----------
+    fieldlines: `pfsspy.fieldline.FieldLines`
+    n_min: `int`, optional
+        The minimum number of points required to keep a traced fieldline. This is often useful when 
+        trying to filter out very small or erroneous fieldlines.
+    obstime: `astropy.time.Time`, optional
+        The desired obstime of the coordinates. Use this if the coordinates need to be at a
+        different obstime than that of the Carrington map they were traced from.
+    length_min : `astropy.units.Quantity`, optional
+        Minimum allowed loop length. All loops with length below this are excluded.
+    length_max : `astropy.units.Quantity`, optional
+        Maximum allowed loop length. All loops with length above this are excluded.
+    name_template: `str`, optional
+        Name template to use when building loops. Defaults to 'loop_{:06d}'
+    cross_sectional_area: `astropy.units.Quantity`, optional
+        The cross-sectional area to assign to each loop.
+    """
+    from synthesizAR import log
+    if name_template is None:
+        name_template = 'loop_{:06d}'
+    loops = []
+    for i, f in enumerate(fieldlines):
+        if f.coords.shape[0] <= n_min:
+            log.debug(f'Dropping {f} as it has less than {n_min} points.')
+            continue
+        # NOTE: There are some lines along which we cannot find
+        # the field strength.
+        try:
+            if np.isnan(f.b_along_fline).all():
+                log.debug(f'Dropping {f} as field strength along strand is all NaN.')
+                continue
+        except IndexError:
+            # TODO: remember why this exception exists.
+            continue
+        b = np.sqrt((f.b_along_fline**2).sum(axis=1)) * u.G
+        # NOTE: redefine the coordinate at a new obstime. This is useful because the
+        # Carrington map that the coordinates were derived from has a single time for
+        # the entire Carrington rotation, but this is often not the time at which we
+        # need the coordinates defined. If deriving coordinates for a relatively small
+        # (e.g. AR-sized) patch on the Sun, this time should roughly correspond to the time
+        # at which the center of that patch crossed the central meridian.
+        if obstime is not None:
+            coord = change_obstime(f.coords, obstime)
+        else:
+            coord = f.coords
+        # Construct the loop here to easily filter on loop length and interpolate
+        # NaNs from the field strength.
+        loop = synthesizAR.Loop(name_template.format(i),
+                                coord,
+                                field_strength=b,
+                                cross_sectional_area=cross_sectional_area)
+        if loop.length < length_min or loop.length > length_max:
+            log.debug(f'Dropping {loop} as it has length {loop.length} outside of the allowed range.')
+            continue
+        if np.any(np.isnan(loop.field_strength)):
+            # There are often NaN values that show up in the interpolated field strengths.
+            # Interpolate over these.
+            b = loop.field_strength
+            s = loop.field_aligned_coordinate
+            nans = np.isnan(b)
+            b[nans] = np.interp(s[nans].value, s[~nans].value, b[~nans].value) * b.unit
+            loop.field_strength = b
+        loops.append(loop)
+
+    return loops
