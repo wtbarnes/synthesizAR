@@ -1,6 +1,32 @@
-# this contains imports plugins that configure py.test for astropy tests.
-# by importing them here in conftest.py they are discoverable by py.test
-# no matter how it is invoked within the source tree.
+"""
+Configure test skeletons here so that they can be used everywhere
+"""
+import pytest
 
-from astropy.tests.helper import enable_deprecations_as_exceptions
-from pytest_astropy_header.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
+import astropy.units as u
+from sunpy.coordinates import get_earth
+
+import synthesizAR
+from synthesizAR.models import semi_circular_loop, semi_circular_arcade
+from synthesizAR.interfaces import MartensInterface
+
+
+@pytest.fixture
+def bare_skeleton():
+    observer = get_earth(time='2020-01-01T00:00:00')
+    arcade = semi_circular_arcade(100*u.Mm, 20*u.deg, 10, observer)
+    loops = [synthesizAR.Loop(f'{i}', c) for i, c in enumerate(arcade)]
+    return synthesizAR.Skeleton(loops)
+
+
+@pytest.fixture
+def skeleton_with_model(bare_skeleton):
+    interface = MartensInterface(1*u.erg/u.cm**3/u.s)
+    bare_skeleton.load_loop_simulations(interface)
+    return bare_skeleton
+
+
+@pytest.fixture
+def semi_circle_strand(bare_skeleton):
+    coords = semi_circular_loop(length=100*u.Mm)
+    return synthesizAR.Loop('test', coords)

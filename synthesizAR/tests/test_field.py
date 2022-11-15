@@ -4,60 +4,59 @@ Tests for Skeleton object
 import pathlib
 
 import pytest
-import numpy as np
 import astropy.units as u
-import astropy.constants as const
-import astropy.time
 from astropy.coordinates import SkyCoord
-from sunpy.coordinates import HeliographicStonyhurst
-import distributed
-from distributed.utils_test import client, loop, cluster_fixture, cleanup
 
 import synthesizAR
-from synthesizAR.models import semi_circular_arcade
-from synthesizAR.interfaces import MartensInterface
 
 
-@pytest.fixture
-def coordinates():
-    obs = SkyCoord(
-        lon=0*u.deg,
-        lat=0*u.deg,
-        radius=const.au,
-        frame=HeliographicStonyhurst,
-        obstime=astropy.time.Time.now(),
-    )
-    return semi_circular_arcade(100*u.Mm, 20*u.deg, 20, obs, gamma=90*u.deg)
+def test_skeleton_has_loops(bare_skeleton):
+    assert hasattr(bare_skeleton, 'loops')
+    assert type(bare_skeleton.loops) is list
+    for l in bare_skeleton.loops:
+        assert isinstance(l, synthesizAR.Loop)
 
 
-@pytest.fixture
-def field_strengths(coordinates):
-    return [np.nan * np.ones(c.shape) * u.G for c in coordinates]
-
-
-@pytest.fixture
-def interface():
-    return MartensInterface(1*u.erg/u.cm**3/u.s)
-
-
-@pytest.fixture
-def skeleton(coordinates, field_strengths, interface, tmpdir, client):
-    skeleton = synthesizAR.Skeleton.from_coordinates(coordinates, field_strengths)
-    zarr_file = pathlib.Path(tmpdir.mkdir('loop_results')) / 'results.zarr'
-    status = skeleton.load_loop_simulations(interface, str(zarr_file))
-    distributed.wait(status)  # wait until all simulations loaded
-    return skeleton
-
-
-def test_skeleton_has_loops(skeleton, coordinates):
+def test_create_skeleton_from_coords(bare_skeleton):
+    coords = [l.coordinate for l in bare_skeleton.loops]
+    field_strengths = [l.field_strength for l in bare_skeleton.loops]
+    skeleton = synthesizAR.Skeleton.from_coordinates(coords, field_strengths=field_strengths)
     assert hasattr(skeleton, 'loops')
     assert type(skeleton.loops) is list
-    assert len(skeleton.loops) == len(coordinates)
 
 
-def test_loops_have_model_type(skeleton, interface):
-    for l in skeleton.loops:
-        assert l.simulation_type == interface.name
+def test_roundtrip(bare_skeleton, tmpdir):
+    dirname = tmpdir.mkdir('field_checkpoint')
+    filename = pathlib.Path(dirname) / 'test-save.asdf'
+    bare_skeleton.to_asdf(filename)
+    skeleton_2 = synthesizAR.Skeleton.from_asdf(filename)
+    assert len(bare_skeleton.loops) == len(skeleton_2.loops)
+    for i in range(len(bare_skeleton.loops)):
+        l1 = bare_skeleton.loops[i].coordinate.cartesian.xyz
+        l2 = skeleton_2.loops[i].coordinate.cartesian.xyz
+        assert u.allclose(l2, l1, rtol=1e-9)
+
+
+def test_refine_loops(bare_skeleton):
+    bare_skeleton_refined = bare_skeleton.refine_loops(1*u.Mm)
+    assert isinstance(bare_skeleton_refined, synthesizAR.Skeleton)
+    assert len(bare_skeleton_refined.loops) == len(bare_skeleton.loops)
+
+
+@pytest.mark.parametrize(
+    'name',
+    ['all_coordinates_centers',
+     'all_coordinates'],
+)
+def test_coordinate_properties(bare_skeleton, name):
+    assert hasattr(bare_skeleton, name)
+    assert isinstance(getattr(bare_skeleton, name), SkyCoord)
+
+
+def test_loops_have_model_type(skeleton_with_model):
+    for l in skeleton_with_model.loops:
+        assert hasattr(l, 'simulation_type')
+
 
 @pytest.mark.parametrize(
     'name',
@@ -68,29 +67,7 @@ def test_loops_have_model_type(skeleton, interface):
      'velocity',
      'velocity_xyz']
 )
-def test_loops_have_model_quantities(skeleton, name):
+def test_loops_have_model_quantities(skeleton_with_model, name):
     "These quantities exist only after an interface is defined"
-    for l in skeleton.loops:
+    for l in skeleton_with_model.loops:
         assert isinstance(getattr(l, name), u.Quantity)
-
-
-def test_create_skeleton_from_loops(coordinates, field_strengths):
-    loops = []
-    for i, (coord, mag) in enumerate(zip(coordinates, field_strengths)):
-        loops.append(synthesizAR.Loop(f'loop{i}', coord, mag))
-    skeleton = synthesizAR.Skeleton(loops)
-    assert hasattr(skeleton, 'loops')
-    assert type(skeleton.loops) is list
-    assert len(skeleton.loops) == len(coordinates)
-
-
-def test_roundtrip(skeleton, tmpdir):
-    dirname = tmpdir.mkdir('field_checkpoint')
-    filename = pathlib.Path(dirname) / 'test-save.asdf'
-    skeleton.to_asdf(filename)
-    skeleton_2 = synthesizAR.Skeleton.from_asdf(filename)
-    assert len(skeleton.loops) == len(skeleton_2.loops)
-    for i in range(len(skeleton.loops)):
-        l1 = skeleton.loops[i].coordinate.cartesian.xyz
-        l2 = skeleton_2.loops[i].coordinate.cartesian.xyz
-        assert u.allclose(l2, l1, rtol=1e-9)

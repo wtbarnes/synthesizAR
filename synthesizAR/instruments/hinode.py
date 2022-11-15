@@ -7,7 +7,7 @@ import json
 import pkg_resources
 
 import numpy as np
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 from sunpy.map import Map
 import astropy.units as u
 import astropy.io.fits
@@ -16,7 +16,7 @@ import astropy.convolution
 
 from synthesizAR.util import SpatialPair
 from synthesizAR.instruments import InstrumentBase, ChannelBase
-from synthesizAR.analysis import EISCube
+
 
 __all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
 
@@ -269,4 +269,5 @@ class InstrumentHinodeEIS(InstrumentBase):
                                                      channel['gaussian_width']['x'].value, 0))
                       * counts.unit)
 
+        from synthesizAR.analysis import EISCube
         return EISCube(data=counts, header=header, wavelength=response_x)
