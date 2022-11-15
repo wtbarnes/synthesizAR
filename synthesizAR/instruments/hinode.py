@@ -8,30 +8,23 @@ import pkg_resources
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from sunpy.map import Map
 import astropy.units as u
-import astropy.io.fits
 import astropy.constants as const
-import astropy.convolution
+import xrtpy
 
 from synthesizAR.util import SpatialPair
 from synthesizAR.instruments import InstrumentBase, ChannelBase
 
-
 __all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
-
-_TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
-    'synthesizAR', 'instruments/data/hinode_xrt.json')
-with open(_TEMPERATURE_RESPONSE_FILE, 'r') as f:
-    _TEMPERATURE_RESPONSE = json.load(f)
 
 
 @dataclass
 class ChannelXRT(ChannelBase):
-    temperature: u.Quantity
-    response: u.Quantity
-    filter_wheel_1: str
-    filter_wheel_2: str
+    temperature: u.Quantity = None
+    response: u.Quantity = None
+    filter_wheel_1: str = None
+    filter_wheel_2: str = None
+    psf_width: u.Quantity = (1, 1)*u.pixel
 
     def __post_init__(self):
         self.name = f'{self.filter_wheel_1}_{self.filter_wheel_2}'
@@ -40,90 +33,67 @@ class ChannelXRT(ChannelBase):
 class InstrumentHinodeXRT(InstrumentBase):
     name = 'Hinode_XRT'
 
-    def __init__(self, observing_time, observer, **kwargs):
-        self.channels = self._setup_channels()
-        cadence = 20 * u.s
-        resolution = [2.05719995499, 2.05719995499] * u.arcsec/u.pixel
-        super().__init__(observing_time, observer, cadence, resolution, **kwargs)
+    def __init__(self, observing_time, observer, filters, **kwargs):
+        super().__init__(observing_time, observer, **kwargs)
+        self.channels = self._setup_channels(filters)
 
-    def _setup_channels(self):
+    def _setup_channels(self, filters):
         channels = []
-        for k in _TEMPERATURE_RESPONSE:
-            if k in ('name', 'description'):
-                continue
-            x = np.array(_TEMPERATURE_RESPONSE[k]['temperature_response_x'], np.float64)
-            y = np.array(_TEMPERATURE_RESPONSE[k]['temperature_response_y'], np.float64)
-            x = x * u.Unit(_TEMPERATURE_RESPONSE[k]['temperature_response_x_units'])
-            y = y * u.Unit(_TEMPERATURE_RESPONSE[k]['temperature_response_y_units'])
+        for f in filters:
+            trf = xrtpy.response.TemperatureResponseFundamental(f, self.observer.obstime)
+            # Assign filter wheel
+            if f in xrtpy.response.effective_area.index_mapping_to_fw1_name:
+                filter_wheel_1 = f.replace("-", "_")
+                filter_wheel_2 = 'Open'
+            elif f in xrtpy.response.effective_area.index_mapping_to_fw2_name:
+                filter_wheel_1 = 'Open'
+                filter_wheel_2 = f.replace("-", "_")
             c = ChannelXRT(
-                name=k,
-                channel=50*u.angstrom,  # this is just a filler value, not important
-                temperature=x,
-                response=y,
-                filter_wheel_1=_TEMPERATURE_RESPONSE[k]['filter_wheel_1'],
-                filter_wheel_2=_TEMPERATURE_RESPONSE[k]['filter_wheel_2'],
+                temperature=trf.CHIANTI_temperature,
+                # NOTE: switching from DN to counts here because DN is not
+                # supported by the FITS standard
+                response=trf.temperature_response()*u.ct/u.DN,
+                filter_wheel_1=filter_wheel_1,
+                filter_wheel_2=filter_wheel_2,
             )
             channels.append(c)
         return channels
 
     @property
+    def cadence(self) -> u.s:
+        return 20 * u.s
+
+    @property
+    def resolution(self) -> u.arcsec / u.pix:
+        return [2.05719995499, 2.05719995499] * u.arcsec/u.pixel
+
+    @property
+    def observatory(self):
+        return 'Hinode'
+
+    @property
     def detector(self):
-        return self.name.split('_')[-1]
+        return 'XRT'
 
     @property
     def telescope(self):
-        return self.name.split('_')[0]
+        return 'Hinode'
 
     def get_instrument_name(self, channel):
         return self.detector
 
-    def get_header(self, channel, coordinates):
-        header = super().get_header(channel, coordinates)
+    def get_header(self, channel, *args):
+        header = super().get_header(channel, *args)
         header['EC_FW1_'] = channel.filter_wheel_1
         header['EC_FW2_'] = channel.filter_wheel_2
         return header
 
     @staticmethod
     def calculate_intensity_kernel(loop, channel, **kwargs):
-        return np.interp(loop.electron_temperature, channel.temperature, channel.response) * loop.density**2
-
-    def psf_smooth(self, counts, header):
-        """
-        Apply point-spread-function smoothing to XRT image using the PSF given in [1]_
-
-        .. note:: This is not currently used anywhere. Just leaving it in here.
-
-        References
-        ----------
-        .. [1] Afshari, M., et al., AJ, `152, 107 <http://iopscience.iop.org/article/10.3847/0004-6256/152/4/107/meta>`_
-        """
-        tmp = Map(counts, header)
-
-        # Define the PSF
-        def point_spread_function(x, y):
-            r = np.sqrt(x**2 + y**2)
-            a = 1.31946
-            gamma = 1.24891
-            if r <= 3.4176:
-                return a*np.exp(-(r/a)**2)/(gamma**2 + r**2)
-            elif 3.4176 < r <= 5:
-                return 0.03/r
-            elif 5 < r <= 11.1:
-                return 0.15/r
-            elif r >= 11.1:
-                return (11.1)**2*0.15/(r**4)
-
-        # Create lon/lat grid
-        lon = np.linspace(tmp.bottom_left_coord.Tx.value, tmp.top_right_coord.Tx.value, 250+1)
-        lat = np.linspace(tmp.bottom_left_coord.Ty.value, tmp.top_right_coord.Ty.value, 250+1)
-        lon_grid, lat_grid = np.meshgrid(lon, lat)
-        # Make PSF kernel
-        psf_kernel = astropy.convolution.kernels.CustomKernel(
-                        np.vectorize(point_spread_function)(lon_grid, lat_grid))
-        # Convolve with image
-        counts_blurred = astropy.convolution.convolve_fft(counts, psf_kernel)
-
-        return counts_blurred
+        K_T = np.interp(loop.electron_temperature,
+                        channel.temperature,
+                        channel.response)
+        return K_T * loop.density**2
 
 
 class InstrumentHinodeEIS(InstrumentBase):
