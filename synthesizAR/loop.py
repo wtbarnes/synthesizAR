@@ -69,7 +69,8 @@ class Loop(object):
         """
         Root object to Zarr filestore for model results
         """
-        return zarr.open(store=self.model_results_filename, mode='r')
+        if self.model_results_filename is not None:
+            return zarr.open(store=self.model_results_filename, mode='r')
 
     def __repr__(self):
         f0 = f'{self.coordinate.x[0]:.3g},{self.coordinate.y[0]:.3g},{self.coordinate.z[0]:.3g}'
@@ -171,6 +172,15 @@ Simulation Type: {self.simulation_type}'''
         # Avoid doing this calculation twice
         s = self.field_aligned_coordinate
         return (s[:-1] + s[1:])/2
+
+    @property
+    @u.quantity_input
+    def field_aligned_coordinate_center_norm(self) -> u.dimensionless_unscaled:
+        """
+        Center of the field-aligned coordinate normalized to
+        the total loop length
+        """
+        return self.field_aligned_coordinate_center / self.length
 
     @property
     @u.quantity_input

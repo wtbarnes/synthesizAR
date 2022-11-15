@@ -35,7 +35,7 @@ class Skeleton(object):
         self.loops = loops
 
     @classmethod
-    def from_coordinates(cls, coordinates, field_strengths):
+    def from_coordinates(cls, coordinates, field_strengths=None, **kwargs):
         """
         Construct `Skeleton` from list of coordinates and field strengths
 
@@ -47,8 +47,10 @@ class Skeleton(object):
             List of `~astropy.units.Quantity` scalar magnetic field strength along the loop
         """
         loops = []
-        for i, (coord, mag) in enumerate(zip(coordinates, field_strengths)):
-            loops.append(Loop(f'loop{i:06d}', coord, mag))
+        if field_strengths is None:
+            field_strengths = len(coordinates) * [None]
+        for i, (coord, fs) in enumerate(zip(coordinates, field_strengths)):
+            loops.append(Loop(f'loop{i:06d}', coord, field_strength=fs, **kwargs))
         return cls(loops)
 
     def __repr__(self):
