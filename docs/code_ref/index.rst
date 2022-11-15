@@ -6,7 +6,6 @@ API Reference
    :maxdepth: 1
 
    synthesizar
-   synthesizar_analysis
    synthesizar_atomic
    synthesizar_instruments
    synthesizar_interfaces

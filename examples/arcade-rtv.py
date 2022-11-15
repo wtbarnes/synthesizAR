@@ -18,7 +18,7 @@ from synthesizAR.instruments import InstrumentSDOAIA
 
 #########################################################################
 # First, set up the coordinates for loops in the arcade.
-obstime = astropy.time.Time.now()
+obstime = astropy.time.Time('2022-11-14T22:00:00')
 pos = SkyCoord(lon=15*u.deg, lat=25*u.deg, radius=1*u.AU, obstime=obstime, frame='heliographic_stonyhurst')
 arcade_coords = semi_circular_arcade(80*u.Mm, 5*u.deg, 50, pos, inclination=10*u.deg)
 
@@ -32,7 +32,7 @@ arcade = synthesizAR.Skeleton(strands)
 # viewed from Earth.
 earth_observer = get_earth(obstime)
 arcade.peek(observer=earth_observer,
-            axes_limits=[(150, 300)*u.arcsec, (400, 550)*u.arcsec])
+            axes_limits=[(150, 300)*u.arcsec, (275, 425)*u.arcsec])
 
 #########################################################################
 # Next, model the thermal structure of each loop using the RTV scaling laws.
