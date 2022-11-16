@@ -25,7 +25,7 @@ __all__ = [
 
 @dataclass
 class ChannelDEM(ChannelBase):
-    bin_edges: u.Quantity
+    bin_edges: u.Quantity = None
 
     def __post_init__(self):
         self.log_bin_edges = np.log10(self.bin_edges.to('K').value)
@@ -40,7 +40,7 @@ class InstrumentDEM(InstrumentBase):
         self.temperature_bin_edges = temperature_bin_edges
         n_bins = temperature_bin_edges.shape[0]-1
         bin_edges = [temperature_bin_edges[[i, i+1]] for i in range(n_bins)]
-        self.channels = [ChannelDEM(0*u.angstrom, None, be) for be in bin_edges]
+        self.channels = [ChannelDEM(bin_edges=be) for be in bin_edges]
         super().__init__(*args, **kwargs)
 
     @property
@@ -178,7 +178,7 @@ class InstrumentQuantityBase(InstrumentBase):
 
     @u.quantity_input
     def __init__(self, *args, **kwargs):
-        self.channels = [ChannelBase(1, 0*u.angstrom, self.name)]
+        self.channels = [ChannelBase(name=self.name)]
         super().__init__(*args, average_over_los=True, **kwargs)
 
 

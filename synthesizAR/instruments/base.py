@@ -9,7 +9,6 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 import astropy.units as u
 from astropy.coordinates import SkyCoord
-from sunpy.util.metadata import MetaDict
 from sunpy.coordinates.frames import Helioprojective, HeliographicStonyhurst
 from sunpy.map import make_fitswcs_header, Map
 import zarr
@@ -21,8 +20,8 @@ __all__ = ['ChannelBase', 'InstrumentBase']
 
 @dataclass
 class ChannelBase:
-    channel: u.Quantity
-    name: str
+    name: str = None
+    channel: u.Quantity = None
 
 
 class InstrumentBase(object):
@@ -47,25 +46,17 @@ class InstrumentBase(object):
     fov_width : `~astropy.units.Quantity`, optional
     average_over_los : `bool`, optional
     """
-    fits_template = MetaDict()
 
-    @u.quantity_input(observing_time=u.s,
-                      cadence=u.s,
-                      pad_fov=u.arcsec,
-                      fov_width=u.arcsec)
+    @u.quantity_input
     def __init__(self,
                  observing_time: u.s,
                  observer,
-                 resolution,
-                 cadence=None,
-                 pad_fov=None,
+                 pad_fov: u.arcsec = None,
                  fov_center=None,
-                 fov_width=None,
+                 fov_width: u.arcsec = None,
                  average_over_los=False):
         self.observer = observer
-        self.cadence = cadence
-        self._observing_time = observing_time
-        self.resolution = resolution
+        self.observing_time = observing_time
         self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
         self.fov_center = fov_center
         self.fov_width = fov_width
@@ -73,11 +64,23 @@ class InstrumentBase(object):
 
     @property
     def observing_time(self) -> u.s:
-        if self.cadence is None or len(self._observing_time) > 2:
-            return self._observing_time
+        return self._observing_time
+
+    @observing_time.setter
+    def observing_time(self, value):
+        if self.cadence is None or len(value) > 2:
+            self._observing_time = value
         else:
-            return np.arange(*self._observing_time.to('s').value,
-                             self.cadence.to('s').value) * u.s
+            self._observing_time = np.arange(*value.to_value('s'),
+                                             self.cadence.to_value('s')) * u.s
+
+    @property
+    def cadence(self):
+        return None
+
+    @property
+    def resolution(self) -> u.arcsec/u.pix:
+        return (1, 1) * u.arcsec / u.pix
 
     @property
     def observer(self):
@@ -301,16 +304,16 @@ class InstrumentBase(object):
         header = make_fitswcs_header(
             (bins[1], bins[0]),  # swap order because it expects (row,column)
             center,
-            reference_pixel=(u.Quantity(bins, 'pix') - 1*u.pix) / 2,  # center of the lower left pixel is (0,0)
+            reference_pixel=(u.Quantity(bins, 'pix') - 1*u.pix) / 2,  # center of lower left pixel is (0,0)
             scale=self.resolution,
             observatory=self.observatory,
-            instrument=self.get_instrument_name(channel),  # sometimes this depends on the channel
+            instrument=self.get_instrument_name(channel),
             telescope=self.telescope,
             wavelength=channel.channel,
+            unit=unit,
         )
+        # In sunpy v5.0, this will be added to the header helper
         header['detector'] = self.detector
-        # NOTE: once sunpy 4.1 is released, just put this straight into the header helper
-        header['bunit'] = unit.to_string('fits')
         return header
 
     def get_detector_array(self, coordinates):

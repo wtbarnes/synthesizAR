@@ -47,14 +47,20 @@ class InstrumentSDOAIA(InstrumentBase):
             Channel(211*u.angstrom),
             Channel(335*u.angstrom),
         ]
-        cadence = kwargs.pop('cadence', 12.0 * u.s)
-        resolution = kwargs.pop('resolution', [0.600698, 0.600698] * u.arcsec/u.pixel)
         # Add the Gaussian width for the PSF convolution
         psf_params = filter_mesh_parameters(use_preflightcore=True)
         for c in self.channels:
             psf_width = psf_params[c.channel]['width']
             c.psf_width = u.Quantity([psf_width, psf_width])
-        super().__init__(observing_time, observer, resolution, cadence=cadence, **kwargs)
+        super().__init__(observing_time, observer, **kwargs)
+
+    @property
+    def cadence(self) -> u.s:
+        return 12.0 * u.s
+
+    @property
+    def resolution(self) -> u.arcsec / u.pix:
+        return [0.600698, 0.600698] * u.arcsec/u.pixel
 
     @property
     def observatory(self):

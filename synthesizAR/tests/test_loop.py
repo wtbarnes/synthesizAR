@@ -56,7 +56,7 @@ def field_aligned_coordinate():
 @pytest.fixture
 def simple_strand(field_aligned_coordinate):
     observer = get_earth('2020-01-01')
-    coord = semi_circular_loop(s=field_aligned_coordinate, 
+    coord = semi_circular_loop(s=field_aligned_coordinate,
                                observer=observer)
     return synthesizAR.Loop('test', coord)
 
