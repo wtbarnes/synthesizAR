@@ -31,7 +31,7 @@ skeleton = synthesizAR.Skeleton([synthesizAR.Loop(f'{i}', c) for i,c in enumerat
 
 ###############################################################################
 # We'll select a few different observer locations for SDO and STERO-A and use
-# `sunpy.coordinate.get_horizons_coord` to get these locations from the
+# `sunpy.coordinates.get_horizons_coord` to get these locations from the
 # `JPL Horizons service <https://ssd.jpl.nasa.gov/horizons/>`_.
 # We'll approximate the location of *Hinode* as Earth since its location is not
 # available through JPL Horizons.
