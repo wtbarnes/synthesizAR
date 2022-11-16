@@ -214,7 +214,7 @@ def from_pfsspy(fieldlines,
     ----------
     fieldlines: `pfsspy.fieldline.FieldLines`
     n_min: `int`, optional
-        The minimum number of points required to keep a traced fieldline. This is often useful when 
+        The minimum number of points required to keep a traced fieldline. This is often useful when
         trying to filter out very small or erroneous fieldlines.
     obstime: `astropy.time.Time`, optional
         The desired obstime of the coordinates. Use this if the coordinates need to be at a
