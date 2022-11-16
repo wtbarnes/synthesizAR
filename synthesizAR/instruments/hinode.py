@@ -48,6 +48,8 @@ class InstrumentHinodeXRT(InstrumentBase):
             elif f in xrtpy.response.effective_area.index_mapping_to_fw2_name:
                 filter_wheel_1 = 'Open'
                 filter_wheel_2 = f.replace("-", "_")
+            else:
+                raise ValueError(f'{f} is not a valid XRT filter wheel choice.')
             c = ChannelXRT(
                 temperature=trf.CHIANTI_temperature,
                 # NOTE: switching from DN to counts here because DN is not
