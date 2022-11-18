@@ -90,11 +90,12 @@ Number of loops: {len(self.loops)}'''
                 if k in exclude_keys:
                     continue
                 model_results_filename = af.tree[k].get('model_results_filename', None)
+                cross_sectional_area = af.tree[k].get('cross_sectional_area', None)
                 loops.append(Loop(
                     k,
                     SkyCoord(af.tree[k]['coordinate']),
                     af.tree[k]['field_strength'],
-                    cross_sectional_area=af.tree[k]['cross_sectional_area'],
+                    cross_sectional_area=cross_sectional_area,
                     model_results_filename=model_results_filename,
                 ))
         return cls(loops)
