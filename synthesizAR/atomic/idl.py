@@ -48,7 +48,7 @@ make_chianti_spec, transitions,$
                    wrange=wave_range,$
                    abund_name=abund_name,$
                    {% if include_continuum -%}/continuum,${%- endif %}
-                   /photons,$
+                   {% if photons -%}/photons,${%- endif %}
                    /no_thermal_width
 '''
 
@@ -61,6 +61,7 @@ def compute_spectral_table(temperature: u.K,
                            delta_wave: u.angstrom,
                            ioneq_filename,
                            abundance_filename,
+                           photons=True,
                            emission_measure=1*u.Unit('cm-5'),
                            ion_list=None,
                            include_continuum=True,
@@ -125,6 +126,7 @@ def compute_spectral_table(temperature: u.K,
         'ion_list': ion_list,
         'include_continuum': include_continuum,
         'use_lookup_table': use_lookup_table,
+        'photons': photons,
     }
     # NOTE: do not want this as a hard dependency, particularly if
     # just reading a spectral file
@@ -169,10 +171,10 @@ def compute_spectral_table(temperature: u.K,
             wavelength = _wavelength
 
     # Filter out any none entries
+    spec_unit = f"{'ph' if photons else 'erg'} cm3 angstrom-1 s-1 sr-1"
     for i, spec in enumerate(all_spectra):
         if spec is None:
-            all_spectra[i] = u.Quantity(np.zeros(wavelength.shape),
-                                        'cm3 ph angstrom-1 s-1 sr-1')
+            all_spectra[i] = u.Quantity(np.zeros(wavelength.shape), spec_unit)
 
     # Build NDCube
     spectrum = u.Quantity(all_spectra)
@@ -226,7 +228,10 @@ def _get_isothermal_spectra(env, input_args):
     # Divide through to get the units right
     spectrum /= input_args['emission_measure']
 
-    return wavelength.to('Angstrom'), spectrum.to('cm3 ph angstrom-1 s-1 sr-1')
+    spec_unit = 'ph' if input_args['photons'] else 'erg'
+    spec_unit = f'{spec_unit} cm3 angstrom-1 s-1 sr-1'
+
+    return wavelength.to('Angstrom'), spectrum.to(spec_unit)
 
 
 def get_chianti_version(env):
