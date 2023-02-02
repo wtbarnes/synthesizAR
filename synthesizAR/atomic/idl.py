@@ -21,13 +21,13 @@ __all__ = [
 _chianti_script = '''
 ioneq_name = '{{ [ ssw_home, 'packages/chianti/dbase/ioneq', ioneq_file ] | join('/') }}'
 abund_name = '{{ [ ssw_home, 'packages/chianti/dbase/abundance', abundance_file ] | join('/') }}'
-wave_min = {{ wave_min | to_unit('Angstrom') }}
-wave_max = {{ wave_max | to_unit('Angstrom') }}
+wave_min = {{ wave_min | to_unit('Angstrom') | force_double_precision }}
+wave_max = {{ wave_max | to_unit('Angstrom') | force_double_precision }}
 wave_range = [wave_min, wave_max]
-delta_wave = {{ delta_wave | to_unit('Angstrom') }}
-log_temperature = {{ temperature | to_unit('K') | log10 }}
-log_em = {{ emission_measure | to_unit('cm-5') | log10 }}
-density = {{ density | to_unit('cm-3') }}
+delta_wave = {{ delta_wave | to_unit('Angstrom') | force_double_precision }}
+log_temperature = {{ temperature | to_unit('K') | log10 | force_double_precision }}
+log_em = {{ emission_measure | to_unit('cm-5') | log10 | force_double_precision }}
+density = {{ density | to_unit('cm-3') | force_double_precision }}
 
 ;generate transition structure for selected wavelength and temperature range
 ch_synthetic, wave_min,$

@@ -19,7 +19,7 @@ __all__ = ['InstrumentSDOAIA', 'aia_kernel_quick']
 
 _TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
     'synthesizAR', 'instruments/data/aia_temperature_response.asdf')
-with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r') as af:
+with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r', copy_arrays=True) as af:
     _TEMPERATURE_RESPONSE = af.tree
 
 

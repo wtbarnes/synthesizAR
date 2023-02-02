@@ -93,8 +93,9 @@ class InstrumentDEM(InstrumentBase):
         wavelength_spectra = spectra.axis_world_coords(1)[0]
         temperature_spectra = spectra.axis_world_coords(0)[0].to(temperature_bin_centers.unit)
         # Interpolate spectral cube to DEM temperatures
-        spectra_interp = interp1d(temperature_spectra.value, spectra.data, axis=0)(
-                                  temperature_bin_centers.value)
+        f_interp = interp1d(temperature_spectra.value, spectra.data,
+                            axis=0, bounds_error=False, fill_value=0.0)
+        spectra_interp = f_interp(temperature_bin_centers.value)
         spectra_interp = spectra_interp * spectra.unit
         # Take dot product between DEM and spectra
         intensity = np.tensordot(spectra_interp, u.Quantity(dem.data, dem.unit), axes=([0], [0]))
