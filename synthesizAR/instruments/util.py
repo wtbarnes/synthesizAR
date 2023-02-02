@@ -11,21 +11,22 @@ __all__ = ['get_wave_keys', 'add_wave_keys_to_header', 'extend_celestial_wcs']
 
 
 @u.quantity_input
-def get_wave_keys(wavelength_array: u.angstrom):
+def get_wave_keys(wavelength_array: u.angstrom, index=3):
     return {
-        'CDELT3': (wavelength_array[1] - wavelength_array[0]).value,
-        'CTYPE3': 'WAVE',
-        'CUNIT3': wavelength_array.unit.to_string(),
-        'CRPIX3': 1,
-        'CRVAL3': wavelength_array[0].value,
-        'NAXIS3': wavelength_array.shape[0],
+        f'CDELT{index}': (wavelength_array[1] - wavelength_array[0]).value,
+        f'CTYPE{index}': 'WAVE',
+        f'CUNIT{index}': wavelength_array.unit.to_string(),
+        f'CRPIX{index}': 1,
+        f'CRVAL{index}': wavelength_array[0].value,
+        f'NAXIS{index}': wavelength_array.shape[0],
     }
 
 
 @u.quantity_input
 def add_wave_keys_to_header(wavelength_array: u.angstrom, header):
     header_copy = copy.deepcopy(header)
-    wave_keys = get_wave_keys(wavelength_array)
+    index = header_copy.get('WCSAXES', 0) + 1
+    wave_keys = get_wave_keys(wavelength_array, index=index)
     for wk in wave_keys:
         header_copy[wk] = wave_keys[wk]
     return header_copy
