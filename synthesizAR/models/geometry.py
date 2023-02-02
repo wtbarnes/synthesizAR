@@ -18,7 +18,8 @@ def semi_circular_loop(length: u.cm=None,
                        n_points=1000,
                        offset: u.cm = 0*u.cm,
                        gamma: u.deg = 0*u.deg,
-                       inclination: u.deg = 0*u.deg,):
+                       inclination: u.deg = 0*u.deg,
+                       ellipticity=0):
     """
     Generate coordinates for a semi-circular loop
 
@@ -47,6 +48,11 @@ def semi_circular_loop(length: u.cm=None,
         Angle between the HCC z-axis and the loop plane. An inclination of 0 corresponds
         to a loop that extends vertically only in the z-direction while an inclination
         of 90 degrees corresponds to a loop that lies entirely in the HCC x-y plane.
+    ellipticity : `float`
+        Must be between -1 and +1. If > 0, the loop will be "tall and skinny" and if
+        < 0, the loop will be "short and fat". Note that if this value is nonzero,
+        ``length`` is no longer the actual loop length because the loop is no longer
+        semi-circular.
     """
     if s is None and length is None:
         raise ValueError('Must specify field-aligned coordinate or loop length')
@@ -59,6 +65,13 @@ def semi_circular_loop(length: u.cm=None,
         raise ValueError('Specify either length or field-aligned coordinate but not both.')
     z = length / np.pi * np.sin(angles)
     x = -length / np.pi * np.cos(angles)  # add negative sign so that s=0 is the left foot point
+    # Account for possible ellipticity. Note that the distance between the footpoints and the height
+    # will never be less than the semi-circular case, but it may be greater
+    elliptical_factor = 1.0 / np.sqrt(1 - ellipticity**2)
+    if ellipticity >= 0:
+        z *= elliptical_factor
+    else:
+        x *= elliptical_factor
     # Define origin in HCC coordinates such that the midpoint of the loop
     # is centered on the origin at the solar surface
     if observer is None:
