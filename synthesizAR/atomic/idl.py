@@ -29,6 +29,13 @@ log_temperature = {{ temperature | to_unit('K') | log10 | force_double_precision
 log_em = {{ emission_measure | to_unit('cm-5') | log10 | force_double_precision }}
 density = {{ density | to_unit('cm-3') | force_double_precision }}
 
+; define the wavelength grid here so that we can access it even if make_chianti_spec fails
+; this is the same way the wavelength grid is defined in make_chianti_spec
+; this will always be in Angstroms given the above unit conversion
+wavelength = dindgen(ROUND((wave_range[1] - wave_range[0]) / delta_wave + 1 )) * delta_wave + wave_range[0]
+in = where(wavelength GE wave_range[0] AND wavelength LE  wave_range[1], ng)
+wavelength = wavelength[in]
+
 ;generate transition structure for selected wavelength and temperature range
 ch_synthetic, wave_min,$
               wave_max,$
@@ -44,11 +51,10 @@ ch_synthetic, wave_min,$
 make_chianti_spec, transitions,$
                    wavelength,$
                    spectrum,$
-                   bin_size=delta_wave,$
-                   wrange=wave_range,$
                    abund_name=abund_name,$
                    {% if include_continuum -%}/continuum,${%- endif %}
                    {% if photons -%}/photons,${%- endif %}
+                   {% if include_all_lines -%}/all,${%- endif %}
                    /no_thermal_width
 '''
 
@@ -66,6 +72,7 @@ def compute_spectral_table(temperature: u.K,
                            ion_list=None,
                            include_continuum=True,
                            use_lookup_table=False,
+                           include_all_lines=True,
                            chianti_dir=None):
     """
     Compute spectra for a range of temperatures using CHIANTI IDL in SSW.
@@ -100,6 +107,9 @@ def compute_spectral_table(temperature: u.K,
     include_continuum: `bool`, optional
         If True, include free-free, free-bound, and two-photon continuum
         contributions to the spectra.
+    include_all_lines: `bool`, optional
+        If True, include "unobserved" lines (which are denoted by negative
+        wavelengths in CHIANTI).
     chianti_dir: `str` or path-like, optional
         Path to the top level of CHIANTI installation, including directories
         for IDL code and database files. If not specified, the default CHIANTI
@@ -125,6 +135,7 @@ def compute_spectral_table(temperature: u.K,
         'abundance_file': abundance_filename,
         'ion_list': ion_list,
         'include_continuum': include_continuum,
+        'include_all_lines': include_all_lines,
         'use_lookup_table': use_lookup_table,
         'photons': photons,
     }
@@ -163,12 +174,8 @@ def compute_spectral_table(temperature: u.K,
         input_args['temperature'] = T
         input_args['density'] = n
         log.debug(f'Computing spectra for (T,n) = ({T}, {n})')
-        _wavelength, spec = _get_isothermal_spectra(env, input_args)
+        wavelength, spec = _get_isothermal_spectra(env, input_args)
         all_spectra.append(spec)
-        # This ensures that wavelength is never None unless
-        # everything is None
-        if _wavelength is not None:
-            wavelength = _wavelength
 
     # Filter out any none entries
     spec_unit = f"{'ph' if photons else 'erg'} cm3 angstrom-1 s-1 sr-1"
@@ -205,14 +212,16 @@ def _get_isothermal_spectra(env, input_args):
     f = io.StringIO()
     with contextlib.redirect_stdout(f):
         output = env.run(_chianti_script, args=input_args,
-                         save_vars=['spectrum'])
+                         save_vars=['spectrum', 'wavelength'])
     idl_msg = f.getvalue()
     log.debug(idl_msg)
+    wavelength = output['wavelength']
+    wave_unit = u.Unit('Angstrom')
+    wavelength = u.Quantity(wavelength, wave_unit)
     if 'No lines in the selected wavelength range !' in idl_msg:
         log.warning(idl_msg)
-        return None, None
+        return wavelength, None
     spectrum = output['spectrum']['spectrum'][0]
-    wavelength = output['spectrum']['lambda'][0]
     units = output['spectrum']['units'][0]
     # The unit string from CHIANTI uses representations astropy
     # does not like so we fake those units
@@ -220,8 +229,6 @@ def _get_isothermal_spectra(env, input_args):
         u.def_unit('photons', represents=u.photon),
         u.def_unit('Angstroms', represents=u.Angstrom)
     ])
-    wave_unit = u.Unit(units[0].decode('utf-8'))
-    wavelength = u.Quantity(wavelength, wave_unit)
     spectrum_unit = u.Unit(units[1].decode('utf-8'))
     spectrum = u.Quantity(spectrum, spectrum_unit)
     # Originally, the spectrum was computed assuming unit EM.
@@ -281,6 +288,10 @@ def spectrum_to_cube(spectrum, wavelength, temperature, density=None, meta=None)
     -------
     : `~ndcube.NDCube`
     """
+    # FIXME: This should properly account for the fact that these are actually wavelength
+    # bins with finite width. Note quite sure how to do this with a gwcs yet, but Dan's
+    # advice is to properly construct your gwcs so that it knows that certain coordinates
+    # correspond to bind centers while others correspond to bin edges.
     gwcs = (
         QuantityTableCoordinate(wavelength, physical_types='em.wl') &
         QuantityTableCoordinate(temperature, physical_types='phys.temperature')
@@ -313,6 +324,7 @@ def read_spectral_table(filename):
         meta_keys = ['ioneq_filename',
                      'abundance_filename',
                      'ion_list',
-                     'version']
+                     'version',
+                     'include_continuum']
         meta = {k: af[k] if k in af else None for k in meta_keys}
     return spectrum_to_cube(spectrum, wavelength, temperature, density=density, meta=meta)
