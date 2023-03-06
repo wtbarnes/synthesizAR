@@ -52,6 +52,8 @@ make_chianti_spec, transitions,$
                    wavelength,$
                    spectrum,$
                    abund_name=abund_name,$
+                   bin_size=delta_wave,$
+                   wrange=wave_range,$
                    {% if include_continuum -%}/continuum,${%- endif %}
                    {% if photons -%}/photons,${%- endif %}
                    {% if include_all_lines -%}/all,${%- endif %}
@@ -144,7 +146,6 @@ def compute_spectral_table(temperature: u.K,
     import hissw
     if chianti_dir is not None:
         ssw_packages = None
-        ssw_paths = None
         idl_root = os.path.join(chianti_dir, 'idl')
         dbase_root = os.path.join(chianti_dir, 'dbase')
         # Set up extra paths
@@ -154,16 +155,13 @@ def compute_spectral_table(temperature: u.K,
         defsysv,'!abund_file','{os.path.join(dbase_root, 'abundance', abundance_filename)}'
         defsysv,'!ioneq_file','{os.path.join(dbase_root, 'ioneq', ioneq_filename)}'
         '''
-        # Set up header
     else:
         # Use SSW installed CHIANTI
         ssw_packages = ['chianti']
-        ssw_paths = ['chianti']
         header = None
         extra_paths = None
     env = hissw.Environment(
         ssw_packages=ssw_packages,
-        ssw_paths=ssw_paths,
         header=header,
         extra_paths=extra_paths,
     )
