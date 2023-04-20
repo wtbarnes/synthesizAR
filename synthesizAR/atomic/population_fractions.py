@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as u
 from scipy.interpolate import interp1d
 
-__all__ = ['equilibrium_ionization', 'non_equilibrium_ionization']
+__all__ = ['equilibrium_ionization', 'non_equilibrium_ionization', 'effective_temperature']
 
 
 @u.quantity_input
@@ -40,6 +40,9 @@ def non_equilibrium_ionization(element, time: u.s, temperature: u.K, density: u.
     Compute the ionization fraction in non-equilibrium for a given temperature and density
     timeseries.
 
+    Compute the time-dependent ionization fractions of a given element out of equilibrium.
+    This method is described in [1]_ and in more detail in the Appendix of [2]_.
+
     Parameters
     ----------
     element : `~fiasco.Element`
@@ -53,6 +56,7 @@ def non_equilibrium_ionization(element, time: u.s, temperature: u.K, density: u.
     References
     ----------
     .. [1] Macneice, P., 1984, Sol Phys, `90, 357 <http://adsabs.harvard.edu/abs/1984SoPh...90..357M>`_
+    .. [2] Barnes, W.T. et al., 2019, ApJ, `880, 56 <https://ui.adsabs.harvard.edu/abs/2019ApJ...880...56B>`_
     """
     # Find index of the rate_matrix array (corresponding to the temperature) that is closest to
     # each value of the input temperature. This is then used to select appropriate rate_matrix
@@ -82,3 +86,32 @@ def non_equilibrium_ionization(element, time: u.s, temperature: u.K, density: u.
                           'Consider choosing a smaller timestep.')
 
     return u.Quantity(y)
+
+
+def effective_temperature(element, time, temperature, density, **kwargs):
+    """
+    Compute the effective temperature for a plasma out of ionization equilibrium.
+
+    For a given time-dependent temperature and density, use the time-dependent
+    ionization fractions of a given element to compute the temperature one would
+    infer if the plasma were assumed to be in equilibrium. This method is described
+    in detail in [3]_. This method is a good proxy for understanding how the assumption
+    of ionization equilibrium may lead to an underestimation of the actual underlying
+    plasma temperature.
+
+    References
+    ----------
+    .. [3] Bradshaw, S.J., 2009, A&A, `502, 409 <http://adsabs.harvard.edu/abs/2009A%26A...502..409B>`_
+    """
+    frac_nei = non_equilibrium_ionization(element, time, temperature, density, **kwargs)
+    # NOTE: For each timestep, the line below does the following:
+    # 1. Compute the absolute difference between the ionization state out of equilibrium and the
+    #    equilibrium state at each temperature.
+    # 2. Sum these differences over all ionization states for each temperature
+    # 3. Find the (temperature) index whose sum is the smallest.
+    # 4. Use that index to find the corresponding equilibrium temperature
+    # In this way, the effective temperature is the equilibrium temperature that has the set of
+    # ionization states that most closely matches the ionization state out of equilibrium at that
+    # given timestep.
+    ioneq = element.equilibrium_ionization
+    return element.temperature[[(np.fabs(ioneq - nei)).sum(axis=1).argmin() for nei in frac_nei]]
