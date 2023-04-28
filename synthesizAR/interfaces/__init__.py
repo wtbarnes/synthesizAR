@@ -4,4 +4,4 @@ Extensions for configuring input files for and loading results from hydrodynamic
 
 from .rtv import *
 from .martens import *
-from .hydrad import *
+from .isothermal import *
