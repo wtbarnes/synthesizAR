@@ -1,7 +1,9 @@
 """
 Base class for instrument objects.
 """
-import os
+import copy
+import tempfile
+import pathlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -14,6 +16,7 @@ from sunpy.map import make_fitswcs_header, Map
 import zarr
 
 from synthesizAR.util import is_visible, find_minimum_fov
+from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['ChannelBase', 'InstrumentBase']
 
@@ -155,6 +158,8 @@ class InstrumentBase(object):
             client = None
         coordinates = skeleton.all_coordinates
         coordinates_centers = skeleton.all_coordinates_centers
+        bins, bin_range = self.get_detector_array(coordinates)
+        coordinates_centers_projected = coordinates_centers.transform_to(self.projected_frame)
         maps = {}
         for channel in channels:
             # Compute intensity as a function of time and field-aligned coordinate
@@ -167,45 +172,67 @@ class InstrumentBase(object):
                 kernel_interp_futures = client.map(self.interpolate_to_instrument_time,
                                                    kernel_futures,
                                                    skeleton.loops,
-                                                   observing_time=self.observing_time)
+                                                   observing_time=(self.observing_time.value, self.observing_time.unit.to_string()))
             else:
-                # Seriel
+                # Serial
                 kernels_interp = []
                 for l in skeleton.loops:
                     k = self.calculate_intensity_kernel(l, channel=channel, **kwargs)
                     k = self.interpolate_to_instrument_time(
-                        k, l, observing_time=self.observing_time,
+                        k, l, observing_time=(self.observing_time.value, self.observing_time.unit.to_string()),
                     )
                     kernels_interp.append(k)
 
             if kwargs.get('save_kernels_to_disk', False):
-                files = client.map(self.write_kernel_to_file,
-                                   kernel_interp_futures,
-                                   skeleton.loops,
-                                   channel=channel,
-                                   name=self.name)
-                # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
-                distributed.wait(files)
-                kernels = self.observing_time.shape[0]*[None]  # placeholder so we know to read from a file
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    self._make_stacked_kernel_array(tmpdir, skeleton.loops, channel)
+                    indices = self._find_loop_array_bounds(skeleton.loops)
+                    files = client.map(self.write_kernel_to_file,
+                                       kernel_interp_futures,
+                                       skeleton.loops,
+                                       indices,
+                                       channel=channel,
+                                       name=self.name,
+                                       tmp_store=tmpdir)
+                    # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
+                    distributed.wait(files)
+                    self._rechunk_stacked_kernels(tmpdir, skeleton.loops[0].model_results_filename, channel)
+                    kernels = self.observing_time.shape[0]*[None]  # placeholder so we know to read from a file
             else:
                 # NOTE: this can really blow up your memory if you are not careful
-                kernels = np.concatenate(client.gather(kernel_interp_futures) if client else kernels_interp, axis=1)
+                if client:
+                    kernels_interp = client.gather(kernel_interp_futures)
+                kernels = np.concatenate([u.Quantity(*k) for k in kernels_interp], axis=1)
 
+            header = self.get_header(channel, coordinates)
+            # Build a map for each timestep
             maps[channel.name] = []
-            for i, t in enumerate(self.observing_time):
-                m = self.integrate_los(t, channel, skeleton, coordinates, coordinates_centers,
-                                       kernels=kernels[i], check_visible=check_visible)
+            for i, time in enumerate(self.observing_time):
+                m = self.integrate_los(
+                    time,
+                    channel,
+                    skeleton,
+                    coordinates_centers_projected,
+                    bins,
+                    bin_range,
+                    header,
+                    kernels=kernels[i],
+                    check_visible=check_visible)
                 m = self.convolve_with_psf(m, channel)
                 if save_directory is None:
                     maps[channel.name].append(m)
                 else:
-                    fname = os.path.join(save_directory, f'm_{channel.name}_t{i}.fits')
+                    fname = pathlib.Path(save_directory) / f'm_{channel.name}_t{i}.fits'
                     m.save(fname, overwrite=True)
                     maps[channel.name].append(fname)
         return maps
 
     @staticmethod
-    def write_kernel_to_file(kernel, loop, channel, name):
+    def write_kernel_to_file(kernel, loop, indices, channel, name, tmp_store):
+        # NOTE: remove this once https://github.com/dask/distributed/issues/6808 is fixed
+        kernel = u.Quantity(*kernel)
+
+        # Save to individual loop dataset
         root = zarr.open(loop.model_results_filename, 'a')
         if name not in root[loop.name]:
             root[loop.name].create_group(name)
@@ -216,59 +243,108 @@ class InstrumentBase(object):
             overwrite=True,
         )
         ds.attrs['unit'] = kernel.unit.to_string()
+        # Map into stacked array
+        tmp_root = zarr.open(tmp_store, 'a')
+        ds_stacked = tmp_root[f'{name}/{channel.name}_stacked_kernels']
+        ds_stacked[:, indices[0]:indices[1]] = kernel.value
+        ds_stacked.attrs['unit'] = kernel.unit.to_string()
+
+    def _make_stacked_kernel_array(self, store, loops, channel):
+        """
+        If it does not already exist, create the stacked array for all
+        kernels for each loop
+        """
+        root = zarr.open(store, 'a')
+        if f'{self.name}/{channel.name}_stacked_kernels' not in root:
+            n_space = sum([l.electron_temperature.shape[1] for l in loops])
+            shape = self.observing_time.shape + (n_space,)
+            root.create_dataset(
+                f'{self.name}/{channel.name}_stacked_kernels',
+                shape=shape,
+                chunks=(shape[0], n_space//len(loops)),
+                overwrite=True,
+            )
+
+    def _rechunk_stacked_kernels(self, tmp_store, final_store, channel):
+        """
+        Rechunk the stacked kernels array. This is necessary because our write pattern is in chunks
+        at all time steps associated with a single loop, but our read pattern is a single time step
+        for all loops.
+        """
+        # NOTE: for large stacked kernel arrays, this may not be possible because this requires
+        # reading the whole array into memory. See this section of the Zarr docs:
+        # https://zarr.readthedocs.io/en/stable/tutorial.html#changing-chunk-shapes-rechunking
+        tmp_root = zarr.open(tmp_store, 'r')
+        tmp_ds = tmp_root[f'{self.name}/{channel.name}_stacked_kernels']
+        tmp = tmp_ds[...]
+        final_root = zarr.open(final_store, 'a')
+        ds = final_root.create_dataset(
+            f'{self.name}/{channel.name}_stacked_kernels',
+            data=tmp,
+            chunks=(1, tmp.shape[1]),
+            overwrite=True,
+        )
+        ds.attrs['unit'] = tmp_ds.attrs['unit']
+
+    def _find_loop_array_bounds(self, loops):
+        """
+        This finds the indices for where each loop maps into the
+        stacked kernel array
+        """
+        root = zarr.open(loops[0].model_results_filename, 'a')
+        index_running = 0
+        index_bounds = []
+        for loop in loops:
+            kernel = root[f'{loop.name}/electron_temperature']
+            index_bounds.append((index_running, index_running+kernel.shape[1]))
+            index_running += kernel.shape[1]
+        return index_bounds
 
     @staticmethod
+    @return_quantity_as_tuple
     def interpolate_to_instrument_time(kernel, loop, observing_time, axis=0):
         """
         Interpolate the intensity kernel from the simulation time to the cadence
         of the instrument for the desired observing window.
         """
+        # NOTE: remove this once https://github.com/dask/distributed/issues/6808 is fixed
+        observing_time = u.Quantity(*observing_time)
+        kernel_value, kernel_unit = kernel
+
         time = loop.time
         if time.shape == (1,):
             if time != observing_time:
                 raise ValueError('Model and observing times are not equal for a single model time step.')
-            return kernel
+            return u.Quantity(*kernel)
         f_t = interp1d(time.to(observing_time.unit).value,
-                       kernel.value,
+                       kernel_value,
                        axis=axis,
                        fill_value='extrapolate')
-        kernel_interp = u.Quantity(f_t(observing_time.value), kernel.unit)
+        kernel_interp = u.Quantity(f_t(observing_time.value), kernel_unit)
         return kernel_interp
 
-    def integrate_los(self, time, channel, skeleton, coordinates, coordinates_centers, kernels=None, check_visible=False):
-        # Get Coordinates
-        coords = coordinates_centers.transform_to(self.projected_frame)
+    def integrate_los(self, time, channel, skeleton, coordinates_centers, bins, bin_range, header,
+                      kernels=None, check_visible=False):
         # Compute weights
-        widths = np.concatenate([l.field_aligned_coordinate_width for l in skeleton.loops])
-        loop_area = np.concatenate([l.cross_sectional_area_center for l in skeleton.loops])
         if kernels is None:
-            import distributed
             i_time = np.where(time == self.observing_time)[0][0]
-            client = distributed.get_client()
             root = skeleton.loops[0].zarr_root
-            # NOTE: do this outside of the client.map call to make Dask happy
-            path = f'{{}}/{self.name}/{channel.name}'
-            kernels = np.concatenate(client.gather(client.map(
-                lambda l: root[path.format(l.name)][i_time, :],
-                skeleton.loops,
-            )))
-            unit_kernel = u.Unit(
-                root[f'{skeleton.loops[0].name}/{self.name}/{channel.name}'].attrs['unit'])
-            kernels = kernels * unit_kernel
+            ds = root[f'{self.name}/{channel.name}_stacked_kernels']
+            kernels = u.Quantity(ds[i_time, :], ds.attrs['unit'])
         # If a volumetric quantity, integrate over the cell and normalize by pixel area.
         # For some quantities (e.g. temperature, velocity), we just want to know the
         # average along the LOS
         if not self.average_over_los:
-            kernels *= (loop_area / self.pixel_area).decompose() * widths
+            kernels *= (skeleton.all_cross_sectional_areas / self.pixel_area).decompose() * skeleton.all_widths
         if check_visible:
-            visible = is_visible(coords, self.observer)
+            visible = is_visible(coordinates_centers, self.observer)
         else:
             visible = np.ones(kernels.shape)
         # Bin
-        bins, (blc, trc) = self.get_detector_array(coordinates)
+        blc, trc = bin_range
         hist, _, _ = np.histogram2d(
-            coords.Tx.value,
-            coords.Ty.value,
+            coordinates_centers.Tx.value,
+            coordinates_centers.Ty.value,
             bins=bins,
             range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
             weights=kernels.value * visible,
@@ -276,21 +352,25 @@ class InstrumentBase(object):
         # For some quantities, need to average over all components along a given LOS
         if self.average_over_los:
             _hist, _, _ = np.histogram2d(
-                coords.Tx.value,
-                coords.Ty.value,
+                coordinates_centers.Tx.value,
+                coordinates_centers.Ty.value,
                 bins=bins,
                 range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
                 weights=visible,
             )
             hist /= np.where(_hist == 0, 1, _hist)
-        header = self.get_header(channel, coordinates, kernels.unit)
-        # FIXME: not sure we really want to do this...this changes our coordinate
-        # frame but maybe we don't want it to change!
-        header['date-obs'] = (self.observer.obstime + time).isot
+        new_header = copy.deepcopy(header)
+        new_header['bunit'] = kernels.unit.to_string('fits')
+        # NOTE: Purposefully using a nonstandard key to record this time as we do not
+        # want this to have the implicit consequence of changing the coordinate frame
+        # by changing a more standard time key. However, still want to record this
+        # information somewhere in the header.
+        # FIXME: Figure out a better way to deal with this.
+        new_header['date_sim'] = (self.observer.obstime + time).isot
 
-        return Map(hist.T, header)
+        return Map(hist.T, new_header)
 
-    def get_header(self, channel, coordinates, unit):
+    def get_header(self, channel, coordinates, unit=None):
         """
         Create the FITS header for a given channel and set of loop coordinates
         that define the needed FOV.
@@ -309,11 +389,10 @@ class InstrumentBase(object):
             observatory=self.observatory,
             instrument=self.get_instrument_name(channel),
             telescope=self.telescope,
+            detector=self.detector,
             wavelength=channel.channel,
             unit=unit,
         )
-        # In sunpy v5.0, this will be added to the header helper
-        header['detector'] = self.detector
         return header
 
     def get_detector_array(self, coordinates):
