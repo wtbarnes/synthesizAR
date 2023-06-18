@@ -187,15 +187,19 @@ class InstrumentBase(object):
                 with tempfile.TemporaryDirectory() as tmpdir:
                     self._make_stacked_kernel_array(tmpdir, skeleton.loops, channel)
                     indices = self._find_loop_array_bounds(skeleton.loops)
-                    files = client.map(self.write_kernel_to_file,
-                                       kernel_interp_futures,
-                                       skeleton.loops,
-                                       indices,
-                                       channel=channel,
-                                       name=self.name,
-                                       tmp_store=tmpdir)
-                    # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
-                    distributed.wait(files)
+                    if client:
+                        files = client.map(self.write_kernel_to_file,
+                                           kernel_interp_futures,
+                                           skeleton.loops,
+                                           indices,
+                                           channel=channel,
+                                           name=self.name,
+                                           tmp_store=tmpdir)
+                        # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
+                        distributed.wait(files)
+                    else:
+                        for k, l, i in zip(kernels_interp, skeleton.loops, indices):
+                            self.write_kernel_to_file(k, l, i, channel, self.name, tmpdir)
                     self._rechunk_stacked_kernels(tmpdir, skeleton.loops[0].model_results_filename, channel)
                     kernels = self.observing_time.shape[0]*[None]  # placeholder so we know to read from a file
             else:
