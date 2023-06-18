@@ -295,7 +295,7 @@ def spectrum_to_cube(spectrum, wavelength, temperature, density=None, meta=None)
         QuantityTableCoordinate(temperature, physical_types='phys.temperature')
     ).wcs
     spec_cube = ndcube.NDCube(spectrum, wcs=gwcs, meta=meta)
-    if density:
+    if density is not None:
         spec_cube.extra_coords.add('density', (0,), density, physical_types='phys.density')
     return spec_cube
 
