@@ -14,6 +14,7 @@ from aiapy.psf import filter_mesh_parameters
 from scipy.interpolate import interp1d, interpn
 
 from synthesizAR.instruments import InstrumentBase
+from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['InstrumentSDOAIA', 'aia_kernel_quick']
 
@@ -78,6 +79,7 @@ class InstrumentSDOAIA(InstrumentBase):
         return f'{self.detector}_{channel.telescope_number}'
 
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, channel, **kwargs):
         em_model = kwargs.get('emission_model', None)
         if em_model:

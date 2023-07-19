@@ -199,6 +199,7 @@ class InstrumentLOSVelocity(InstrumentQuantityBase):
     name = 'los_velocity'
 
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, *args, **kwargs):
         observer = kwargs.get('observer')
         if observer is None:
@@ -210,5 +211,6 @@ class InstrumentTemperature(InstrumentQuantityBase):
     name = 'temperature'
 
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, *args, **kwargs):
         return loop.electron_temperature
