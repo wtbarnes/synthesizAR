@@ -14,6 +14,7 @@ import xrtpy
 
 from synthesizAR.util import SpatialPair
 from synthesizAR.instruments import InstrumentBase, ChannelBase
+from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
 
@@ -91,6 +92,7 @@ class InstrumentHinodeXRT(InstrumentBase):
         return header
 
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, channel, **kwargs):
         K_T = np.interp(loop.electron_temperature,
                         channel.temperature,

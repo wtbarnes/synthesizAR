@@ -1,6 +1,8 @@
 """
 Container for fieldlines in three-dimensional magnetic skeleton
 """
+from functools import cached_property
+
 import numpy as np
 from scipy.interpolate import splev, splprep, interp1d
 import astropy.units as u
@@ -101,7 +103,7 @@ Number of loops: {len(self.loops)}'''
         return cls(loops)
 
     @u.quantity_input
-    def refine_loops(self, delta_s: u.cm):
+    def refine_loops(self, delta_s: u.cm, **kwargs):
         """
         Interpolate loop coordinates and field strengths to a specified spatial resolution
         and return a new `Skeleton` object.
@@ -111,19 +113,21 @@ Number of loops: {len(self.loops)}'''
         """
         new_loops = []
         for l in self.loops:
-            _l = self.refine_loop(l, delta_s)
+            _l = self.refine_loop(l, delta_s, **kwargs)
             new_loops.append(_l)
 
         return Skeleton(new_loops)
 
     @staticmethod
     @u.quantity_input
-    def refine_loop(loop, delta_s: u.cm):
+    def refine_loop(loop, delta_s: u.cm, **kwargs):
+        evkwargs = kwargs.get('evkwargs', {})
+        prepkwargs = kwargs.get('prepkwargs', {})
         try:
             tck, _ = splprep(loop.coordinate.cartesian.xyz.value,
-                             u=loop.field_aligned_coordinate_norm)
+                             u=loop.field_aligned_coordinate_norm, **prepkwargs)
             new_s = np.arange(0, loop.length.to(u.Mm).value, delta_s.to(u.Mm).value) * u.Mm
-            x, y, z = splev((new_s/loop.length).decompose(), tck)
+            x, y, z = splev((new_s/loop.length).decompose(), tck, **evkwargs)
         except (ValueError, TypeError) as e:
             raise Exception(f'Failed to refine {loop.name}') from e
         unit = loop.coordinate.cartesian.xyz.unit
@@ -165,6 +169,22 @@ Number of loops: {len(self.loops)}'''
         return SkyCoord([l.coordinate_center for l in self.loops],
                         frame=self.loops[0].coordinate_center.frame,
                         representation_type=self.loops[0].coordinate_center.representation_type)
+
+    @cached_property
+    def all_widths(self) -> u.cm:
+        """
+        Widths for all loops concatenated together
+        """
+        return np.concatenate([l.field_aligned_coordinate_width for l in self.loops])
+
+    @cached_property
+    def all_cross_sectional_areas(self) -> u.cm**2:
+        """
+        Cross-sectional areas for all loops concatenated together.
+
+        .. note:: These are the cross-sectional areas evaluated at the center of the loop.
+        """
+        return np.concatenate([l.cross_sectional_area_center for l in self.loops])
 
     def peek(self, **kwargs):
         """

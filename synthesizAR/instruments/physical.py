@@ -14,6 +14,7 @@ from sunpy.map import GenericMap
 
 from synthesizAR.instruments import ChannelBase, InstrumentBase
 from synthesizAR.util import los_velocity
+from synthesizAR.util.decorators import return_quantity_as_tuple
 from synthesizAR.instruments.util import add_wave_keys_to_header, extend_celestial_wcs
 
 __all__ = [
@@ -48,7 +49,12 @@ class InstrumentDEM(InstrumentBase):
     def temperature_bin_centers(self) -> u.K:
         return (self.temperature_bin_edges[1:] + self.temperature_bin_edges[:-1])/2
 
+    def get_instrument_name(self, channel):
+        # This ensures that the temperature bin labels are in the header
+        return f'{self.name}_{channel.name}'
+
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, channel, **kwargs):
         T = loop.electron_temperature
         n = loop.density
@@ -62,16 +68,22 @@ class InstrumentDEM(InstrumentBase):
         Convert a list of DEM maps to a DEM NDCube
         """
         # NOTE: this is the format that .observe returns
-        dem_list = [dem[c.name][time_index] for c in self.channels]
+        return type(self).dem_maps_list_to_cube(
+            [dem[c.name][time_index] for c in self.channels],
+            self.temperature_bin_centers,
+        )
+
+    @staticmethod
+    def dem_maps_list_to_cube(dem_maps, temperature_bin_centers):
         # Construct WCS
-        compound_wcs = extend_celestial_wcs(dem_list[0].wcs,
-                                            self.temperature_bin_centers,
+        compound_wcs = extend_celestial_wcs(dem_maps[0].wcs,
+                                            temperature_bin_centers,
                                             'temperature',
                                             'phys.temperature')
         # Stack arrays
-        dem_array = u.Quantity([d.quantity for d in dem_list])
+        dem_array = u.Quantity([d.quantity for d in dem_maps])
 
-        return ndcube.NDCube(dem_array, wcs=compound_wcs, )
+        return ndcube.NDCube(dem_array, wcs=compound_wcs, meta=dem_maps[0].meta)
 
     @staticmethod
     def calculate_intensity(dem, spectra, header, meta=None):
@@ -187,6 +199,7 @@ class InstrumentLOSVelocity(InstrumentQuantityBase):
     name = 'los_velocity'
 
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, *args, **kwargs):
         observer = kwargs.get('observer')
         if observer is None:
@@ -198,5 +211,6 @@ class InstrumentTemperature(InstrumentQuantityBase):
     name = 'temperature'
 
     @staticmethod
+    @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, *args, **kwargs):
         return loop.electron_temperature
