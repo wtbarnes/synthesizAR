@@ -8,7 +8,7 @@ build:
     post_checkout:
       - git fetch --unshallow || true
     pre_install:
-      - git update-index --assume-unchanged .rtd-environment.yml docs/conf.py
+      - git update-index --assume-unchanged docs/conf.py
 
 sphinx:
   builder: html
