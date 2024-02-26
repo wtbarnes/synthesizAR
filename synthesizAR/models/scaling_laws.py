@@ -70,6 +70,8 @@ class MartensScalingLaws(object):
     ----------
     s : `~astropy.units.Quantity`
         Field-aligned loop coordinate for half of symmetric, semi-circular loop
+    loop_length : `~astropy.units.Quantity`
+        Loop half-length
     heating_constant : `astropy.units.Quantity`
         Constant of proportionality that relates the actual heating rate to the
         scaling with temperature and pressure. The actual units will depend on
@@ -91,9 +93,10 @@ class MartensScalingLaws(object):
     """
 
     @u.quantity_input
-    def __init__(self, s: u.cm, heating_constant, alpha=0, beta=0, gamma=0.5,
+    def __init__(self, s: u.cm, loop_length: u.cm, heating_constant, alpha=0, beta=0, gamma=0.5,
                  chi=10**(-18.8) * u.erg * u.cm**3 / u.s * u.K**(0.5)):
         self.s = s
+        self.loop_length = loop_length
         self.heating_constant = heating_constant
         self.alpha = alpha
         self.beta = beta
@@ -102,13 +105,11 @@ class MartensScalingLaws(object):
         self.chi_0 = self.chi/(4.*(const.k_B**2))
 
     @property
-    @u.quantity_input
-    def loop_length(self,) -> u.cm:
-        return np.diff(self.s).sum()
-
-    @property
     def x(self,):
-        return (self.s/self.loop_length).decompose()
+        x = (self.s/self.loop_length).decompose()
+        if (x > 1).any():
+            raise ValueError()
+        return x
 
     @property
     @u.quantity_input

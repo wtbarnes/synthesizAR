@@ -43,7 +43,7 @@ class MartensInterface(object):
         time = u.Quantity([0, ], 's')
         s_half = np.linspace(0, 1, 1000)*loop.length/2
         H = self.get_heating_constant(loop)
-        msl = MartensScalingLaws(s_half, H, **self.model_parameters)
+        msl = MartensScalingLaws(s_half, loop.length/2, H, **self.model_parameters)
         # Make sure there are no temperatures below specified cutoff
         msl_temperature = np.where(msl.temperature < self.temperature_cutoff,
                                    self.temperature_cutoff,
