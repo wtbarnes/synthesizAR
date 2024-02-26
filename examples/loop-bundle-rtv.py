@@ -11,7 +11,7 @@ import astropy.time
 import astropy.units as u
 from astropy.visualization import quantity_support
 from astropy.coordinates import SkyCoord
-from sunpy.map import extract_along_coord
+from sunpy.map import pixelate_coord_path, sample_at_coords
 
 import synthesizAR
 from synthesizAR.instruments import InstrumentSDOAIA
@@ -59,13 +59,15 @@ m_171.peek()
 
 ###########################################################################
 # Additionally, we can look at intensity profiles  along and across the
-# loop axis using `sunpy.map.extract_along_coord`.
+# loop axis using `sunpy.map.pixelate_coord_path` and `sunpy.map.sample_at_coords`.
 coord_axis = SkyCoord(Tx=[-30, 30]*u.arcsec, Ty=0*u.arcsec,
                       frame=m_171.coordinate_frame)
+coord_axis = pixelate_coord_path(m_171, coord_axis)
+profile_axis = sample_at_coords(m_171, coord_axis)
 coord_xs = SkyCoord(Tx=0*u.arcsec, Ty=[-10, 10]*u.arcsec,
                     frame=m_171.coordinate_frame)
-profile_axis, coord_axis = extract_along_coord(m_171, coord_axis)
-profile_xs, coord_xs = extract_along_coord(m_171, coord_xs)
+coord_xs = pixelate_coord_path(m_171, coord_xs)
+profile_xs = sample_at_coords(m_171, coord_xs)
 
 ###########################################################################
 # Note that the intensity is highest at the footpoints because we are
@@ -80,9 +82,9 @@ ax.plot_coord(coord_xs)
 with quantity_support():
     plt.figure(figsize=(11, 5))
     plt.subplot(121)
-    plt.plot(coord_axis.Tx, profile_axis, color='C0')
+    plt.plot(coord_axis.separation(coord_axis[0]).to('arcsec'), profile_axis, color='C0')
     plt.subplot(122)
-    plt.plot(coord_xs.Ty, profile_xs, color='C1')
+    plt.plot(coord_xs.separation(coord_xs[0]).to('arcsec'), profile_xs, color='C1')
 
 ###########################################################################
 # Finally, we can also compute the AIA 171 intensity as viewed from the
