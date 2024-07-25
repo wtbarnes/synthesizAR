@@ -183,7 +183,7 @@ class InstrumentSDOAIA(InstrumentBase):
 @u.quantity_input
 def aia_kernel_quick(channel,
                      temperature: u.K,
-                     density: u.cm**(-3)) -> u.Unit('ct pix-1 s-1 cm-1'):
+                     density: u.cm**(-3)) -> u.Unit('DN pix-1 s-1 cm-1'):
     r"""
     Calculate AIA intensity kernel for a given channel
 
