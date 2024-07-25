@@ -1,4 +1,4 @@
 """
 Grab bag of analysis routines
 """
-from dem import *
+from .dem import *
