@@ -75,6 +75,10 @@ class InstrumentSDOAIA(InstrumentBase):
     def telescope(self):
         return 'SDO/AIA'
 
+    @property
+    def _expected_unit(self):
+        return u.DN / (u.pix * u.s)
+
     def get_instrument_name(self, channel):
         return f'{self.detector}_{channel.telescope_number}'
 

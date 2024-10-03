@@ -80,6 +80,10 @@ class InstrumentHinodeXRT(InstrumentBase):
     def telescope(self):
         return 'Hinode'
 
+    @property
+    def _expected_unit(self):
+        return u.DN / (u.pix * u.s)
+
     def get_instrument_name(self, channel):
         return self.detector
 
