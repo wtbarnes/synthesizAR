@@ -6,7 +6,7 @@ import astropy.units as u
 import astropy.constants as const
 import sunpy.sun.constants as sun_const
 from scipy.special import beta, betaincinv
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid
 
 __all__ = ['Isothermal', 'MartensScalingLaws', 'RTVScalingLaws']
 
@@ -44,7 +44,8 @@ class Isothermal(object):
         s = np.append(-np.diff(self.s)[0], self.s)
         integrand = 1/r**2 * np.gradient(r) / np.gradient(s)
         # Integrate over the whole loop
-        return cumtrapz(integrand.to('cm-2').value, s.to('cm').value) / u.cm
+        integral = cumulative_trapezoid(integrand.to_value('cm-2'), s.to_value('cm'))
+        return u.Quantity(integral, 'cm-1')
 
     @property
     @u.quantity_input
