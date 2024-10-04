@@ -6,15 +6,17 @@ This example shows how to model AIA emission from an arcade
 of semi-circular loops who's thermal structure is modeled
 using the RTV scaling laws.
 """
-import astropy.units as u
 import astropy.time
+import astropy.units as u
+
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import get_earth
 
 import synthesizAR
-from synthesizAR.models import semi_circular_arcade
-from synthesizAR.interfaces import RTVInterface
+
 from synthesizAR.instruments import InstrumentSDOAIA
+from synthesizAR.interfaces import RTVInterface
+from synthesizAR.models import semi_circular_arcade
 
 #########################################################################
 # First, set up the coordinates for loops in the arcade.
@@ -24,7 +26,7 @@ arcade_coords = semi_circular_arcade(80*u.Mm, 5*u.deg, 50, pos, inclination=10*u
 
 #########################################################################
 # Next, assemble the arcade.
-strands = [synthesizAR.Loop(f'strand{i}', c) for i, c in enumerate(arcade_coords)]
+strands = [synthesizAR.Strand(f'strand{i}', c) for i, c in enumerate(arcade_coords)]
 arcade = synthesizAR.Skeleton(strands)
 
 #########################################################################

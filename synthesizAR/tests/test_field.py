@@ -1,28 +1,28 @@
 """
 Tests for Skeleton object
 """
-import pathlib
-
-import pytest
 import astropy.units as u
+import pathlib
+import pytest
+
 from astropy.coordinates import SkyCoord
 
 import synthesizAR
 
 
-def test_skeleton_has_loops(bare_skeleton):
-    assert hasattr(bare_skeleton, 'loops')
-    assert type(bare_skeleton.loops) is list
-    for l in bare_skeleton.loops:
-        assert isinstance(l, synthesizAR.Loop)
+def test_skeleton_has_strands(bare_skeleton):
+    assert hasattr(bare_skeleton, 'strands')
+    assert isinstance(bare_skeleton.strands, list)
+    for l in bare_skeleton.strands:
+        assert isinstance(l, synthesizAR.Strand)
 
 
 def test_create_skeleton_from_coords(bare_skeleton):
-    coords = [l.coordinate for l in bare_skeleton.loops]
-    field_strengths = [l.field_strength for l in bare_skeleton.loops]
+    coords = [l.coordinate for l in bare_skeleton.strands]
+    field_strengths = [l.field_strength for l in bare_skeleton.strands]
     skeleton = synthesizAR.Skeleton.from_coordinates(coords, field_strengths=field_strengths)
-    assert hasattr(skeleton, 'loops')
-    assert type(skeleton.loops) is list
+    assert hasattr(skeleton, 'strands')
+    assert isinstance(skeleton.strands, list)
 
 
 def test_roundtrip(bare_skeleton, tmpdir):
@@ -30,17 +30,17 @@ def test_roundtrip(bare_skeleton, tmpdir):
     filename = pathlib.Path(dirname) / 'test-save.asdf'
     bare_skeleton.to_asdf(filename)
     skeleton_2 = synthesizAR.Skeleton.from_asdf(filename)
-    assert len(bare_skeleton.loops) == len(skeleton_2.loops)
-    for i in range(len(bare_skeleton.loops)):
-        l1 = bare_skeleton.loops[i].coordinate.cartesian.xyz
-        l2 = skeleton_2.loops[i].coordinate.cartesian.xyz
+    assert len(bare_skeleton.strands) == len(skeleton_2.strands)
+    for i in range(len(bare_skeleton.strands)):
+        l1 = bare_skeleton.strands[i].coordinate.cartesian.xyz
+        l2 = skeleton_2.strands[i].coordinate.cartesian.xyz
         assert u.allclose(l2, l1, rtol=1e-9)
 
 
 def test_refine_loops(bare_skeleton):
-    bare_skeleton_refined = bare_skeleton.refine_loops(1*u.Mm)
+    bare_skeleton_refined = bare_skeleton.refine_strands(1*u.Mm)
     assert isinstance(bare_skeleton_refined, synthesizAR.Skeleton)
-    assert len(bare_skeleton_refined.loops) == len(bare_skeleton.loops)
+    assert len(bare_skeleton_refined.strands) == len(bare_skeleton.strands)
 
 
 @pytest.mark.parametrize(
@@ -54,7 +54,7 @@ def test_coordinate_properties(bare_skeleton, name):
 
 
 def test_loops_have_model_type(skeleton_with_model):
-    for l in skeleton_with_model.loops:
+    for l in skeleton_with_model.strands:
         assert hasattr(l, 'simulation_type')
 
 
@@ -69,5 +69,5 @@ def test_loops_have_model_type(skeleton_with_model):
 )
 def test_loops_have_model_quantities(skeleton_with_model, name):
     "These quantities exist only after an interface is defined"
-    for l in skeleton_with_model.loops:
+    for l in skeleton_with_model.strands:
         assert isinstance(getattr(l, name), u.Quantity)

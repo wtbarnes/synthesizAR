@@ -20,7 +20,7 @@ def b_over_l_scaling(loop, H_0=0.0738*u.Unit('erg cm-3 s-1'), alpha=0.3, beta=0.
 
     Parameters
     ----------
-    loop: `synthesizAR.Loop`
+    loop: `synthesizAR.Strand`
     H_0: `~astropy.units.Quantity`, optional
         Nominal heating rate.
     alpha: `float`, optional

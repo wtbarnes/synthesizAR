@@ -9,16 +9,24 @@ It also demonstrates how to define a custom
 instrument class.
 """
 import astropy.units as u
-from astropy.coordinates import SkyCoord
-import numpy as np
 import matplotlib.pyplot as plt
-from sunpy.coordinates import get_earth, get_horizons_coord, HeliographicStonyhurst, Helioprojective
+import numpy as np
+
+from astropy.coordinates import SkyCoord
 from astropy.visualization import quantity_support
+from sunpy.coordinates import (
+    get_earth,
+    get_horizons_coord,
+    HeliographicStonyhurst,
+    Helioprojective,
+)
 
 import synthesizAR
-from synthesizAR.models import semi_circular_arcade
+
+from synthesizAR.instruments import InstrumentHinodeXRT, InstrumentSDOAIA
 from synthesizAR.interfaces import MartensInterface
-from synthesizAR.instruments import InstrumentSDOAIA, InstrumentHinodeXRT
+from synthesizAR.models import semi_circular_arcade
+
 # sphinx_gallery_thumbnail_number = -1
 
 ###############################################################################
@@ -27,7 +35,7 @@ from synthesizAR.instruments import InstrumentSDOAIA, InstrumentHinodeXRT
 obstime = '2021-10-28T15:00:00'
 loc = SkyCoord(HeliographicStonyhurst(lon=0*u.deg,lat=-30*u.deg, radius=1*u.R_sun, obstime=obstime))
 arcade = semi_circular_arcade(150*u.Mm, 10*u.deg, 50, loc, gamma=90*u.deg, n_points=5000)
-skeleton = synthesizAR.Skeleton([synthesizAR.Loop(f'{i}', c) for i,c in enumerate(arcade)])
+skeleton = synthesizAR.Skeleton([synthesizAR.Strand(f'{i}', c) for i,c in enumerate(arcade)])
 
 ###############################################################################
 # We'll select a few different observer locations for SDO and STERO-A and use
@@ -64,10 +72,10 @@ skeleton.load_loop_simulations(martens)
 with quantity_support():
     plt.figure(figsize=(11, 5))
     ax1 = plt.subplot(121)
-    for l in skeleton.loops:
+    for l in skeleton.strands:
         plt.plot(l.field_aligned_coordinate_center.to('Mm'), l.electron_temperature[0].to('MK'), color='k')
     plt.subplot(122)
-    for l in skeleton.loops:
+    for l in skeleton.strands:
         plt.plot(l.field_aligned_coordinate_center.to('Mm'), l.density[0], color='k')
     plt.yscale('log')
 

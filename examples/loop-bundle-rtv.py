@@ -6,17 +6,20 @@ This example shows how to model AIA emission from a
 bundle of semi-circular strands for two different
 viewpoints.
 """
-import matplotlib.pyplot as plt
 import astropy.time
 import astropy.units as u
-from astropy.visualization import quantity_support
+import matplotlib.pyplot as plt
+
 from astropy.coordinates import SkyCoord
+from astropy.visualization import quantity_support
 from sunpy.map import pixelate_coord_path, sample_at_coords
 
 import synthesizAR
+
 from synthesizAR.instruments import InstrumentSDOAIA
 from synthesizAR.interfaces import RTVInterface
 from synthesizAR.models import semi_circular_bundle
+
 # sphinx_gallery_thumbnail_number = -1
 
 ###########################################################################
@@ -32,7 +35,7 @@ bundle_coords = semi_circular_bundle(50 * u.Mm, 1*u.Mm, 500, observer=pos)
 ###########################################################################
 # As in other examples, we then use the coordinates of our strands to
 # construct the `~synthesizAR.Skeleton` object.
-strands = [synthesizAR.Loop(f'strand{i}', c) for i, c in enumerate(bundle_coords)]
+strands = [synthesizAR.Strand(f'strand{i}', c) for i, c in enumerate(bundle_coords)]
 bundle = synthesizAR.Skeleton(strands)
 bundle.peek(observer=pos)
 

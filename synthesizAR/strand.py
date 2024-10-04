@@ -1,5 +1,5 @@
 """
-Loop object for holding field-aligned coordinates and quantities
+Strand object for holding field-aligned coordinates and quantities
 """
 import astropy.units as u
 import numpy as np
@@ -10,10 +10,10 @@ from astropy.coordinates import SkyCoord
 from scipy.interpolate import interp1d, splev, splprep
 from sunpy.coordinates import HeliographicStonyhurst
 
-__all__ = ['Loop']
+__all__ = ['Strand']
 
 
-class Loop:
+class Strand:
     r"""
     Container for geometric and thermodynamic properties of a coronal loop
 
@@ -21,7 +21,7 @@ class Loop:
     ----------
     name : `str`
     coordinate : `astropy.coordinates.SkyCoord`
-        Loop coordinates; should be able to transform to HEEQ
+        Coordinates in the field-aligned direction; should be able to transform to HEEQ
     field_strength : `astropy.units.Quantity`
         Scalar magnetic field strength along the loop. If not specified, defaults
         to NaN with same shape as ``coordinate``.
@@ -39,11 +39,11 @@ class Loop:
     >>> import synthesizAR
     >>> coordinate = SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm, frame='heliographic_stonyhurst', representation_type='cartesian')
     >>> field_strength = u.Quantity([100,200], 'gauss')
-    >>> loop = synthesizAR.Loop('coronal_loop', coordinate, field_strength)
-    >>> loop
-    synthesizAR Loop
-    ----------------
-    Name : coronal_loop
+    >>> strand = synthesizAR.Strand('coronal_strand', coordinate, field_strength)
+    >>> strand
+    synthesizAR Strand
+    ------------------
+    Name : coronal_strand
     Loop full-length, L : 5.196 Mm
     Footpoints : (1 Mm,2 Mm,3 Mm),(4 Mm,5 Mm,6 Mm)
     Maximum field strength : 200.00 G
@@ -76,8 +76,8 @@ class Loop:
     def __repr__(self):
         f0 = f'{self.coordinate.x[0]:.3g},{self.coordinate.y[0]:.3g},{self.coordinate.z[0]:.3g}'
         f1 = f'{self.coordinate.x[-1]:.3g},{self.coordinate.y[-1]:.3g},{self.coordinate.z[-1]:.3g}'
-        return f'''synthesizAR Loop
-----------------
+        return f'''synthesizAR Strand
+------------------
 Name : {self.name}
 Loop full-length, L : {self.length.to(u.Mm):.3f}
 Footpoints : ({f0}),({f1})
@@ -298,7 +298,7 @@ def add_property(name, unit, doc):
         return self._get_quantity(name)
     property_template.__doc__ = doc
     property_template.__name__ = name
-    setattr(Loop, property_template.__name__, property(property_template))
+    setattr(Strand, property_template.__name__, property(property_template))
 
 
 properties = [
