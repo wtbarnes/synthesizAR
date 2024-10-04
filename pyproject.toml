@@ -1,48 +1,182 @@
 [build-system]
-
 requires = ["setuptools",
             "setuptools_scm",
             "wheel"]
-
 build-backend = 'setuptools.build_meta'
 
-[tool.towncrier]
-    package = "synthesizAR"
-    filename = "CHANGELOG.rst"
-    directory = "changelog/"
-    issue_format = "`#{issue} <https://github.com/wtbarnes/synthesizAR/pull/{issue}>`__"
+[project]
+name = "synthesizAR"
+dynamic = ["version"]
+authors = [
+  {name="Will Barnes", email="will.t.barnes@gmail.com"}
+]
+license = {file="LICENSE.rst"}
+description = "A Python package for forward-modeling optically-thin emission from field-aligned coronal loop models"
+readme = {file="README.md", content-type = "text/markdown"}
+requires-python = ">=3.10"
+dependencies = [
+    "scipy",
+    "matplotlib",
+    "sunpy[all]>=6.0",
+    "zarr",
+    "asdf",
+    "ndcube>=2.0",
+]
 
-    [[tool.towncrier.type]]
-        directory = "breaking"
-        name = "Backwards Incompatible Changes"
-        showcontent = true
+[project.urls]
+Repository = "https://github.com/wtbarnes/synthesizAR"
+Homepage = "https://github.com/wtbarnes/synthesizAR"
+Documentation = "https://synthesizar.readthedocs.io"
 
-    [[tool.towncrier.type]]
-        directory = "api"
-        name = "API Changes"
-        showcontent = true
+[project.optional-dependencies]
+all = ["synthesizAR[aia,xrt,atomic,hydrad,parallel]"]
+aia = ["aiapy"]
+xrt = ["xrtpy"]
+atomic = [
+  "plasmapy",
+  "fiasco",
+]
+hydrad = ["pydrad@git+https://github.com/rice-solar-physics/pydrad@main"]
+parallel =[
+  "dask[complete]",
+  "distributed",
+]
+test =[
+  "synthesizAR[all]",
+  "tox",
+  "flake8",
+  "pytest",
+  "pytest-astropy",
+  "pytest-cov",
+]
+docs = [
+  "synthesizAR[all]",
+  "pydata-sphinx-theme",
+  "sphinx-automodapi",
+  "sphinx-design",
+  "sphinx-gallery",
+  "astroquery",
+  "sphinx",
+  "sphinx-astropy",
+  "sphinxcontrib-bibtex",
+]
+dev = ["synthesizAR[test,docs]"]
 
-    [[tool.towncrier.type]]
-      directory = "removal"
-      name = "Deprecations and Removals"
-      showcontent = true
+[tool.setuptools]
+packages = ["synthesizAR"]
 
-    [[tool.towncrier.type]]
-      directory = "feature"
-      name = "Features"
-      showcontent = true
+[tool.setuptools_scm]
+write_to = "synthesizAR/version.py"
 
-    [[tool.towncrier.type]]
-      directory = "bugfix"
-      name = "Bug Fixes"
-      showcontent = true
+[tool.pytest.ini_options]
+testpaths = [
+  "synthesizAR",
+  "docs",
+]
+norecursedirs = [
+  "docs/_build",
+  "docs/generated",
+]
+doctest_plus = "enabled"
+text_file_format = "rst"
+addopts = "--doctest-rst"
+remote_data_strict = "True"
+filterwarnings = [
+  "error",
+  "ignore:The unit 'G' has been deprecated in the VOUnit standard.*:astropy.units.core.UnitsWarning",
+  "ignore:'cgi' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
+]
 
-    [[tool.towncrier.type]]
-      directory = "doc"
-      name = "Improved Documentation"
-      showcontent = true
+[tool.coverage.run]
+branch = true
+omit = [
+  "synthesizAR/conftest.py",
+  "synthesizAR/tests/*",
+  "synthesizAR/*/tests/*",
+  "synthesizAR/version*",
+  "*/synthesizAR/conftest.py",
+  "*/synthesizAR/tests/*",
+  "*/synthesizAR/*/tests/*",
+  "*/synthesizAR/extern/*",
+  "*/synthesizAR/version*",
+]
 
-    [[tool.towncrier.type]]
-      directory = "trivial"
-      name = "Trivial/Internal Changes"
-      showcontent = true
+[tool.coverage.report]
+exclude_lines =[
+  # Have to re-enable the standard pragma
+  "pragma: no cover",
+  # Don't complain about packages we have installed
+  "except ImportError",
+  # Don't complain if tests don't hit assertions
+  "raise AssertionError",
+  "raise NotImplementedError",
+  # Ignore branches that don't pertain to this version of Python
+  "pragma: py{ignore_python_version}",
+  # Don't complain about IPython completion helper
+  "def _ipython_key_completions_",
+]
+
+[tool.isort]
+line_length = 88
+wrap_length = 80
+sections = ["FUTURE", "STDLIB", "FIRSTPARTY", "LOCALFOLDER"]
+known_first_party = ["synthesizAR", ]
+default_section = "STDLIB"
+multi_line_output = 3
+use_parentheses = true
+include_trailing_comma = true
+force_alphabetical_sort_within_sections = true
+honor_noqa = true
+lines_between_types = 1
+
+[tool.codespell]
+skip = "*.fts,*.fits,venv,*.pro,*.bib,*.asdf,*.json"
+ignore-words-list = "te,emiss"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+exclude=[
+  ".git,",
+  "__pycache__",
+  "build",
+  "synthesizAR/version.py",
+]
+show-fixes = true
+output-format = "full"
+
+lint.select = [
+  "E",
+  "F",
+  "W",
+  "UP",
+  "PT",
+  #"RET",
+  #"TID",
+]
+lint.extend-ignore = [
+  # pycodestyle (E, W)
+  "E501",  # LineTooLong                             # TODO! fix
+  "E741",  # Ambiguous variable name
+
+  # pytest (PT)
+  "PT001",  # Always use pytest.fixture()
+  "PT004",  # Fixtures which don't return anything should have leading _
+  "PT007",  # Parametrize should be lists of tuples  # TODO! fix
+  "PT011",  # Too broad exception assert             # TODO! fix
+  "PT023",  # Always use () on pytest decorators
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Part of configuration, not a package.
+"setup.py" = ["INP001"]
+"conftest.py" = ["INP001"]
+# implicit-namespace-package. The examples are not a package.
+"docs/*.py" = ["INP001"]
+# Module level imports do not need to be at the top of a file here
+"docs/conf.py" = ["E402"]
+"__init__.py" = ["E402", "F401", "F403"]
+"test_*.py" = ["B011", "D", "E402", "S101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

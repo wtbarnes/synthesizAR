@@ -16,7 +16,7 @@ def semi_circular_loop(length: u.cm=None,
                        observer=None,
                        obstime=None,
                        n_points=1000,
-                       offset: u.cm = 0*u.cm,
+                       offset: u.cm = None,
                        gamma: u.deg = 0*u.deg,
                        inclination: u.deg = 0*u.deg,
                        ellipticity=0):
@@ -38,8 +38,8 @@ def semi_circular_loop(length: u.cm=None,
     n_points : `int`, optional
         Number of points in the coordinate. Only used if `s` is not specified.
     offset : `~astropy.units.Quantity`
-        Offset in the direction perpendicular to loop, convenient for simulating
-        arcade geometries.
+        Offset in the direction perpendicular and parallel to loop, convenient for simulating
+        arcade geometries. This should always be of length 2.
     gamma : `~astropy.units.Quantity`
         Angle between the loop axis and the HCC x-axis. This defines the orientation
         of the loop in the HCC x-y plane. `gamma=0` corresponds to a loop who's
@@ -82,10 +82,12 @@ def semi_circular_loop(length: u.cm=None,
         observer=observer,
         obstime=observer.obstime if obstime is None else obstime,
     )
-    return SkyCoord(x=-(offset + z * np.sin(inclination)) * np.sin(gamma) + x * np.cos(gamma),
-                    y=(offset + z * np.sin(inclination)) * np.cos(gamma) + x * np.sin(gamma),
-                    z=z * np.cos(inclination) + const.R_sun,
-                    frame=hcc_frame)
+    if offset is None:
+        offset = [0, 0] * u.cm
+    x_hcc = -(offset[1] + z * np.sin(inclination)) * np.sin(gamma) + (x + offset[0]) * np.cos(gamma)
+    y_hcc = (offset[1] + z * np.sin(inclination)) * np.cos(gamma) + (x + offset[0]) * np.sin(gamma)
+    z_hcc = z * np.cos(inclination) + const.R_sun
+    return SkyCoord(x=x_hcc, y=y_hcc, z=z_hcc, frame=hcc_frame)
 
 
 @u.quantity_input
@@ -114,7 +116,7 @@ def semi_circular_bundle(length: u.cm, radius: u.cm, num_strands, **kwargs):
     # and nominal length
     lengths = length + np.pi * r * np.cos(theta)
     # The resulting Y Cartesian coordinate is the offset from the HCC origin
-    offset = r * np.sin(theta)
+    offset = u.Quantity([np.zeros(r.shape)*r.unit, r*np.sin(theta)]).T
     return [semi_circular_loop(length=l, offset=o, **kwargs) for l, o in zip(lengths, offset)]
 
 

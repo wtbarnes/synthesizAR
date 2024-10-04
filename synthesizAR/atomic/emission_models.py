@@ -1,14 +1,14 @@
 """
 Various models for calculating emission from multiple ions
 """
-import warnings
-
-import numpy as np
-import astropy.units as u
-import zarr
-import fiasco
-from fiasco.util.exceptions import MissingDatasetException
 import asdf
+import astropy.units as u
+import fiasco
+import numpy as np
+import warnings
+import zarr
+
+from fiasco.util.exceptions import MissingDatasetException
 
 __all__ = ['EmissionModel']
 
@@ -55,7 +55,7 @@ class EmissionModel(fiasco.IonCollection):
         """
         Restore `EmissionModel` instance from an ASDF file
         """
-        with asdf.open(filename, mode='r', copy_arrays=True) as af:
+        with asdf.open(filename, mode='r', memmap=False) as af:
             temperature = af.tree['temperature']
             density = af.tree['density']
             ions = af.tree['ions']
@@ -68,7 +68,7 @@ class EmissionModel(fiasco.IonCollection):
         return em_model
 
     def calculate_emissivity_table(self, filename, include_protons=True):
-        """
+        r"""
         Calculate and store emissivity for every ion in the model.
 
         In this case, the emissivity, as a function of density :math:`n` and temperature :math:`T`,
@@ -78,7 +78,15 @@ class EmissionModel(fiasco.IonCollection):
 
             \epsilon_{ij}(n,T) = N_j(n,T) A_{ij}
 
-        where :math:`N_j` is the level population of :math:`j` and :math:`
+        where :math:`N_j` is the level population of level :math:`j` for a given ion.
+
+        Parameters
+        ----------
+        filename : `str` or path-like
+            Path to Zarr store to save the emissivity tables to.
+        include_protons : `bool`, optional
+            If True, include the proton excitation and deexcitation rates in the
+            level populations calculation.
         """
         self.emissivity_table_filename = filename
         root = zarr.open(store=filename, mode='w')
@@ -123,7 +131,7 @@ class EmissionModel(fiasco.IonCollection):
         return wavelength, emissivity
 
     def calculate_emission(self, loop, **kwargs):
-        """
+        r"""
         Calculate power per unit volume for a given temperature and density for every transition,
         :math:`\lambda`, in every ion :math:`X^{+m}`, as given by the equation,
 

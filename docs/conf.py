@@ -1,16 +1,26 @@
-import os
 import datetime
+
+from packaging.version import Version
 
 # -- Project information -----------------------------------------------------
 
 project = 'synthesizAR'
 author = 'Will Barnes'
-copyright = '{}, {}'.format(datetime.datetime.now().year, author)
+copyright = f'{datetime.datetime.now().year}, {author}'
 
 # The full version, including alpha/beta/rc tags
 from synthesizAR import __version__
-release = __version__
-is_development = '.dev' in __version__
+
+_version = Version(__version__)
+version = release = str(_version)
+# Avoid "post" appearing in version string in rendered docs
+if _version.is_postrelease:
+    version = release = _version.base_version
+# Avoid long githashes in rendered Sphinx docs
+elif _version.is_devrelease:
+    version = release = f"{_version.base_version}.dev{_version.dev}"
+is_development = _version.is_devrelease
+is_release = not(_version.is_prerelease or _version.is_devrelease)
 
 
 # -- General configuration ---------------------------------------------------
@@ -19,6 +29,7 @@ is_development = '.dev' in __version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinxcontrib.bibtex',
     'matplotlib.sphinxext.plot_directive',
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
@@ -32,30 +43,11 @@ extensions = [
     'sphinx_automodapi.automodapi',
     'sphinx_automodapi.smart_resolver',
 ]
-
-# Add any paths that contain templates here, relative to this directory.
-# templates_path = ['_templates']
-
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-# This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
-# The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
 source_suffix = '.rst'
-
-# The master toctree document.
 master_doc = 'index'
-
-# The reST default role (used for this markup: `text`) to use for all
-# documents. Set to the "smart" one.
 default_role = 'obj'
-
-# Disable having a separate return type row
 napoleon_use_rtype = False
-
-# Disable google style docstrings
 napoleon_google_docstring = False
 
 # -- Options for intersphinx extension ---------------------------------------
@@ -81,14 +73,29 @@ intersphinx_mapping = {
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
+html_theme = 'pydata_sphinx_theme'
+html_theme_options = {
+    "show_nav_level": 2,
+    "logo": {
+        "text": f"synthesizAR {version}",
+    },
+    "use_edit_page_button": True,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/wtbarnes/synthesizAR",
+            "icon": "fa-brands fa-github",
+        },
+    ],
+}
+html_context = {
+    "github_user": "wtbarnes",
+    "github_repo": "synthesizAR",
+    "github_version": "main",
+    "doc_path": "docs",
+}
 
-try:
-    html_theme = "sphinx_rtd_theme"
-    import sphinx_rtd_theme
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-except ImportError:
-    html_theme = 'default'
-
+bibtex_bibfiles = ['references.bib']
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -116,15 +123,3 @@ sphinx_gallery_conf = {
      'filename_pattern': '^((?!skip_).)*$',
      'default_thumb_file': '_static/synthesizar_logo.png'
 }
-
-
-# --- changelog -------------------------------------------------
-target_file = os.path.abspath("./whatsnew/latest_changelog.txt")
-try:
-    from sunpy.util.towncrier import generate_changelog_for_docs
-    if is_development:
-        generate_changelog_for_docs("../", target_file)
-except Exception as e:
-    print(f"Failed to add changelog to docs with error {e}.")
-# Make sure the file exists or else sphinx will complain.
-open(target_file, 'a').close()

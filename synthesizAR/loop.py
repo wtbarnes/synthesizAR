@@ -1,19 +1,20 @@
 """
 Loop object for holding field-aligned coordinates and quantities
 """
-import numpy as np
-from scipy.interpolate import splprep, splev, interp1d
 import astropy.units as u
-from astropy.coordinates import SkyCoord
-from sunpy.coordinates import HeliographicStonyhurst
+import numpy as np
 import sunpy.sun.constants as sun_const
 import zarr
+
+from astropy.coordinates import SkyCoord
+from scipy.interpolate import interp1d, splev, splprep
+from sunpy.coordinates import HeliographicStonyhurst
 
 __all__ = ['Loop']
 
 
-class Loop(object):
-    """
+class Loop:
+    r"""
     Container for geometric and thermodynamic properties of a coronal loop
 
     Parameters
@@ -25,7 +26,7 @@ class Loop(object):
         Scalar magnetic field strength along the loop. If not specified, defaults
         to NaN with same shape as ``coordinate``.
     cross_sectional_area : `astropy.units.Quantity`, optional
-        Cross-sectional area of the loop. If not specified, defaults to :math:`10^14` cm:math:`^2`.
+        Cross-sectional area of the loop. If not specified, defaults to :math:`10^{14}\,\mathrm{cm}^2`.
         This is used to compute the filling factor when computing the line-of-sight intensity.
     model_results_filename : `str`, optional
         Path to file where model results are stored. This will be set by

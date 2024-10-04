@@ -105,6 +105,10 @@ class InstrumentBase(object):
     def observatory(self):
         return self.name
 
+    @property
+    def _expected_unit(self):
+        return None
+
     def get_instrument_name(self, channel):
         return self.name
 
@@ -351,7 +355,7 @@ class InstrumentBase(object):
             coordinates_centers.Ty.value,
             bins=bins,
             range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
-            weights=kernels.value * visible,
+            weights=kernels.to_value(self._expected_unit) * visible,
         )
         # For some quantities, need to average over all components along a given LOS
         if self.average_over_los:
@@ -363,18 +367,17 @@ class InstrumentBase(object):
                 weights=visible,
             )
             hist /= np.where(_hist == 0, 1, _hist)
-        new_header = copy.deepcopy(header)
-        new_header['bunit'] = kernels.unit.to_string('fits')
         # NOTE: Purposefully using a nonstandard key to record this time as we do not
         # want this to have the implicit consequence of changing the coordinate frame
         # by changing a more standard time key. However, still want to record this
         # information somewhere in the header.
         # FIXME: Figure out a better way to deal with this.
+        new_header = copy.deepcopy(header)
         new_header['date_sim'] = (self.observer.obstime + time).isot
 
         return Map(hist.T, new_header)
 
-    def get_header(self, channel, coordinates, unit=None):
+    def get_header(self, channel, coordinates):
         """
         Create the FITS header for a given channel and set of loop coordinates
         that define the needed FOV.
@@ -395,7 +398,7 @@ class InstrumentBase(object):
             telescope=self.telescope,
             detector=self.detector,
             wavelength=channel.channel,
-            unit=unit,
+            unit=self._expected_unit,
         )
         return header
 

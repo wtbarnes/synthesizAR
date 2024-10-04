@@ -2,15 +2,15 @@
 Class for the SDO/AIA instrument. Holds information about the cadence and
 spatial and spectroscopic resolution.
 """
-import warnings
-import pkg_resources
-
-import numpy as np
 import asdf
-import zarr
 import astropy.units as u
-from aiapy.response import Channel
+import numpy as np
+import pkg_resources
+import warnings
+import zarr
+
 from aiapy.psf import filter_mesh_parameters
+from aiapy.response import Channel
 from scipy.interpolate import interp1d, interpn
 
 from synthesizAR.instruments import InstrumentBase
@@ -20,7 +20,7 @@ __all__ = ['InstrumentSDOAIA', 'aia_kernel_quick']
 
 _TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
     'synthesizAR', 'instruments/data/aia_temperature_response.asdf')
-with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r', copy_arrays=True) as af:
+with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r', memmap=False) as af:
     _TEMPERATURE_RESPONSE = af.tree
 
 
@@ -75,6 +75,20 @@ class InstrumentSDOAIA(InstrumentBase):
     def telescope(self):
         return 'SDO/AIA'
 
+    @property
+    def _expected_unit(self):
+        return u.DN / (u.pix * u.s)
+
+    def get_header(self, channel, coordinates):
+        # NOTE: This is to work around a bug in sunpy where
+        # AIAMap only looks for reference_date in the T_OBS
+        # key. This was fixed in https://github.com/sunpy/sunpy/pull/7810
+        # so when that makes it into a release, this can be
+        # removed and sunpy pinned to that bugfix release.
+        header = super().get_header(channel, coordinates)
+        header['T_OBS'] = header['DATE-OBS']
+        return header
+
     def get_instrument_name(self, channel):
         return f'{self.detector}_{channel.telescope_number}'
 
@@ -116,7 +130,7 @@ class InstrumentSDOAIA(InstrumentBase):
                     kernel = kernel*tmp.unit
                 kernel += tmp
         else:
-            # Use tabulated temperature respone functions
+            # Use tabulated temperature response functions
             kernel = aia_kernel_quick(channel.name, loop.electron_temperature, loop.density)
         return kernel
 
@@ -183,7 +197,7 @@ class InstrumentSDOAIA(InstrumentBase):
 @u.quantity_input
 def aia_kernel_quick(channel,
                      temperature: u.K,
-                     density: u.cm**(-3)) -> u.Unit('ct pix-1 s-1 cm-1'):
+                     density: u.cm**(-3)) -> u.Unit('DN pix-1 s-1 cm-1'):
     r"""
     Calculate AIA intensity kernel for a given channel
 

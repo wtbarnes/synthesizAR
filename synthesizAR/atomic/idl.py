@@ -1,15 +1,15 @@
 """
 Functions for computing isothermal spectra from CHIANTI IDL
 """
-import contextlib
-import io
-import os
-
 import asdf
 import astropy.units as u
+import contextlib
+import io
 import ndcube
-from ndcube.extra_coords import QuantityTableCoordinate
 import numpy as np
+import os
+
+from ndcube.extra_coords import QuantityTableCoordinate
 
 __all__ = [
     'compute_spectral_table',
@@ -127,6 +127,7 @@ def compute_spectral_table(temperature: u.K,
     """
     # Import here to avoid circular imports
     from synthesizAR import log
+
     # setup SSW environment and inputs
     input_args = {
         'wave_min': wave_min,
@@ -314,7 +315,7 @@ def read_spectral_table(filename):
     : `~ndcube.NDCube`
     """
     # Read file
-    with asdf.open(filename, mode='r', copy_arrays=True) as af:
+    with asdf.open(filename, mode='r', memmap=False) as af:
         temperature = af['temperature']
         density = af['density']
         wavelength = af['wavelength']

@@ -1,19 +1,20 @@
 """
 Implementations of various coronal loop scaling laws
 """
-import numpy as np
-import astropy.units as u
 import astropy.constants as const
+import astropy.units as u
+import numpy as np
 import sunpy.sun.constants as sun_const
+
+from scipy.integrate import cumulative_trapezoid
 from scipy.special import beta, betaincinv
-from scipy.integrate import cumtrapz
 
 __all__ = ['Isothermal', 'MartensScalingLaws', 'RTVScalingLaws']
 
 KAPPA_0 = 1e-6 * u.erg / u.cm / u.s * u.K**(-7/2)
 
 
-class Isothermal(object):
+class Isothermal:
     r"""
     Hydrostatic loop solutions for an isothermal atmosphere
 
@@ -44,7 +45,8 @@ class Isothermal(object):
         s = np.append(-np.diff(self.s)[0], self.s)
         integrand = 1/r**2 * np.gradient(r) / np.gradient(s)
         # Integrate over the whole loop
-        return cumtrapz(integrand.to('cm-2').value, s.to('cm').value) / u.cm
+        integral = cumulative_trapezoid(integrand.to_value('cm-2'), s.to_value('cm'))
+        return u.Quantity(integral, 'cm-1')
 
     @property
     @u.quantity_input
@@ -62,9 +64,9 @@ class Isothermal(object):
         return self.pressure / (2*const.k_B*self.temperature)
 
 
-class MartensScalingLaws(object):
+class MartensScalingLaws:
     """
-    Coronal loop scaling laws of [1]_
+    Coronal loop scaling laws of :cite:t:`martens_scaling_2010`.
 
     Parameters
     ----------
@@ -75,21 +77,17 @@ class MartensScalingLaws(object):
     heating_constant : `astropy.units.Quantity`
         Constant of proportionality that relates the actual heating rate to the
         scaling with temperature and pressure. The actual units will depend on
-        `alpha` and `beta`. See Eq. 2 of [1]_.
+        `alpha` and `beta`. See Eq. 2 of :cite:t:`martens_scaling_2010`.
     alpha : `float`, optional
         Temperature dependence of the heating rate
     beta : `float`, optional
-        Pressure depndence of the heating rate
+        Pressure dependence of the heating rate
     gamma : `float`, optional
         Temperature dependence of the radiative loss rate
     chi : `astropy.units.Quantity`, optional
         Constant of proportionality relating the actual radiative losses to the
         scaling with temperature. May need to adjust this based on the value of
         `gamma`.
-
-    References
-    ----------
-    .. [1] Martens, P., 2010, ApJ, `714, 1290 <http://adsabs.harvard.edu/abs/2010ApJ...714.1290M>`_
     """
 
     @u.quantity_input
@@ -148,9 +146,9 @@ class MartensScalingLaws(object):
         return (1.-2*nu + mu)/(2*(nu-mu))
 
 
-class RTVScalingLaws(object):
+class RTVScalingLaws:
     """
-    Coronal loop scaling laws of [1]_
+    Coronal loop scaling laws of :cite:t:`rosner_dynamics_1978`.
 
     Parameters
     ----------
@@ -162,10 +160,6 @@ class RTVScalingLaws(object):
         Uniform heating rate
     chi : `~astropy.units.Quantity`, optional
         Coefficient for radiative loss function
-
-    References
-    ----------
-    .. [1] Rosner, R., W.H. Tucker, G.S. Vaiana, 1978, ApJ, `220, 643 <http://adsabs.harvard.edu/abs/1978ApJ...220..643R>`_
     """
 
     @u.quantity_input

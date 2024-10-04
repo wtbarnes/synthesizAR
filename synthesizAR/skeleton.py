@@ -1,14 +1,14 @@
 """
 Container for fieldlines in three-dimensional magnetic skeleton
 """
-from functools import cached_property
-
-import numpy as np
-from scipy.interpolate import splev, splprep, interp1d
-import astropy.units as u
-from astropy.coordinates import SkyCoord
 import asdf
+import astropy.units as u
+import numpy as np
 import zarr
+
+from astropy.coordinates import SkyCoord
+from functools import cached_property
+from scipy.interpolate import interp1d, splev, splprep
 
 from synthesizAR import Loop
 from synthesizAR.visualize import plot_fieldlines
@@ -16,7 +16,7 @@ from synthesizAR.visualize import plot_fieldlines
 __all__ = ['Skeleton']
 
 
-class Skeleton(object):
+class Skeleton:
     """
     Construct magnetic field skeleton fieldlines
 
@@ -87,7 +87,7 @@ Number of loops: {len(self.loops)}'''
         """
         exclude_keys = ['asdf_library', 'history']
         loops = []
-        with asdf.open(filename, mode='r', copy_arrays=True) as af:
+        with asdf.open(filename, mode='r', memmap=False) as af:
             for k in af.keys():
                 if k in exclude_keys:
                     continue
@@ -284,6 +284,7 @@ Number of loops: {len(self.loops)}'''
         calling `load_loop_simulations`.
         """
         from fiasco import Element
+
         from synthesizAR.atomic import equilibrium_ionization
 
         root = zarr.open(store=self.loops[0].model_results_filename, mode='a', **kwargs)

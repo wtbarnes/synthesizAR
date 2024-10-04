@@ -53,9 +53,7 @@ class InstrumentHinodeXRT(InstrumentBase):
                 raise ValueError(f'{f} is not a valid XRT filter wheel choice.')
             c = ChannelXRT(
                 temperature=trf.CHIANTI_temperature,
-                # NOTE: switching from DN to counts here because DN is not
-                # supported by the FITS standard
-                response=trf.temperature_response()*u.ct/u.DN,
+                response=trf.temperature_response(),
                 filter_wheel_1=filter_wheel_1,
                 filter_wheel_2=filter_wheel_2,
             )
@@ -81,6 +79,10 @@ class InstrumentHinodeXRT(InstrumentBase):
     @property
     def telescope(self):
         return 'Hinode'
+
+    @property
+    def _expected_unit(self):
+        return u.DN / (u.pix * u.s)
 
     def get_instrument_name(self, channel):
         return self.detector
