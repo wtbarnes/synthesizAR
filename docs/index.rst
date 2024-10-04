@@ -16,3 +16,4 @@ synthesizAR is designed to be modular and extensible. Extensions for new hydrody
    generated/gallery/index
    code_ref/index
    develop
+   references
