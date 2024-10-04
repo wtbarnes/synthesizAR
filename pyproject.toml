@@ -11,7 +11,7 @@ authors = [
   {name="Will Barnes", email="will.t.barnes@gmail.com"}
 ]
 license = {file="LICENSE.rst"}
-description = "A Python package for forward-modeling optically-thin emission from field-aligned coronal loop models"
+description = "A Python package for forward modeling optically-thin emission from field-aligned hydrodynamic simulations of astrophysical plasmas."
 readme = {file="README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
 dependencies = [
