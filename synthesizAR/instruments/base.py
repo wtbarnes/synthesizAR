@@ -1,21 +1,21 @@
 """
 Base class for instrument objects.
 """
-import copy
-import tempfile
-import pathlib
-from dataclasses import dataclass
-
-import numpy as np
-from scipy.interpolate import interp1d
-from scipy.ndimage import gaussian_filter
 import astropy.units as u
-from astropy.coordinates import SkyCoord
-from sunpy.coordinates.frames import Helioprojective, HeliographicStonyhurst
-from sunpy.map import make_fitswcs_header, Map
+import copy
+import numpy as np
+import pathlib
+import tempfile
 import zarr
 
-from synthesizAR.util import is_visible, find_minimum_fov
+from astropy.coordinates import SkyCoord
+from dataclasses import dataclass
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter
+from sunpy.coordinates.frames import HeliographicStonyhurst, Helioprojective
+from sunpy.map import make_fitswcs_header, Map
+
+from synthesizAR.util import find_minimum_fov, is_visible
 from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['ChannelBase', 'InstrumentBase']
@@ -27,7 +27,7 @@ class ChannelBase:
     channel: u.Quantity = None
 
 
-class InstrumentBase(object):
+class InstrumentBase:
     """
     Base class for instruments. This object is not meant to be instantiated directly. Instead,
     specific instruments should subclass this base object and implement a
@@ -170,17 +170,17 @@ class InstrumentBase(object):
             if client:
                 # Parallel
                 kernel_futures = client.map(self.calculate_intensity_kernel,
-                                            skeleton.loops,
+                                            skeleton.strands,
                                             channel=channel,
                                             **kwargs)
                 kernel_interp_futures = client.map(self.interpolate_to_instrument_time,
                                                    kernel_futures,
-                                                   skeleton.loops,
+                                                   skeleton.strands,
                                                    observing_time=(self.observing_time.value, self.observing_time.unit.to_string()))
             else:
                 # Serial
                 kernels_interp = []
-                for l in skeleton.loops:
+                for l in skeleton.strands:
                     k = self.calculate_intensity_kernel(l, channel=channel, **kwargs)
                     k = self.interpolate_to_instrument_time(
                         k, l, observing_time=(self.observing_time.value, self.observing_time.unit.to_string()),
@@ -189,12 +189,12 @@ class InstrumentBase(object):
 
             if kwargs.get('save_kernels_to_disk', False):
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    self._make_stacked_kernel_array(tmpdir, skeleton.loops, channel)
-                    indices = self._find_loop_array_bounds(skeleton.loops)
+                    self._make_stacked_kernel_array(tmpdir, skeleton.strands, channel)
+                    indices = self._find_loop_array_bounds(skeleton.strands)
                     if client:
                         files = client.map(self.write_kernel_to_file,
                                            kernel_interp_futures,
-                                           skeleton.loops,
+                                           skeleton.strands,
                                            indices,
                                            channel=channel,
                                            name=self.name,
@@ -202,9 +202,9 @@ class InstrumentBase(object):
                         # NOTE: block here to avoid pileup of tasks that can overwhelm the scheduler
                         distributed.wait(files)
                     else:
-                        for k, l, i in zip(kernels_interp, skeleton.loops, indices):
+                        for k, l, i in zip(kernels_interp, skeleton.strands, indices):
                             self.write_kernel_to_file(k, l, i, channel, self.name, tmpdir)
-                    self._rechunk_stacked_kernels(tmpdir, skeleton.loops[0].model_results_filename, channel)
+                    self._rechunk_stacked_kernels(tmpdir, skeleton.strands[0].model_results_filename, channel)
                     kernels = self.observing_time.shape[0]*[None]  # placeholder so we know to read from a file
             else:
                 # NOTE: this can really blow up your memory if you are not careful
@@ -336,7 +336,7 @@ class InstrumentBase(object):
         # Compute weights
         if kernels is None:
             i_time = np.where(time == self.observing_time)[0][0]
-            root = skeleton.loops[0].zarr_root
+            root = skeleton.strands[0].zarr_root
             ds = root[f'{self.name}/{channel.name}_stacked_kernels']
             kernels = u.Quantity(ds[i_time, :], ds.attrs['unit'])
         # If a volumetric quantity, integrate over the cell and normalize by pixel area.

@@ -2,16 +2,16 @@
 Some basic tools/utilities needed for active region construction. These functions are generally
 peripheral to the actual physics.
 """
-from collections import namedtuple
-import warnings
-
-import numpy as np
-from scipy.interpolate import RegularGridInterpolator
-import astropy.units as u
-from astropy.coordinates import SkyCoord
 import astropy.constants as const
+import astropy.units as u
+import numpy as np
 import sunpy.coordinates
 import sunpy.sun.constants as sun_const
+import warnings
+
+from astropy.coordinates import SkyCoord
+from collections import namedtuple
+from scipy.interpolate import RegularGridInterpolator
 
 import synthesizAR
 
@@ -208,7 +208,7 @@ def from_pfsspy(fieldlines,
                 name_template=None,
                 cross_sectional_area=None):
     """
-    Convert a `pfsspy.fieldline.FieldLines` structure into a list of `~synthesizAR.Loop` objects.
+    Convert a `pfsspy.fieldline.FieldLines` structure into a list of `~synthesizAR.Strand` objects.
 
     Parameters
     ----------
@@ -220,18 +220,18 @@ def from_pfsspy(fieldlines,
         The desired obstime of the coordinates. Use this if the coordinates need to be at a
         different obstime than that of the Carrington map they were traced from.
     length_min : `astropy.units.Quantity`, optional
-        Minimum allowed loop length. All loops with length below this are excluded.
+        Minimum allowed loop length. All strands with length below this are excluded.
     length_max : `astropy.units.Quantity`, optional
-        Maximum allowed loop length. All loops with length above this are excluded.
+        Maximum allowed loop length. All strands with length above this are excluded.
     name_template: `str`, optional
-        Name template to use when building loops. Defaults to 'loop_{:06d}'
+        Name template to use when building strands. Defaults to 'strand_{:06d}'
     cross_sectional_area: `astropy.units.Quantity`, optional
         The cross-sectional area to assign to each loop.
     """
     from synthesizAR import log
     if name_template is None:
-        name_template = 'loop_{:06d}'
-    loops = []
+        name_template = 'strand_{:06d}'
+    strands = []
     for i, f in enumerate(fieldlines):
         if f.coords.shape[0] <= n_min:
             log.debug(f'Dropping {f} as it has less than {n_min} points.')
@@ -258,21 +258,21 @@ def from_pfsspy(fieldlines,
             coord = f.coords
         # Construct the loop here to easily filter on loop length and interpolate
         # NaNs from the field strength.
-        loop = synthesizAR.Loop(name_template.format(i),
+        strand = synthesizAR.Strand(name_template.format(i),
                                 coord,
                                 field_strength=b,
                                 cross_sectional_area=cross_sectional_area)
-        if loop.length < length_min or loop.length > length_max:
-            log.debug(f'Dropping {loop} as it has length {loop.length} outside of the allowed range.')
+        if strand.length < length_min or strand.length > length_max:
+            log.debug(f'Dropping {strand} as it has length {strand.length} outside of the allowed range.')
             continue
-        if np.any(np.isnan(loop.field_strength)):
+        if np.any(np.isnan(strand.field_strength)):
             # There are often NaN values that show up in the interpolated field strengths.
             # Interpolate over these.
-            b = loop.field_strength
-            s = loop.field_aligned_coordinate
+            b = strand.field_strength
+            s = strand.field_aligned_coordinate
             nans = np.isnan(b)
             b[nans] = np.interp(s[nans].value, s[~nans].value, b[~nans].value) * b.unit
-            loop.field_strength = b
-        loops.append(loop)
+            strand.field_strength = b
+        strands.append(strand)
 
-    return loops
+    return strands

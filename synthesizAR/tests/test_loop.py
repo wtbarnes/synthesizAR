@@ -1,13 +1,15 @@
 """
-Tests for Loop object
+Tests for Strand object
 """
-import pytest
-import numpy as np
 import astropy.units as u
+import numpy as np
+import pytest
+
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import get_earth
 
 import synthesizAR
+
 from synthesizAR.models import semi_circular_loop
 
 
@@ -58,7 +60,7 @@ def simple_strand(field_aligned_coordinate):
     observer = get_earth('2020-01-01')
     coord = semi_circular_loop(s=field_aligned_coordinate,
                                observer=observer)
-    return synthesizAR.Loop('test', coord)
+    return synthesizAR.Strand('test', coord)
 
 
 def test_loop_field_aligned_coordinate(simple_strand,

@@ -1,25 +1,26 @@
 """
 Interface between loop object and ebtel++ simulation
 """
-import os
-import copy
-import warnings
-import toolz
-
-import numpy as np
-import h5py
 import astropy.units as u
+import copy
+import h5py
+import numpy as np
+import toolz
+import warnings
+
 from fiasco import Element
+
 try:
     import distributed
 except ImportError:
     warnings.warn('Dask library required for NEI calculation')
 
 from synthesizAR.atomic import non_equilibrium_ionization
+
 from .util import run_ebtel
 
 
-class EbtelInterface(object):
+class EbtelInterface:
     """
     Interface to the Enthalpy-Based Thermal Evolution of Loops (EBTEL) model
 
@@ -50,7 +51,7 @@ class EbtelInterface(object):
 
         Parameters
         ----------
-        loop : `synthesizAR.Loop` object
+        loop : `synthesizAR.Strand` object
         """
         # Configure run
         output_dict = copy.deepcopy(self.base_config)
@@ -122,8 +123,8 @@ class EbtelInterface(object):
             partial_nei = toolz.curry(EbtelInterface.compute_nei)(el)
             partial_write = toolz.curry(EbtelInterface.write_to_hdf5)(
                 element_name=el_name, savefile=emission_model.ionization_fraction_savefile)
-            y = client.map(partial_nei, skeleton.loops, pure=False)
-            write_y = client.map(partial_write, y, skeleton.loops, pure=False)
+            y = client.map(partial_nei, skeleton.strands, pure=False)
+            write_y = client.map(partial_write, y, skeleton.strands, pure=False)
             distributed.client.wait(write_y)
             futures[el_name] = write_y
 

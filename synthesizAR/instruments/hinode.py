@@ -2,18 +2,18 @@
 Class for Hinode/EIS instrument. Holds information about spectral, temporal, and spatial resolution
 and other instrument-specific information.
 """
-from dataclasses import dataclass
-import json
-import pkg_resources
-
-import numpy as np
-from scipy.ndimage import gaussian_filter
-import astropy.units as u
 import astropy.constants as const
+import astropy.units as u
+import json
+import numpy as np
+import pkg_resources
 import xrtpy
 
+from dataclasses import dataclass
+from scipy.ndimage import gaussian_filter
+
+from synthesizAR.instruments import ChannelBase, InstrumentBase
 from synthesizAR.util import SpatialPair
-from synthesizAR.instruments import InstrumentBase, ChannelBase
 from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['InstrumentHinodeEIS', 'InstrumentHinodeXRT']
@@ -132,7 +132,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         hinode_fn = pkg_resources.resource_filename('synthesizAR',
                                                     'instruments/data/hinode_eis.json')
-        with open(hinode_fn, 'r') as f:
+        with open(hinode_fn) as f:
             eis_info = json.load(f)
 
         self.channels = []
@@ -170,7 +170,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         Build HDF5 files to store detector counts
         """
-        additional_fields = ['{}'.format(line.value) for line in field.loops[0].resolved_wavelengths]
+        additional_fields = [f'{line.value}' for line in field.strands[0].resolved_wavelengths]
         super().build_detector_file(file_template, chunks, additional_fields=additional_fields)
 
     def flatten(self, loop, interp_s, hf, start_index):
@@ -179,7 +179,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         """
         for wavelength in loop.resolved_wavelengths:
             emiss, ion_name = loop.get_emission(wavelength, return_ion_name=True)
-            dset = hf['{}'.format(str(wavelength.value))]
+            dset = hf[f'{str(wavelength.value)}']
             dset.attrs['ion_name'] = ion_name
             self.interpolate_and_store(emiss, loop, interp_s, dset, start_index)
 
@@ -201,6 +201,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         Calculate response of Hinode/EIS detector for given loop object.
         """
         import plasmapy
+
         # trim the instrument response to the appropriate wavelengths
         trimmed_indices = []
         for w in channel['model_wavelengths']:
@@ -215,7 +216,7 @@ class InstrumentHinodeEIS(InstrumentBase):
         counts = np.zeros(temperature.shape+response_x.shape)
         for wavelength in channel['model_wavelengths']:
             # thermal width + instrument width
-            ion_name = hf['{}'.format(str(wavelength.value))].attrs['ion_name']
+            ion_name = hf[f'{str(wavelength.value)}'].attrs['ion_name']
             ion_mass = plasmapy.atomic.ion_mass(ion_name.split(' ')[0].capitalize()).cgs
             thermal_velocity = 2.*const.k_B.cgs*temperature/ion_mass
             thermal_velocity = np.expand_dims(thermal_velocity, axis=2)*thermal_velocity.unit
@@ -225,14 +226,13 @@ class InstrumentHinodeEIS(InstrumentBase):
             doppler_shift = wavelength*los_velocity/const.c.cgs
             doppler_shift = np.expand_dims(doppler_shift, axis=2)*doppler_shift.unit
             # combine emissivity with instrument response function
-            dset = hf['{}'.format(str(wavelength.value))]
+            dset = hf[f'{str(wavelength.value)}']
             hist, edges = np.histogramdd(self.total_coordinates.value,
                                          bins=[self.bins.x, self.bins.y, self.bins.z],
                                          range=[self.bin_range.x, self.bin_range.y, self.bin_range.z],
                                          weights=np.array(dset[i_time, :]))
             emiss = np.dot(hist, np.diff(edges[2])).T
-            emiss = (np.expand_dims(emiss, axis=2)
-                     * u.Unit(get_keys(dset.attrs, ('unit', 'units')))*self.total_coordinates.unit)
+            emiss = np.expand_dims(emiss, axis=2) * u.Unit(dset.attrs.get('unit')) *self.total_coordinates.unit
             intensity = emiss*response_y/np.sqrt(2.*np.pi*line_width)
             intensity *= np.exp(-((response_x - wavelength - doppler_shift)**2)/(2.*line_width))
             if not hasattr(counts, 'unit'):
