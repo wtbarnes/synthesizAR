@@ -106,7 +106,9 @@ def make_slope_map(dem,
         em_threshold = u.Quantity(1e25, u.cm**(-5))
     total_dem = u.Quantity(dem.data.sum(axis=0), dem.unit)
     is_valid = np.where(total_dem>=em_threshold)
-    log_em_valid = np.log10(dem.data[:, *is_valid]).T
+    # NOTE: Unpacking with * when indexing is not supported for Python <3.11 which
+    # is why is_valid is explicitly indexed here.
+    log_em_valid = np.log10(dem.data[:, is_valid[0], is_valid[1]]).T
     log_em_valid = np.where(np.isfinite(log_em_valid), log_em_valid, 0.0)
 
     # Get temperature bounds
