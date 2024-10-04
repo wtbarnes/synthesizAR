@@ -22,7 +22,7 @@ class Skeleton:
 
     Parameters
     ----------
-    strands : `list` of `Strand` objects
+    strands : `list` of `~synthesizAR.Strand` objects
         List of objects containing the information about each strand in the magnetic
         skeleton.
 

@@ -11,7 +11,7 @@ except ImportError:
 # Set up logger
 from synthesizAR.util.logger import _init_log
 
-from .skeleton import *
-from .strand import *
+from .strand import *  # NOQA
+from .skeleton import *  # NOQA
 
 log = _init_log()
