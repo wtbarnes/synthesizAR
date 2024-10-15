@@ -29,7 +29,7 @@ Homepage = "https://github.com/wtbarnes/synthesizAR"
 Documentation = "https://synthesizar.readthedocs.io"
 
 [project.optional-dependencies]
-all = ["synthesizAR[aia,xrt,atomic,hydrad,parallel]"]
+all = ["synthesizAR[aia,atomic,ebtel,hydrad,parallel,xrt]"]
 aia = ["aiapy"]
 atomic = [
   "plasmapy",
