@@ -31,16 +31,17 @@ Documentation = "https://synthesizar.readthedocs.io"
 [project.optional-dependencies]
 all = ["synthesizAR[aia,xrt,atomic,hydrad,parallel]"]
 aia = ["aiapy"]
-xrt = ["xrtpy"]
 atomic = [
   "plasmapy",
   "fiasco",
 ]
+ebtel = ["ebtelplusplus"]
 hydrad = ["pydrad@git+https://github.com/rice-solar-physics/pydrad@main"]
 parallel =[
   "dask[complete]",
   "distributed",
 ]
+xrt = ["xrtpy"]
 test =[
   "synthesizAR[all]",
   "tox",
