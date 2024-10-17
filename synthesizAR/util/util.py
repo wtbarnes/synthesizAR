@@ -25,6 +25,7 @@ __all__ = [
     'from_pfsspy',
     'change_obstime',
     'change_obstime_frame',
+    'power_law_transform',
 ]
 
 
@@ -276,3 +277,22 @@ def from_pfsspy(fieldlines,
         strands.append(strand)
 
     return strands
+
+
+def power_law_transform(x, a0, a1, alpha):
+    """
+    Transform uniform distribution to a power-law distribution
+    with an upper and lower bound.
+
+    Parameters
+    ----------
+    x : array-like
+        Uniform distribution
+    a0 : `float`
+        Lower bound on power-law distribution
+    a1 : `float`
+        Upper bound on power-law distribution
+    alpha : `float`
+        Index of the power-law distribution
+    """
+    return ((a1**(alpha + 1.) - a0**(alpha + 1.))*x + a0**(alpha + 1.))**(1./(alpha + 1.))

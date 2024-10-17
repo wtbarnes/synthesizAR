@@ -175,6 +175,13 @@ Simulation Type: {self.simulation_type}'''
         return (s[:-1] + s[1:])/2
 
     @property
+    def n_s(self):
+        """
+        Numb of points along the field-aligned coordinate
+        """
+        return self.field_aligned_coordinate_center.shape[0]
+
+    @property
     @u.quantity_input
     def field_aligned_coordinate_center_norm(self) -> u.dimensionless_unscaled:
         """
@@ -227,6 +234,11 @@ Simulation Type: {self.simulation_type}'''
     @u.quantity_input
     def field_strength_center(self) -> u.G:
         return self._interpolate_to_center_coordinate(self.field_strength)
+
+    @property
+    @u.quantity_input
+    def field_strength_average(self) -> u.G:
+        return np.average(self.field_strength_center, weights=self.field_aligned_coordinate_width)
 
     @property
     @u.quantity_input

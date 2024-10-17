@@ -1,17 +1,18 @@
 """
 Interface between loop object and scaling law calculations by Martens
 """
-import numpy as np
-from scipy.interpolate import interp1d
-import astropy.units as u
 import astropy.constants as const
+import astropy.units as u
+import numpy as np
+
+from scipy.interpolate import interp1d
 
 from synthesizAR.models import MartensScalingLaws
 
 __all__ = ['MartensInterface']
 
 
-class MartensInterface(object):
+class MartensInterface:
     """
     Interface to the Martens scaling laws.
 

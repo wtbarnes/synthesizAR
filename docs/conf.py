@@ -65,7 +65,10 @@ intersphinx_mapping = {
     'astropy': ('https://docs.astropy.org/en/stable', None),
     'sunpy': ('https://docs.sunpy.org/en/stable/', None),
     'aiapy': ('https://aiapy.readthedocs.io/en/stable/', None),
-    'fiasco': ('https://fiasco.readthedocs.io/en/latest/', None),
+    'xrtpy': ('https://xrtpy.readthedocs.io/en/stable/', None),
+    'fiasco': ('https://fiasco.readthedocs.io/en/stable/', None),
+    'pydrad': ('https://pydrad.readthedocs.io/en/latest/', None),
+    'ebtelplusplus': ('https://ebtelplusplus.readthedocs.io/en/stable', None),
     'dask': ('https://docs.dask.org/en/latest', None),
 }
 
