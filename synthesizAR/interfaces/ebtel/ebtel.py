@@ -3,6 +3,7 @@ Interface between loop object and ebtel++ simulation
 """
 import astropy.units as u
 import ebtelplusplus
+import ebtelplusplus.models
 import numpy as np
 
 
@@ -17,10 +18,13 @@ class EbtelInterface:
     ----------
     total_time : `~astropy.units.Quantity`
         The total time of the simulation. This will be the same for all strands
-    heating_model : `ebtelplusplus.models.HeatingModel`
-        A model that specifies the background
-    physics : `ebtelplusplus.models.PhysicsModel`
-    solver : `ebtelplusplus.models.SolverModel`
+    event_builder : `synthesizAR.interfaces.ebtel.AbstractEventBuilder`, optional
+        Mapping between strand properties and heating event properties
+    heating_model : `ebtelplusplus.models.HeatingModel`, optional
+        A model that specifies the background and energy partition. Events are attached
+        to this model per strand by ``event_builder``.
+    physics : `ebtelplusplus.models.PhysicsModel`, optional
+    solver : `ebtelplusplus.models.SolverModel`, optional
     """
     name = 'EBTEL'
 
@@ -34,8 +38,25 @@ class EbtelInterface:
         self.total_time = total_time
         self.event_builder = event_builder
         self.heating_model = heating_model
-        self.physics = physics_model
-        self.solver = solver_model
+        self.physics_model = physics_model
+        self.solver_model = solver_model
+
+    @property
+    def heating_model(self):
+        return self._heating_model
+
+    @heating_model.setter
+    def heating_model(self, val):
+        # NOTE: unlike the other models, this cannot be None at this level because
+        # we optionally attach events to it.
+        if val is None:
+            val = ebtelplusplus.models.HeatingModel()
+        if val.events and self.event_builder is not None:
+            raise ValueError(
+                'Specifying an event_builder will override existing events on heating model.'
+                'Either specify events explicitly or provide an event_builder but not both.'
+            )
+        self._heating_model = val
 
     def load_results(self, strand):
         """
@@ -50,8 +71,8 @@ class EbtelInterface:
         results = ebtelplusplus.run(self.total_time,
                                     strand.length/2,
                                     heating=self.heating_model,
-                                    physics=self.physics,
-                                    solver=self.solver,
+                                    physics=self.physics_model,
+                                    solver=self.solver_model,
                                     dem=None)
         electron_temperature = self._map_quantity_to_strand(strand, results.electron_temperature)
         ion_temperature = self._map_quantity_to_strand(strand, results.ion_temperature)

@@ -125,7 +125,7 @@ class NanoflareTrain(AbstractEventBuilder):
     @u.quantity_input
     def start_times(self) -> u.s:
         durations = self.duration * np.arange(self.n_events)
-        waiting_time_sums = np.cumsum(self.waiting_times[:1])
+        waiting_time_sums = np.cumsum(self.waiting_times[:-1])
         waiting_time_sums = np.append(u.Quantity(0, waiting_time_sums.unit), waiting_time_sums)
         return self.period[0] + np.cumsum(durations) + waiting_time_sums
 
@@ -153,7 +153,7 @@ class PowerLawNanoflareTrain(NanoflareTrain):
                  index,
                  duration_rise: u.s=None,
                  duration_decay: u.s=None):
-        super.__init__(period,
+        super().__init__(period,
                        duration,
                        waiting_time,
                        duration_rise=duration_rise,
@@ -169,7 +169,7 @@ class PowerLawNanoflareTrain(NanoflareTrain):
 class ScaledPowerLawNanoflareTrain(PowerLawNanoflareTrain):
 
     def __init__(self, *args, scaling=1, **kwargs):
-        super().__init__(self, *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.scaling = scaling
 
     def __call__(self, strand):
