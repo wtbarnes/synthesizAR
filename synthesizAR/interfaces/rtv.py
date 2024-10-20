@@ -1,15 +1,15 @@
 """
 Interface between loop object and RTV scaling laws
 """
-import numpy as np
 import astropy.units as u
+import numpy as np
 
 from synthesizAR.models import RTVScalingLaws
 
 __all__ = ['RTVInterface']
 
 
-class RTVInterface(object):
+class RTVInterface:
     """
     Interface to the RTV scaling laws.
 

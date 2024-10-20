@@ -65,7 +65,10 @@ intersphinx_mapping = {
     'astropy': ('https://docs.astropy.org/en/stable', None),
     'sunpy': ('https://docs.sunpy.org/en/stable/', None),
     'aiapy': ('https://aiapy.readthedocs.io/en/stable/', None),
-    'fiasco': ('https://fiasco.readthedocs.io/en/latest/', None),
+    'xrtpy': ('https://xrtpy.readthedocs.io/en/stable/', None),
+    'fiasco': ('https://fiasco.readthedocs.io/en/stable/', None),
+    'pydrad': ('https://pydrad.readthedocs.io/en/latest/', None),
+    'ebtelplusplus': ('https://ebtelplusplus.readthedocs.io/en/stable', None),
     'dask': ('https://docs.dask.org/en/latest', None),
 }
 
@@ -121,5 +124,6 @@ sphinx_gallery_conf = {
      'examples_dirs': '../examples',   # path to your example scripts
      'gallery_dirs': 'generated/gallery',  # path to where to save gallery generated output
      'filename_pattern': '^((?!skip_).)*$',
-     'default_thumb_file': '_static/synthesizar_logo.png'
+     'default_thumb_file': '_static/synthesizar_logo.png',
+    'matplotlib_animations': True,
 }

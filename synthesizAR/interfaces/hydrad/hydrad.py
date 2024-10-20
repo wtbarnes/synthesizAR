@@ -1,16 +1,14 @@
 """
 Model interface for the HYDrodynamics and RADiation (HYDRAD) code
 """
+import astropy.units as u
+import numpy as np
 import os
 import pathlib
-
-import numpy as np
-from scipy.interpolate import splrep, splev
-import astropy.units as u
+import pydrad.parse
 
 from pydrad.configure import Configure
-from pydrad.parse import Strand
-
+from scipy.interpolate import splev, splrep
 
 __all__ = ['HYDRADInterface']
 
@@ -97,7 +95,7 @@ class HYDRADInterface:
                            verbose=False)
 
     def load_results(self, loop):
-        strand = Strand(self.output_dir / loop.name)
+        strand = pydrad.parse.Strand(self.output_dir / loop.name)
         return self._load_results_from_strand(
             loop,
             strand,
