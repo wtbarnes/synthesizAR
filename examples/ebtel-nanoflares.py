@@ -36,8 +36,10 @@ pos = SkyCoord(lon=15*u.deg,
                obstime=obstime,
                frame='heliographic_stonyhurst')
 arcade_coords = []
-for l in np.arange(50,150,25)*u.Mm:
-    arcade_coords += semi_circular_arcade(l, 3*u.deg, 10, pos, inclination=10*u.deg)
+delta_s = 0.3 * u.Mm
+for l in np.arange(25,150,25)*u.Mm:
+    n_points = int(np.ceil((l/delta_s).decompose()))
+    arcade_coords += semi_circular_arcade(l, 5*u.deg, 50, pos, n_points=n_points)
 
 ###########################################################################
 # Next, build a `~synthesizAR.Skeleton` from the coordinates of the strands
@@ -95,6 +97,6 @@ maps = aia.observe(arcade, channels=aia.channels[3:4])
 mseq = sunpy.map.MapSequence(maps['193'], sequence=True)
 fig = plt.figure()
 ax = fig.add_subplot(projection=mseq[0])
-ani = mseq.plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=20, stretch=AsinhStretch()))
+ani = mseq.plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=5, stretch=AsinhStretch()))
 
 plt.show()
