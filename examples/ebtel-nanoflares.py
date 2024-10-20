@@ -36,8 +36,8 @@ pos = SkyCoord(lon=15*u.deg,
                obstime=obstime,
                frame='heliographic_stonyhurst')
 arcade_coords = []
-for l in np.arange(40,150,20)*u.Mm:
-    arcade_coords += semi_circular_arcade(l, 5*u.deg, 50, pos, inclination=10*u.deg)
+for l in np.arange(50,150,25)*u.Mm:
+    arcade_coords += semi_circular_arcade(l, 3*u.deg, 10, pos, inclination=10*u.deg)
 
 ###########################################################################
 # Next, build a `~synthesizAR.Skeleton` from the coordinates of the strands
