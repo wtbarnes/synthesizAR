@@ -136,8 +136,7 @@ class InstrumentSTEREOEUVI(InstrumentSDOAIA):
 ###############################################################################
 # We can then use our custom instrument class in the exact same way as our
 # predefined classes to model the emission from EUVI. Note that we'll only do
-# this for the 171 $\AA$ channel.
+# this for the 171 Å channel.
 euvi = InstrumentSTEREOEUVI([0, 1]*u.s, stereo_a, fov_center=center, fov_width=(250, 250)*u.arcsec)
 euvi_images = euvi.observe(skeleton, channels=euvi.channels[2:3])
-for k in euvi_images:
-    euvi_images[k][0].peek()
+euvi_images['171'][0].peek()
