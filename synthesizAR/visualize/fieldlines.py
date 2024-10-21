@@ -1,18 +1,18 @@
 """
 Visualizaition functions related to 1D fieldlines
 """
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
 import astropy.units as u
-from astropy.time import Time
+import matplotlib.pyplot as plt
+import numpy as np
+
 from astropy.coordinates import SkyCoord
+from astropy.time import Time
 from astropy.visualization import ImageNormalize
-from sunpy.map import GenericMap, make_fitswcs_header
 from sunpy.coordinates import Helioprojective
 from sunpy.coordinates.ephemeris import get_earth
+from sunpy.map import GenericMap, make_fitswcs_header
 
-from synthesizAR.util import is_visible, find_minimum_fov
+from synthesizAR.util import find_minimum_fov
 
 __all__ = ['set_ax_lims', 'plot_fieldlines']
 
@@ -55,20 +55,13 @@ def plot_fieldlines(*coords,
         If True, draw the HGS grid
     axes_limits : `tuple`, optional
         Tuple of world coordinates (axis1, axis2)
-
-    Other Parameters
-    ----------------
-    plot_kwargs : `dict`
+    plot_kwargs : `dict`, optional
         Additional parameters to pass to `~matplotlib.pyplot.plot` when
         drawing field lines.
-    grid_kwargs : `dict`
+    grid_kwargs : `dict`, optional
         Additional parameters to pass to `~sunpy.map.Map.draw_grid`
-    imshow_kwargs : `dict`
+    imshow_kwargs : `dict`, optional
         Additional parameters to pass to `~sunpy.map.Map.plot`
-
-    See Also
-    --------
-    synthesizAR.util.is_visible
     """
     plot_kwargs = {'color': 'k', 'lw': 1}
     grid_kwargs = {'grid_spacing': 10*u.deg, 'color': 'k', 'alpha': 0.75}
@@ -100,7 +93,7 @@ def plot_fieldlines(*coords,
     for coord in coords:
         c = coord.transform_to(image_map.coordinate_frame)
         if check_visible:
-            c = c[is_visible(c, image_map.observer_coordinate)]
+            c = c[c.is_visible()]
         transformed_coords.append(c)
         if len(c) == 0:
             continue  # Matplotlib throws exception when no points are visible
