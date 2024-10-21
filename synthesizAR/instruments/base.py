@@ -12,10 +12,11 @@ from astropy.coordinates import SkyCoord
 from dataclasses import dataclass
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
-from sunpy.coordinates.frames import HeliographicStonyhurst, Helioprojective
+from sunpy.coordinates import HeliographicStonyhurst, Helioprojective
+from sunpy.coordinates.utils import solar_angle_equivalency
 from sunpy.map import make_fitswcs_header, Map
 
-from synthesizAR.util import find_minimum_fov, is_visible
+from synthesizAR.util import find_minimum_fov
 from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['ChannelBase', 'InstrumentBase']
@@ -129,8 +130,9 @@ class InstrumentBase:
         """
         Pixel area
         """
-        w_x, w_y = (1*u.pix * self.resolution).to(u.radian).value * self.observer.radius
-        return w_x * w_y
+        sa_equiv = solar_angle_equivalency(self.observer)
+        res = (1*u.pix * self.resolution).to('cm', equivalencies=sa_equiv)
+        return res[0] * res[1]
 
     def convolve_with_psf(self, smap, channel):
         """
@@ -345,7 +347,7 @@ class InstrumentBase:
         if not self.average_over_los:
             kernels *= (skeleton.all_cross_sectional_areas / self.pixel_area).decompose() * skeleton.all_widths
         if check_visible:
-            visible = is_visible(coordinates_centers, self.observer)
+            visible = coordinates_centers.is_visible()
         else:
             visible = np.ones(kernels.shape)
         # Bin
