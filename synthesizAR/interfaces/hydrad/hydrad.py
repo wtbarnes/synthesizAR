@@ -2,8 +2,8 @@
 Model interface for the HYDrodynamics and RADiation (HYDRAD) code
 """
 import astropy.units as u
+import copy
 import numpy as np
-import os
 import pathlib
 import pydrad.parse
 
@@ -69,7 +69,7 @@ class HYDRADInterface:
                  interpolate_to_norm=False):
         self.output_dir = pathlib.Path(output_dir)
         self.base_config = base_config
-        self.hydrad_dir = hydrad_dir if hydrad_dir is None else pathlib.Path(hydrad_dir)
+        self.hydrad_dir = hydrad_dir
         self.heating_model = heating_model
         self.use_gravity = use_gravity
         self.use_magnetic_field = use_magnetic_field
@@ -77,22 +77,43 @@ class HYDRADInterface:
         self.maximum_chromosphere_ratio = maximum_chromosphere_ratio
         self.interpolate_to_norm = interpolate_to_norm
 
-    def configure_input(self, loop):
-        config = self.base_config.copy()
-        config['general']['loop_length'] = loop.length
-        config['initial_conditions']['heating_location'] = loop.length / 2.
+    @property
+    def hydrad_dir(self):
+        return self._hydrad_dir
+
+    @hydrad_dir.setter
+    def hydrad_dir(self, value):
+        if value is not None:
+            value = pathlib.Path(value)
+        self._hydrad_dir = value
+
+    def _map_strand_to_config_dict(self, loop):
+        # NOTE: This is a separate function for ease of debugging
+        config = copy.deepcopy(self.base_config)
+        # NOTE: Avoids a bug in HYDRAD where seg faults can arise due to inconsistencies between max cell
+        # widths and minimum number of cells
+        loop_length = np.round(loop.length.to('Mm'))
+        config['general']['loop_length'] = loop_length
+        config['initial_conditions']['heating_location'] = loop_length / 2
         if self.maximum_chromosphere_ratio:
             config['general']['footpoint_height'] = min(
-                config['general']['footpoint_height'], self.maximum_chromosphere_ratio * loop.length / 2)
+                config['general']['footpoint_height'], self.maximum_chromosphere_ratio * loop_length / 2)
         if self.use_gravity:
             config['general']['poly_fit_gravity'] = self.configure_gravity_fit(loop)
         if self.use_magnetic_field:
             config['general']['poly_fit_magnetic_field'] = self.configure_magnetic_field_fit(loop)
         config = self.heating_model.calculate_event_properties(config, loop)
-        c = Configure(config)
-        c.setup_simulation(os.path.join(self.output_dir, loop.name),
+        return config
+
+    def configure_input(self, loop, **kwargs):
+        # Import here to avoid circular imports
+        from synthesizAR import log
+        log.debug(f'Configuring HYDRAD for {loop.name}')
+        config_dict = self._map_strand_to_config_dict(loop)
+        c = Configure(config_dict)
+        c.setup_simulation(self.output_dir / loop.name,
                            base_path=self.hydrad_dir,
-                           verbose=False)
+                           **kwargs)
 
     def load_results(self, loop):
         strand = pydrad.parse.Strand(self.output_dir / loop.name)
