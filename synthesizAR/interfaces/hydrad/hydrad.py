@@ -92,12 +92,11 @@ class HYDRADInterface:
         config = copy.deepcopy(self.base_config)
         # NOTE: Avoids a bug in HYDRAD where seg faults can arise due to inconsistencies between max cell
         # widths and minimum number of cells
-        loop_length = np.round(loop.length.to('Mm'))
-        config['general']['loop_length'] = loop_length
-        config['initial_conditions']['heating_location'] = loop_length / 2
+        config['general']['loop_length'] = loop.length
+        config['initial_conditions']['heating_location'] = loop.length / 2
         if self.maximum_chromosphere_ratio:
             config['general']['footpoint_height'] = min(
-                config['general']['footpoint_height'], self.maximum_chromosphere_ratio * loop_length / 2)
+                config['general']['footpoint_height'], self.maximum_chromosphere_ratio * loop.length / 2)
         if self.use_gravity:
             config['general']['poly_fit_gravity'] = self.configure_gravity_fit(loop)
         if self.use_magnetic_field:
