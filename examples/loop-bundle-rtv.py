@@ -16,7 +16,7 @@ from sunpy.map import pixelate_coord_path, sample_at_coords
 
 import synthesizAR
 
-from synthesizAR.instruments import InstrumentSDOAIA
+from synthesizAR.instruments.sdo import InstrumentSDOAIA
 from synthesizAR.interfaces import RTVInterface
 from synthesizAR.models import semi_circular_bundle
 

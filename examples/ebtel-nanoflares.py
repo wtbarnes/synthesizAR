@@ -17,7 +17,7 @@ from sunpy.coordinates import get_horizons_coord
 
 import synthesizAR
 
-from synthesizAR.instruments import InstrumentSDOAIA
+from synthesizAR.instruments.sdo import InstrumentSDOAIA
 from synthesizAR.interfaces.ebtel import EbtelInterface
 from synthesizAR.interfaces.ebtel.heating_models import PowerLawNanoflareTrain
 from synthesizAR.models import semi_circular_arcade

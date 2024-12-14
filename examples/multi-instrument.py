@@ -23,7 +23,8 @@ from sunpy.coordinates import (
 
 import synthesizAR
 
-from synthesizAR.instruments import InstrumentHinodeXRT, InstrumentSDOAIA
+from synthesizAR.instruments.hinode import InstrumentHinodeXRT
+from synthesizAR.instruments.sdo import InstrumentSDOAIA
 from synthesizAR.interfaces import MartensInterface
 from synthesizAR.models import semi_circular_arcade
 
