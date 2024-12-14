@@ -21,6 +21,7 @@ dependencies = [
     "zarr",
     "asdf",
     "ndcube>=2.0",
+    "xarray",
 ]
 
 [project.urls]
