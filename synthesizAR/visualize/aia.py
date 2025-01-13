@@ -1,14 +1,14 @@
 """
 Plotting functions for easily and quickily visualizing synthesized AIA results
 """
+import astropy.units as u
+import h5py
+import matplotlib.animation
+import matplotlib.colors
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 
-import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import matplotlib.colors
-import matplotlib.animation
-import astropy.units as u
 from astropy.coordinates import SkyCoord
 from sunpy.map import Map
 
@@ -22,7 +22,7 @@ def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm
 
     Parameters
     ----------
-    aia : `synthesizAR.instruments.InstrumentSDOAIA`
+    aia : `synthesizAR.instruments.sdo.InstrumentSDOAIA`
     time : `astropy.Quantity`
     root_dir : `str`
     figsize : `tuple`, optional
@@ -62,7 +62,7 @@ def plot_aia_channels(aia, time: u.s, root_dir, corners=None, figsize=None, norm
         ax.text(0.1*tmp.dimensions.x.value, 0.9*tmp.dimensions.y.value,
                 r'${}$ $\mathrm{{\mathring{{A}}}}$'.format(channel['name']),
                 color='w', fontsize=fontsize)
-    fig.suptitle(r'$t={:.0f}$ {}'.format(time.value, time.unit.to_string()), fontsize=fontsize)
+    fig.suptitle(rf'$t={time.value:.0f}$ {time.unit.to_string()}', fontsize=fontsize)
     if kwargs.get('use_with_animation', False):
         return fig, ims
 

@@ -14,7 +14,7 @@ from sunpy.coordinates import get_earth
 
 import synthesizAR
 
-from synthesizAR.instruments import InstrumentSDOAIA
+from synthesizAR.instruments.sdo import InstrumentSDOAIA
 from synthesizAR.interfaces import RTVInterface
 from synthesizAR.models import semi_circular_arcade
 

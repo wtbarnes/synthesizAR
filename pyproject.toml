@@ -21,6 +21,7 @@ dependencies = [
     "zarr",
     "asdf",
     "ndcube>=2.0",
+    "xarray",
 ]
 
 [project.urls]
@@ -86,6 +87,7 @@ filterwarnings = [
   "error",
   "ignore:The unit 'G' has been deprecated in the VOUnit standard.*:astropy.units.core.UnitsWarning",
   "ignore:'cgi' is deprecated and slated for removal in Python 3.13:DeprecationWarning",
+  "ignore:.*pkg_resources.*:DeprecationWarning"
 ]
 
 [tool.coverage.run]
