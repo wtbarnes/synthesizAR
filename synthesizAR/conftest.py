@@ -13,9 +13,13 @@ from synthesizAR.models import semi_circular_arcade, semi_circular_loop
 
 
 @pytest.fixture
-def bare_skeleton():
-    observer = get_earth(time='2020-01-01T00:00:00')
-    arcade = semi_circular_arcade(100*u.Mm, 20*u.deg, 10, observer)
+def earth_observer():
+    return get_earth(time='2020-01-01T00:00:00')
+
+
+@pytest.fixture
+def bare_skeleton(earth_observer):
+    arcade = semi_circular_arcade(100*u.Mm, 20*u.deg, 10, earth_observer)
     loops = [synthesizAR.Strand(f'{i}', c) for i, c in enumerate(arcade)]
     return synthesizAR.Skeleton(loops)
 

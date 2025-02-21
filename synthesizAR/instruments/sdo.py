@@ -40,28 +40,15 @@ class InstrumentSDOAIA(InstrumentBase):
     name = 'SDO_AIA'
 
     def __init__(self, observing_time, observer, **kwargs):
-        self.channels = [
-            Channel(94*u.angstrom),
-            Channel(131*u.angstrom),
-            Channel(171*u.angstrom),
-            Channel(193*u.angstrom),
-            Channel(211*u.angstrom),
-            Channel(335*u.angstrom),
-        ]
-        # Add the Gaussian width for the PSF convolution
-        psf_params = filter_mesh_parameters(use_preflightcore=True)
-        for c in self.channels:
-            psf_width = psf_params[c.channel]['width']
-            c.psf_width = u.Quantity([psf_width, psf_width])
-        super().__init__(observing_time, observer, **kwargs)
-
-    @property
-    def cadence(self) -> u.s:
-        return 12.0 * u.s
-
-    @property
-    def resolution(self) -> u.arcsec / u.pix:
-        return [0.600698, 0.600698] * u.arcsec/u.pixel
+        resolution = kwargs.pop('resolution', [0.600698, 0.600698] * u.arcsec/u.pixel)
+        cadence = kwargs.pop('cadence', 12.0 * u.s)
+        super().__init__(
+            observing_time=observing_time,
+            observer=observer,
+            resolution=resolution,
+            cadence=cadence,
+            **kwargs,
+        )
 
     @property
     def observatory(self):
@@ -74,6 +61,23 @@ class InstrumentSDOAIA(InstrumentBase):
     @property
     def telescope(self):
         return 'SDO/AIA'
+
+    @property
+    def channels(self):
+        channels = [
+            Channel(94*u.angstrom),
+            Channel(131*u.angstrom),
+            Channel(171*u.angstrom),
+            Channel(193*u.angstrom),
+            Channel(211*u.angstrom),
+            Channel(335*u.angstrom),
+        ]
+        # Add the Gaussian width for the PSF convolution
+        psf_params = filter_mesh_parameters(use_preflightcore=True)
+        for c in channels:
+            psf_width = psf_params[c.channel]['width']
+            c.psf_width = u.Quantity([psf_width, psf_width])
+        return channels
 
     @property
     def _expected_unit(self):

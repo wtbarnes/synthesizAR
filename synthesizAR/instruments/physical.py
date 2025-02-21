@@ -2,19 +2,18 @@
 Instruments for calculating physical quantities, rather than
 observed counts, projected along a LOS
 """
-from dataclasses import dataclass
-import warnings
-
 import astropy.units as u
 import astropy.wcs
-import numpy as np
-from scipy.interpolate import interp1d
 import ndcube
+import numpy as np
+
+from dataclasses import dataclass
+from scipy.interpolate import interp1d
 
 from synthesizAR.instruments import ChannelBase, InstrumentBase
+from synthesizAR.instruments.util import add_wave_keys_to_header, extend_celestial_wcs
 from synthesizAR.util import los_velocity
 from synthesizAR.util.decorators import return_quantity_as_tuple
-from synthesizAR.instruments.util import add_wave_keys_to_header, extend_celestial_wcs
 
 __all__ = [
     'InstrumentDEM',
@@ -38,10 +37,13 @@ class InstrumentDEM(InstrumentBase):
     @u.quantity_input
     def __init__(self, *args, temperature_bin_edges: u.K, **kwargs):
         self.temperature_bin_edges = temperature_bin_edges
-        n_bins = temperature_bin_edges.shape[0]-1
-        bin_edges = [temperature_bin_edges[[i, i+1]] for i in range(n_bins)]
-        self.channels = [ChannelDEM(bin_edges=be) for be in bin_edges]
         super().__init__(*args, **kwargs)
+
+    @property
+    def channels(self):
+        n_bins = self.temperature_bin_edges.shape[0]-1
+        bin_edges = [self.temperature_bin_edges[[i, i+1]] for i in range(n_bins)]
+        return [ChannelDEM(bin_edges=be) for be in bin_edges]
 
     @property
     @u.quantity_input
@@ -78,14 +80,11 @@ class InstrumentDEM(InstrumentBase):
 
     @staticmethod
     def dem_maps_list_to_cube(dem_maps, temperature_bin_centers):
-        # Construct WCS
         compound_wcs = extend_celestial_wcs(dem_maps[0].wcs,
                                             temperature_bin_centers,
                                             'temperature',
                                             'phys.temperature')
-        # Stack arrays
         dem_array = u.Quantity([d.quantity for d in dem_maps])
-
         return ndcube.NDCube(dem_array, wcs=compound_wcs, meta=dem_maps[0].meta)
 
     @staticmethod
@@ -107,14 +106,14 @@ class InstrumentDEM(InstrumentBase):
         temperature_bin_centers = dem.axis_world_coords(0)[0]
         wavelength_spectra = spectra.axis_world_coords(1)[0]
         temperature_spectra = spectra.axis_world_coords(0)[0].to(temperature_bin_centers.unit)
-        # Interpolate spectral cube to DEM temperatures
-        f_interp = interp1d(temperature_spectra.value, spectra.data,
-                            axis=0, bounds_error=False, fill_value=0.0)
+        f_interp = interp1d(temperature_spectra.value,
+                            spectra.data,
+                            axis=0,
+                            bounds_error=False,
+                            fill_value=0.0)
         spectra_interp = f_interp(temperature_bin_centers.value)
         spectra_interp = spectra_interp * spectra.unit
-        # Take dot product between DEM and spectra
         intensity = np.tensordot(spectra_interp, u.Quantity(dem.data, dem.unit), axes=([0], [0]))
-        # Construct cube
         wave_header = add_wave_keys_to_header(wavelength_spectra, header)
         wave_header['BUNIT'] = intensity.unit.to_string()
         wave_header['NAXIS'] = len(intensity.shape)
@@ -129,8 +128,11 @@ class InstrumentQuantityBase(InstrumentBase):
 
     @u.quantity_input
     def __init__(self, *args, **kwargs):
-        self.channels = [ChannelBase(name=self.name)]
         super().__init__(*args, average_over_los=True, **kwargs)
+
+    @property
+    def channels(self):
+        return [ChannelBase(name=self.name)]
 
 
 class InstrumentLOSVelocity(InstrumentQuantityBase):
@@ -140,9 +142,11 @@ class InstrumentLOSVelocity(InstrumentQuantityBase):
     @return_quantity_as_tuple
     def calculate_intensity_kernel(loop, *args, **kwargs):
         observer = kwargs.get('observer')
-        if observer is None:
-            raise ValueError('Must pass in observer to compute LOS velocity.')
         return los_velocity(loop.velocity_xyz, observer)
+
+    def observe(self, *args, **kwargs):
+        kwargs['observer'] = self.observer
+        return super().observe(*args, **kwargs)
 
     @property
     def _expected_unit(self):
