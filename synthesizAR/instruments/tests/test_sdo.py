@@ -9,6 +9,7 @@ import sunpy.map
 from synthesizAR.instruments.sdo import InstrumentSDOAIA
 
 
+@pytest.mark.remote_data
 def test_aia_instrument(skeleton_with_model, earth_observer):
     aia = InstrumentSDOAIA([0,]*u.s, earth_observer)
     aia_maps = aia.observe(skeleton_with_model)
@@ -18,7 +19,7 @@ def test_aia_instrument(skeleton_with_model, earth_observer):
             assert isinstance(m, sunpy.map.GenericMap)
             assert m.unit.is_equivalent('DN pix-1 s-1')
 
-
+@pytest.mark.remote_data
 @pytest.mark.parametrize(('input', 'result'), [
     ([0,]*u.s, [0,]*u.s),
     ([0,1]*u.s, [0,]*u.s),
@@ -30,6 +31,7 @@ def test_aia_observing_times(earth_observer, input, result):
     assert u.allclose(aia.observing_time, result)
 
 
+@pytest.mark.remote_data
 def test_aia_resolution(earth_observer):
     aia = InstrumentSDOAIA([0,]*u.s, earth_observer)
     assert u.allclose(aia.resolution, [0.600698, 0.600698]*u.arcsec/u.pix)

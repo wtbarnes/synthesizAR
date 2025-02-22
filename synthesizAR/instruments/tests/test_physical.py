@@ -14,6 +14,7 @@ def test_dem_instrument(skeleton_with_model, earth_observer):
     temperature_bin_edges = np.geomspace(1e5, 1e7, num=21,endpoint=True)*u.K
     dem = InstrumentDEM([0,]*u.s,
                         earth_observer,
+                        [1,1]*u.arcsec/u.pixel,
                         temperature_bin_edges=temperature_bin_edges)
     dem_maps = dem.observe(skeleton_with_model)
     for k, v in dem_maps.items():
@@ -23,7 +24,7 @@ def test_dem_instrument(skeleton_with_model, earth_observer):
 
 
 def test_velocity_instrument(skeleton_with_model, earth_observer):
-    los_vel = InstrumentLOSVelocity([0,]*u.s, earth_observer)
+    los_vel = InstrumentLOSVelocity([0,]*u.s, earth_observer, [1,1]*u.arcsec/u.pixel)
     vel_maps = los_vel.observe(skeleton_with_model)
     for k, v in vel_maps.items():
         assert len(v) == 1
