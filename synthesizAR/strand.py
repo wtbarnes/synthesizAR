@@ -177,7 +177,7 @@ Simulation Type: {self.simulation_type}'''
     @property
     def n_s(self):
         """
-        Numb of points along the field-aligned coordinate
+        Number of points along the field-aligned coordinate
         """
         return self.field_aligned_coordinate_center.shape[0]
 

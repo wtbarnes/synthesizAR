@@ -17,6 +17,7 @@ from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = [
     'InstrumentDEM',
+    'InstrumentVDEM',
     'InstrumentLOSVelocity',
     'InstrumentTemperature'
 ]
@@ -24,10 +25,12 @@ __all__ = [
 
 @dataclass
 class ChannelDEM(ChannelBase):
-    bin_edges: u.Quantity = None
+    # NOTE: These have to have a default value because of the
+    # keyword arguments on the base class.
+    bin_edges: u.Quantity[u.K] = None
 
     def __post_init__(self):
-        self.log_bin_edges = np.log10(self.bin_edges.to('K').value)
+        self.log_bin_edges = np.log10(self.bin_edges.to_value('K'))
         self.name = f'{self.log_bin_edges[0]:.2f}-{self.log_bin_edges[1]:.2f}'
 
 
@@ -122,6 +125,83 @@ class InstrumentDEM(InstrumentBase):
         meta = {**meta, **wave_header}
         wcs = astropy.wcs.WCS(header=wave_header)
         return ndcube.NDCube(intensity, wcs=wcs, meta=meta)
+
+
+@dataclass
+class ChannelVDEM(ChannelBase):
+    # NOTE: These have to have a default value because of the
+    # keyword arguments on the base class.
+    temperature_bin_edges: u.Quantity[u.K] = None
+    velocity_bin_edges: u.Quantity[u.km/u.s] = None
+
+    def __post_init__(self):
+        log_tbin_edges = np.log10(self.temperature_bin_edges.to_value('K'))
+        vbin_edges = self.velocity_bin_edges.to_value('km/s')
+        tname = f'{log_tbin_edges[0]:.2f}-{log_tbin_edges[1]:.2f}'
+        vname = f'{vbin_edges[0]:.2f}-{vbin_edges[1]:.2f}'
+        self.name = f'logT:{tname}_v:{vname}'
+
+
+class InstrumentVDEM(InstrumentBase):
+    name = 'VDEM'
+
+    @u.quantity_input
+    def __init__(self,
+                 *args,
+                 temperature_bin_edges: u.K,
+                 velocity_bin_edges: u.Unit('km/s'),
+                 **kwargs):
+        self.temperature_bin_edges = temperature_bin_edges
+        self.velocity_bin_edges = velocity_bin_edges
+        super().__init__(*args, **kwargs)
+
+    @property
+    def channels(self):
+        channels = []
+        for i in range(self.temperature_bin_centers.shape[0]):
+            for j in range(self.velocity_bin_centers.shape[0]):
+                channels.append(
+                    ChannelVDEM(temperature_bin_edges=self.temperature_bin_edges[[i,i+1]],
+                                velocity_bin_edges=self.velocity_bin_edges[[j,j+1]])
+                )
+        return channels
+
+    @property
+    @u.quantity_input
+    def temperature_bin_centers(self) -> u.K:
+        return (self.temperature_bin_edges[1:] + self.temperature_bin_edges[:-1])/2
+
+    @property
+    @u.quantity_input
+    def velocity_bin_centers(self) -> u.Unit('km/s'):
+        return (self.velocity_bin_edges[1:] + self.velocity_bin_edges[:-1])/2
+
+    def get_instrument_name(self, channel):
+        # This ensures that the temperature bin labels are in the header
+        return f'{self.name}_{channel.name}'
+
+    @property
+    def _expected_unit(self):
+        return u.cm**(-5)
+
+    def observe(self, *args, **kwargs):
+        kwargs['observer'] = self.observer
+        return super().observe(*args, **kwargs)
+
+    @staticmethod
+    @return_quantity_as_tuple
+    def calculate_intensity_kernel(loop, channel, **kwargs):
+        observer = kwargs.get('observer')
+        T = loop.electron_temperature
+        n = loop.density
+        v_los = los_velocity(loop.velocity_xyz, observer)
+        in_temperature_bin = np.logical_and(T>=channel.temperature_bin_edges[0],
+                                            T<channel.temperature_bin_edges[1])
+        in_velocity_bin = np.logical_and(v_los>=channel.velocity_bin_edges[0],
+                                         v_los<channel.velocity_bin_edges[1])
+        bin_mask = np.where(np.logical_and(in_temperature_bin, in_velocity_bin), 1, 0)
+        kernel = n**2 * bin_mask
+        return kernel
 
 
 class InstrumentQuantityBase(InstrumentBase):
