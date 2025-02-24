@@ -94,7 +94,7 @@ maps = aia.observe(arcade, channels=aia.channels[3:4])
 ###########################################################################
 # We can easily visualize this time-dependent emission using a
 # `~sunpy.map.MapSequence`.
-mseq = sunpy.map.MapSequence(maps['193'], sequence=True)
+mseq = sunpy.map.Map(maps['193'], sequence=True)
 fig = plt.figure()
 ax = fig.add_subplot(projection=mseq[0])
 ani = mseq.plot(axes=ax, norm=ImageNormalize(vmin=0, vmax=5, stretch=AsinhStretch()))
