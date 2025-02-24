@@ -33,6 +33,11 @@ class ChannelDEM(ChannelBase):
         self.log_bin_edges = np.log10(self.bin_edges.to_value('K'))
         self.name = f'{self.log_bin_edges[0]:.2f}-{self.log_bin_edges[1]:.2f}'
 
+    @property
+    @u.quantity_input
+    def bin_center(self) -> u.K:
+        return self.bin_edges.sum()/2
+
 
 class InstrumentDEM(InstrumentBase):
     name = 'DEM'
@@ -71,9 +76,9 @@ class InstrumentDEM(InstrumentBase):
         kernel = n**2 * bin_mask
         return kernel
 
-    def dem_maps_to_cube(self, dem, time_index):
+    def maps_to_cube(self, dem, time_index):
         """
-        Convert a list of DEM maps to a DEM NDCube
+        Transform a set of DEM maps at a single time step to a `~ndcube.NDCube`
         """
         # NOTE: this is the format that .observe returns
         return type(self).dem_maps_list_to_cube(
@@ -83,10 +88,10 @@ class InstrumentDEM(InstrumentBase):
 
     @staticmethod
     def dem_maps_list_to_cube(dem_maps, temperature_bin_centers):
-        compound_wcs = extend_celestial_wcs(dem_maps[0].wcs,
-                                            temperature_bin_centers,
-                                            'temperature',
-                                            'phys.temperature')
+        compound_wcs = extend_celestial_wcs(
+            dem_maps[0].wcs,
+            (temperature_bin_centers, 'temperature', 'phys.temperature'),
+        )
         dem_array = u.Quantity([d.quantity for d in dem_maps])
         return ndcube.NDCube(dem_array, wcs=compound_wcs, meta=dem_maps[0].meta)
 
@@ -135,11 +140,27 @@ class ChannelVDEM(ChannelBase):
     velocity_bin_edges: u.Quantity[u.km/u.s] = None
 
     def __post_init__(self):
-        log_tbin_edges = np.log10(self.temperature_bin_edges.to_value('K'))
-        vbin_edges = self.velocity_bin_edges.to_value('km/s')
+        self.name = self._make_channel_label(self.temperature_bin_edges,
+                                             self.velocity_bin_edges)
+
+    @staticmethod
+    def _make_channel_label(temperature_bin_edges, velocity_bin_edges):
+        # This is a static method so it can be used externally
+        log_tbin_edges = np.log10(temperature_bin_edges.to_value('K'))
+        vbin_edges = velocity_bin_edges.to_value('km/s')
         tname = f'{log_tbin_edges[0]:.2f}-{log_tbin_edges[1]:.2f}'
         vname = f'{vbin_edges[0]:.2f}-{vbin_edges[1]:.2f}'
-        self.name = f'logT:{tname}_v:{vname}'
+        return f'logT:{tname}_v:{vname}'
+
+    @property
+    @u.quantity_input
+    def temperature_bin_center(self) -> u.K:
+        return self.temperature_bin_edges.sum()/2
+
+    @property
+    @u.quantity_input
+    def velocity_bin_center(self) -> u.Unit('km/s'):
+        return self.velocity_bin_edges.sum()/2
 
 
 class InstrumentVDEM(InstrumentBase):
@@ -202,6 +223,29 @@ class InstrumentVDEM(InstrumentBase):
         bin_mask = np.where(np.logical_and(in_temperature_bin, in_velocity_bin), 1, 0)
         kernel = n**2 * bin_mask
         return kernel
+
+    def maps_to_cube(self, vdem, time_index):
+        """
+        Transform a set of DEM maps at a single time step to a `~ndcube.NDCube`
+        """
+        arrays = []
+        for j in range(self.velocity_bin_centers.shape[0]):
+            _arrays = []
+            for i in range(self.temperature_bin_centers.shape[0]):
+                key = self.channels[0]._make_channel_label(
+                    self.temperature_bin_edges[[i,i+1]],
+                    self.velocity_bin_edges[[j,j+1]]
+                )
+                _map = vdem[key][time_index]
+                _arrays.append(_map.data)
+            arrays.append(_arrays)
+        arrays = np.array(arrays)
+        compound_wcs = extend_celestial_wcs(
+            _map.wcs,
+            (self.temperature_bin_centers, 'temperature', 'phys.temperature'),
+            (self.velocity_bin_centers, 'velocity', 'phys.velocity'),
+        )
+        return ndcube.NDCube(arrays, wcs=compound_wcs, meta=_map.meta, unit=_map.unit)
 
 
 class InstrumentQuantityBase(InstrumentBase):

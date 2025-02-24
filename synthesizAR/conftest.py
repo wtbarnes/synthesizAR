@@ -32,6 +32,18 @@ def skeleton_with_model(bare_skeleton):
 
 
 @pytest.fixture
+def skeleton_with_time_dependent_model(bare_skeleton):
+    from ebtelplusplus.models import HeatingModel, TriangularHeatingEvent
+
+    from synthesizAR.interfaces.ebtel import EbtelInterface
+    heating_model = HeatingModel(partition=1)
+    heating_model.events = [TriangularHeatingEvent(0*u.s, 200*u.s, 5e-3*u.Unit('erg cm-3 s-1'))]
+    interface = EbtelInterface(5e3*u.s, heating_model=heating_model)
+    bare_skeleton.load_loop_simulations(interface)
+    return bare_skeleton
+
+
+@pytest.fixture
 def semi_circle_strand(bare_skeleton):
     coords = semi_circular_loop(length=100*u.Mm)
     return synthesizAR.Strand('test', coords)

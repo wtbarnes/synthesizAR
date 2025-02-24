@@ -42,19 +42,25 @@ def add_wave_keys_to_header(wavelength_array: u.angstrom, header):
     return header_copy
 
 
-def extend_celestial_wcs(celestial_wcs, array, name, physical_type):
+def extend_celestial_wcs(celestial_wcs, *extra_coords, **kwargs):
     """
-    Add an additional 3rd axis corresponding to a `~astropy.units.Quantity`
-    to a 2D celestial WCS
+    Add additional axes as extra coords to an existing WCS
+
+    Parameters
+    ----------
+    celestial_wcs: `~astropy.wcs.WCS`
+    extra_coords: `list`
+        Each member of the list can be an extra coord or a tuple.
+        If the latter, it is assumed this is a three-tuple specifying
+        the array, name, and physical type of the `QuantityTableCoordinate`
     """
-    temp_table = QuantityTableCoordinate(array,
-                                         names=name,
-                                         physical_types=physical_type)
-    mapping = list(range(celestial_wcs.pixel_n_dim))
-    mapping.extend(
-        [celestial_wcs.pixel_n_dim] * temp_table.wcs.pixel_n_dim
-    )
-    return CompoundLowLevelWCS(celestial_wcs, temp_table.wcs, mapping=mapping)
+    wcses = []
+    for ec in extra_coords:
+        if isinstance(ec, tuple):
+            array, name, physical_type = ec
+            ec = QuantityTableCoordinate(array, names=name, physical_types=physical_type)
+        wcses.append(ec.wcs)
+    return CompoundLowLevelWCS(celestial_wcs, *wcses, **kwargs)
 
 
 def read_cube_from_dataset(filename, axis_name, physical_type):
