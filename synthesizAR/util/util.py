@@ -9,13 +9,11 @@ import sunpy.coordinates
 import warnings
 
 from astropy.coordinates import SkyCoord
-from collections import namedtuple
 from scipy.interpolate import RegularGridInterpolator
 
 import synthesizAR
 
 __all__ = [
-    'SpatialPair',
     'los_velocity',
     'coord_in_fov',
     'find_minimum_fov',
@@ -25,9 +23,6 @@ __all__ = [
     'change_obstime_frame',
     'power_law_transform',
 ]
-
-
-SpatialPair = namedtuple('SpatialPair', 'x y z')
 
 
 @u.quantity_input

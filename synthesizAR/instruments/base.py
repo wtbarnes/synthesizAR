@@ -37,11 +37,15 @@ class InstrumentBase:
     Parameters
     ----------
     observing_time : `~astropy.units.Quantity`
-        Tuple of start and end observing times
-    observer_coordinate : `~astropy.coordinates.SkyCoord`
+        If cadence is also provided and this has a length of 2, this is interpreted as
+        the start and end time of the observation period and an observing time is
+        constructed based on this interval and the cadence. Otherwise, this is interpreted
+        as the times at which the observations should be forward modeled.
+    observer : `~astropy.coordinates.SkyCoord`
         Coordinate of the observing instrument
-    cadence : `~astropy.units.Quantity`
     resolution : `~astropy.units.Quantity`
+    cadence : `~astropy.units.Quantity`, optional
+        If specified, this is used to construct the observing time
     pad_fov : `~astropy.units.Quantity`, optional
         Two-dimensional array specifying the padding to apply to the field of view of the synthetic
         image in both directions. If None, no padding is applied and the field of view is defined
@@ -55,13 +59,17 @@ class InstrumentBase:
     def __init__(self,
                  observing_time: u.s,
                  observer,
+                 resolution: u.Unit('arcsec/pix'),
+                 cadence: u.s = None,
                  pad_fov: u.arcsec = None,
                  fov_center=None,
                  fov_width: u.arcsec = None,
                  average_over_los=False):
         self.observer = observer
+        self.cadence = cadence
         self.observing_time = observing_time
-        self.pad_fov = (0, 0) * u.arcsec if pad_fov is None else pad_fov
+        self.resolution = resolution
+        self.pad_fov = pad_fov
         self.fov_center = fov_center
         self.fov_width = fov_width
         self.average_over_los = average_over_los
@@ -72,19 +80,27 @@ class InstrumentBase:
 
     @observing_time.setter
     def observing_time(self, value):
-        if self.cadence is None or len(value) > 2:
-            self._observing_time = value
-        else:
+        if self.cadence is not None and len(value) == 2:
             self._observing_time = np.arange(*value.to_value('s'),
                                              self.cadence.to_value('s')) * u.s
+        else:
+            self._observing_time = value
 
     @property
     def cadence(self):
-        return None
+        return self._cadence
+
+    @cadence.setter
+    def cadence(self, value):
+        self._cadence = value
 
     @property
     def resolution(self) -> u.arcsec/u.pix:
-        return (1, 1) * u.arcsec / u.pix
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, value):
+        self._resolution = value
 
     @property
     def observer(self):
@@ -93,6 +109,16 @@ class InstrumentBase:
     @observer.setter
     def observer(self, value):
         self._observer = value
+
+    @property
+    def pad_fov(self) -> u.arcsec:
+        return self._pad_fov
+
+    @pad_fov.setter
+    def pad_fov(self, value):
+        if value is None:
+            value = [0, 0] * u.arcsec
+        self._pad_fov = value
 
     @property
     def telescope(self):
@@ -108,7 +134,11 @@ class InstrumentBase:
 
     @property
     def _expected_unit(self):
-        return None
+        raise NotImplementedError
+
+    @property
+    def channels(self):
+        raise NotImplementedError
 
     def get_instrument_name(self, channel):
         return self.name

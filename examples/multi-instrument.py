@@ -87,7 +87,7 @@ with quantity_support():
 # We'll select a field of view by specifying the center of the field of view
 # as well as the width and height.
 center = SkyCoord(Tx=0*u.arcsec, Ty=-550*u.arcsec, frame=Helioprojective(observer=sdo, obstime=sdo.obstime))
-aia = InstrumentSDOAIA([0, 1]*u.s, sdo, fov_center=center, fov_width=(250, 250)*u.arcsec)
+aia = InstrumentSDOAIA([0]*u.s, sdo, fov_center=center, fov_width=(250, 250)*u.arcsec)
 aia_images = aia.observe(skeleton)
 for k in aia_images:
     aia_images[k][0].peek()
@@ -95,7 +95,7 @@ for k in aia_images:
 ###############################################################################
 # We can carry out this same procedure for *Hinode* XRT for the same field of view.
 # We'll look just at the Be-thin and Al-poly channels.
-xrt = InstrumentHinodeXRT([0, 1]*u.s, hinode, ['Be-thin', 'Al-poly'],
+xrt = InstrumentHinodeXRT([0]*u.s, hinode, ['Be-thin', 'Al-poly'],
                           fov_center=center, fov_width=(250, 250)*u.arcsec)
 xrt_images = xrt.observe(skeleton)
 for k in xrt_images:
@@ -111,13 +111,13 @@ for k in xrt_images:
 class InstrumentSTEREOEUVI(InstrumentSDOAIA):
     name = 'STEREO_EUVI'
 
-    @property
-    def resolution(self) -> u.Unit('arcsec / pixel'):
-        return u.Quantity([1.58777404, 1.58777404], 'arcsec / pixel')
-
-    @property
-    def cadence(self) -> u.s:
-        return 1 * u.h
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            resolution=u.Quantity([1.58777404, 1.58777404], 'arcsec / pixel'),
+            cadence=1*u.h,
+            **kwargs,
+        )
 
     @property
     def observatory(self):
@@ -138,6 +138,6 @@ class InstrumentSTEREOEUVI(InstrumentSDOAIA):
 # We can then use our custom instrument class in the exact same way as our
 # predefined classes to model the emission from EUVI. Note that we'll only do
 # this for the 171 Å channel.
-euvi = InstrumentSTEREOEUVI([0, 1]*u.s, stereo_a, fov_center=center, fov_width=(250, 250)*u.arcsec)
+euvi = InstrumentSTEREOEUVI([0]*u.s, stereo_a, fov_center=center, fov_width=(250, 250)*u.arcsec)
 euvi_images = euvi.observe(skeleton, channels=euvi.channels[2:3])
 euvi_images['171'][0].peek()
