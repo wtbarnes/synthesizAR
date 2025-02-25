@@ -11,6 +11,7 @@ import zarr
 
 from astropy.coordinates import SkyCoord
 from dataclasses import dataclass
+from functools import cached_property
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from sunpy.coordinates import HeliographicStonyhurst, Helioprojective
@@ -109,7 +110,7 @@ class InstrumentBase:
     def resolution(self, value):
         self._resolution = value
 
-    @property
+    @cached_property
     def observer(self):
         return self._observer.transform_to(HeliographicStonyhurst)
 
@@ -157,7 +158,7 @@ class InstrumentBase:
     def projected_frame(self):
         return Helioprojective(observer=self.observer)
 
-    @property
+    @cached_property
     @u.quantity_input
     def pixel_area(self) -> u.cm**2:
         """
