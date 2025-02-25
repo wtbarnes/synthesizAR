@@ -55,7 +55,7 @@ bundle.load_loop_simulations(rtv)
 ###########################################################################
 # We can then compute the emission as observed by the 171 channel of AIA
 # as viewed from an observer at 1 AU directly above the loop.
-aia = InstrumentSDOAIA([0, 1]*u.s, pos, pad_fov=(10, 10)*u.arcsec)
+aia = InstrumentSDOAIA([0, 1]*u.s, pos, pad_fov=(40, 40)*u.pixel)
 maps = aia.observe(bundle, channels=aia.channels[2:3])
 m_171 = maps['171'][0]
 m_171.peek()
@@ -92,6 +92,6 @@ with quantity_support():
 ###########################################################################
 # Finally, we can also compute the AIA 171 intensity as viewed from the
 # side in order to see the semi-circular geometry of the loop bundle.
-aia = InstrumentSDOAIA([0, 1]*u.s, side_on_view, pad_fov=(10, 10)*u.arcsec)
+aia = InstrumentSDOAIA([0, 1]*u.s, side_on_view, pad_fov=(40, 40)*u.pixel)
 maps = aia.observe(bundle, channels=aia.channels[2:3])
 maps['171'][0].peek()

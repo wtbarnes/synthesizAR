@@ -2,6 +2,7 @@
 Base class for instrument objects.
 """
 import astropy.units as u
+import astropy.wcs
 import copy
 import numpy as np
 import pathlib
@@ -10,6 +11,7 @@ import zarr
 
 from astropy.coordinates import SkyCoord
 from dataclasses import dataclass
+from functools import cached_property
 from scipy.interpolate import interp1d
 from scipy.ndimage import gaussian_filter
 from sunpy.coordinates import HeliographicStonyhurst, Helioprojective
@@ -45,14 +47,20 @@ class InstrumentBase:
         Coordinate of the observing instrument
     resolution : `~astropy.units.Quantity`
     cadence : `~astropy.units.Quantity`, optional
-        If specified, this is used to construct the observing time
+        If specified, this is used to construct the observing time.
     pad_fov : `~astropy.units.Quantity`, optional
         Two-dimensional array specifying the padding to apply to the field of view of the synthetic
-        image in both directions. If None, no padding is applied and the field of view is defined
-        by the maximal extent of the loop coordinates in each direction.
+        image in both directions in pixel space. If None, no padding is applied and the field of
+        view is defined by the maximal extent of the loop coordinates in each direction.
+        Note that if ``fov_center`` and ``fov_width`` are specified, this is ignored.
     fov_center : `~astropy.coordinates.SkyCoord`, optional
+        Reference coordinate coinciding with the center of the field of view.
+        For this to have an effect, must also specify ``fov_width``.
     fov_width : `~astropy.units.Quantity`, optional
+        Angular extent of the field of the view.
+        For this to have an effect, must also specify ``fov_center``.
     average_over_los : `bool`, optional
+        Set to true for non-volumetric quantities
     """
 
     @u.quantity_input
@@ -61,8 +69,8 @@ class InstrumentBase:
                  observer,
                  resolution: u.Unit('arcsec/pix'),
                  cadence: u.s = None,
-                 pad_fov: u.arcsec = None,
-                 fov_center=None,
+                 pad_fov: u.pixel = None,
+                 fov_center = None,
                  fov_width: u.arcsec = None,
                  average_over_los=False):
         self.observer = observer
@@ -104,20 +112,20 @@ class InstrumentBase:
 
     @property
     def observer(self):
-        return self._observer.transform_to(HeliographicStonyhurst)
+        return self._observer
 
     @observer.setter
     def observer(self, value):
-        self._observer = value
+        self._observer = value.transform_to(HeliographicStonyhurst)
 
     @property
-    def pad_fov(self) -> u.arcsec:
+    def pad_fov(self) -> u.pixel:
         return self._pad_fov
 
     @pad_fov.setter
     def pad_fov(self, value):
         if value is None:
-            value = [0, 0] * u.arcsec
+            value = [0, 0] * u.pixel
         self._pad_fov = value
 
     @property
@@ -144,21 +152,17 @@ class InstrumentBase:
         return self.name
 
     def calculate_intensity_kernel(self, *args, **kwargs):
-        """
-        Converts emissivity for a particular transition to counts per detector channel. When writing
-        a new instrument class, this method should be overridden.
-        """
-        raise NotImplementedError('No detect method implemented.')
+        raise NotImplementedError
 
     @property
     def projected_frame(self):
-        return Helioprojective(observer=self.observer, obstime=self.observer.obstime)
+        return Helioprojective(observer=self.observer)
 
-    @property
+    @cached_property
     @u.quantity_input
     def pixel_area(self) -> u.cm**2:
         """
-        Pixel area
+        Cartesian area on the surface of the Sun covered by a single pixel.
         """
         sa_equiv = solar_angle_equivalency(self.observer)
         res = (1*u.pix * self.resolution).to('cm', equivalencies=sa_equiv)
@@ -184,7 +188,6 @@ class InstrumentBase:
         skeleton : `~synthesizAR.Skeleton`
         save_directory : `str` or path-like
         """
-        check_visible = kwargs.pop('check_visible', False)
         if channels is None:
             channels = self.channels
         try:
@@ -192,10 +195,11 @@ class InstrumentBase:
             client = distributed.get_client()
         except (ImportError, ValueError):
             client = None
-        coordinates = skeleton.all_coordinates
+        ref_coord, n_pixels = self.get_fov(skeleton.all_coordinates)
+        wcs = astropy.wcs.WCS(header=self.get_header(ref_coord, n_pixels))
         coordinates_centers = skeleton.all_coordinates_centers
-        bins, bin_range = self.get_detector_array(coordinates)
-        coordinates_centers_projected = coordinates_centers.transform_to(self.projected_frame)
+        pixel_locations = wcs.world_to_pixel(coordinates_centers)
+        visibilities = coordinates_centers.transform_to(self.projected_frame).is_visible()
         maps = {}
         for channel in channels:
             # Compute intensity as a function of time and field-aligned coordinate
@@ -244,7 +248,7 @@ class InstrumentBase:
                     kernels_interp = client.gather(kernel_interp_futures)
                 kernels = np.concatenate([u.Quantity(*k) for k in kernels_interp], axis=1)
 
-            header = self.get_header(channel, coordinates)
+            header = self.get_header(ref_coord, n_pixels, channel=channel)
             # Build a map for each timestep
             maps[channel.name] = []
             for i, time in enumerate(self.observing_time):
@@ -252,12 +256,11 @@ class InstrumentBase:
                     time,
                     channel,
                     skeleton,
-                    coordinates_centers_projected,
-                    bins,
-                    bin_range,
+                    pixel_locations,
+                    n_pixels,
+                    visibilities,
                     header,
-                    kernels=kernels[i],
-                    check_visible=check_visible)
+                    kernels=kernels[i])
                 m = self.convolve_with_psf(m, channel)
                 if save_directory is None:
                     maps[channel.name].append(m)
@@ -363,8 +366,15 @@ class InstrumentBase:
         kernel_interp = u.Quantity(f_t(observing_time.value), kernel_unit)
         return kernel_interp
 
-    def integrate_los(self, time, channel, skeleton, coordinates_centers, bins, bin_range, header,
-                      kernels=None, check_visible=False):
+    def integrate_los(self,
+                      time,
+                      channel,
+                      skeleton,
+                      pixel_locations,
+                      n_pixels,
+                      visibilities,
+                      header,
+                      kernels=None):
         # Compute weights
         if kernels is None:
             i_time = np.where(time == self.observing_time)[0][0]
@@ -376,27 +386,24 @@ class InstrumentBase:
         # average along the LOS
         if not self.average_over_los:
             kernels *= (skeleton.all_cross_sectional_areas / self.pixel_area).decompose() * skeleton.all_widths
-        if check_visible:
-            visible = coordinates_centers.is_visible()
-        else:
-            visible = np.ones(kernels.shape)
         # Bin
-        blc, trc = bin_range
+        # NOTE: Bin order is (y,x) or (row, column)
+        bins = n_pixels.to_value('pixel').astype(int)
+        bin_edges = (np.linspace(-0.5, bins[1]-0.5, bins[1]+1),
+                     np.linspace(-0.5, bins[0]-0.5, bins[0]+1))
         hist, _, _ = np.histogram2d(
-            coordinates_centers.Tx.value,
-            coordinates_centers.Ty.value,
-            bins=bins,
-            range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
-            weights=kernels.to_value(self._expected_unit) * visible,
+            pixel_locations[1],
+            pixel_locations[0],
+            bins=bin_edges,
+            weights=kernels.to_value(self._expected_unit) * visibilities,
         )
         # For some quantities, need to average over all components along a given LOS
         if self.average_over_los:
             _hist, _, _ = np.histogram2d(
-                coordinates_centers.Tx.value,
-                coordinates_centers.Ty.value,
-                bins=bins,
-                range=((blc.Tx.value, trc.Tx.value), (blc.Ty.value, trc.Ty.value)),
-                weights=visible,
+                pixel_locations[1],
+                pixel_locations[0],
+                bins=bin_edges,
+                weights=visibilities,
             )
             hist /= np.where(_hist == 0, 1, _hist)
         # NOTE: Purposefully using a nonstandard key to record this time as we do not
@@ -407,60 +414,61 @@ class InstrumentBase:
         new_header = copy.deepcopy(header)
         new_header['date_sim'] = (self.observer.obstime + time).isot
 
-        return Map(hist.T, new_header)
+        return Map(hist, new_header)
 
-    def get_header(self, channel, coordinates):
+    def get_header(self, ref_coord, n_pixels: u.pixel, channel=None):
         """
-        Create the FITS header for a given channel and set of loop coordinates
-        that define the needed FOV.
+        Create the FITS header for a given channel.
+
+        Parameters
+        ----------
+        ref_coord: `~astropy.coordinates.SkyCoord`
+            Reference coordinate coincident with the center of the field
+            of view
+        n_pixels: `~astropy.units.Quantity`
+            Pixel extent in the x (horizontal) and y (vertical) direction
+        channel:  `ChannelBase`, optional
         """
-        bins, bin_range = self.get_detector_array(coordinates)
-        center = SkyCoord(Tx=(bin_range[1].Tx + bin_range[0].Tx)/2,
-                          Ty=(bin_range[1].Ty + bin_range[0].Ty)/2,
-                          frame=bin_range[0].frame)
-        # FIXME: reference_pixel should be center of the frame in the pixel
-        # coordinate system of the image.
+        # NOTE: channel is a kwarg so that a WCS can be computed without specifying
+        # a channel as these keywords do not affect the WCS
+        if channel is None:
+            instrument = None
+            wavelength = None
+        else:
+            instrument = self.get_instrument_name(channel)
+            wavelength = channel.channel
         header = make_fitswcs_header(
-            (bins[1], bins[0]),  # swap order because it expects (row,column)
-            center,
-            reference_pixel=(u.Quantity(bins, 'pix') - 1*u.pix) / 2,  # center of lower left pixel is (0,0)
+            tuple(n_pixels[::-1].to_value('pixel')),  # swap order because it expects (row,column)
+            ref_coord,
+            reference_pixel=(n_pixels - 1*u.pix) / 2,  # center of lower left pixel is (0,0)
             scale=self.resolution,
             observatory=self.observatory,
-            instrument=self.get_instrument_name(channel),
+            instrument=instrument,
             telescope=self.telescope,
             detector=self.detector,
-            wavelength=channel.channel,
+            wavelength=wavelength,
             unit=self._expected_unit,
         )
         return header
 
-    def get_detector_array(self, coordinates):
+    def get_fov(self, coordinates):
         """
-        Calculate the number of pixels in the detector FOV and the physical coordinates of the
-        bottom left and top right corners.
+        Return the coordinate at the center of the FOV and the width in pixels.
         """
         if self.fov_center is not None and self.fov_width is not None:
             center = self.fov_center.transform_to(self.projected_frame)
-            bins_x = int(np.ceil((self.fov_width[0] / self.resolution[0]).decompose()).value)
-            bins_y = int(np.ceil((self.fov_width[1] / self.resolution[1]).decompose()).value)
-            bottom_left_corner = SkyCoord(
-                Tx=center.Tx - self.fov_width[0]/2,
-                Ty=center.Ty - self.fov_width[1]/2,
-                frame=center.frame,
-            )
-            top_right_corner = SkyCoord(
-                Tx=bottom_left_corner.Tx + self.fov_width[0],
-                Ty=bottom_left_corner.Ty + self.fov_width[1],
-                frame=bottom_left_corner.frame
-            )
+            n_pixels = (self.fov_width / self.resolution).decompose().to('pixel')
         else:
             # If not specified, derive FOV from loop coordinates
             coordinates = coordinates.transform_to(self.projected_frame)
-            bottom_left_corner, top_right_corner = find_minimum_fov(
-                coordinates, padding=self.pad_fov,
-            )
+            bottom_left_corner, top_right_corner = find_minimum_fov(coordinates)
             delta_x = top_right_corner.Tx - bottom_left_corner.Tx
             delta_y = top_right_corner.Ty - bottom_left_corner.Ty
-            bins_x = int(np.ceil((delta_x / self.resolution[0]).decompose()).value)
-            bins_y = int(np.ceil((delta_y / self.resolution[1]).decompose()).value)
-        return (bins_x, bins_y), (bottom_left_corner, top_right_corner)
+            center = SkyCoord(Tx=bottom_left_corner.Tx+delta_x/2,
+                              Ty=bottom_left_corner.Ty+delta_y/2,
+                              frame=bottom_left_corner.frame)
+            pixels_x = int(np.ceil((delta_x / self.resolution[0]).decompose()).value)
+            pixels_y = int(np.ceil((delta_y / self.resolution[1]).decompose()).value)
+            n_pixels = u.Quantity([pixels_x, pixels_y], 'pixel')
+            n_pixels += self.pad_fov
+        return center, n_pixels

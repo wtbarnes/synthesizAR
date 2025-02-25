@@ -88,7 +88,7 @@ with quantity_support():
 # emission from 500 s to 6000 s at a cadence of 50 s for the 193 Å channel.
 aia = InstrumentSDOAIA(np.arange(500,6e3,50)*u.s,
                        sdo_observer,
-                       pad_fov=(20, 20)*u.arcsec)
+                       pad_fov=(40, 40)*u.pixel)
 maps = aia.observe(arcade, channels=aia.channels[3:4])
 
 ###########################################################################

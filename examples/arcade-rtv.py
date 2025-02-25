@@ -43,7 +43,7 @@ arcade.load_loop_simulations(rtv)
 
 #########################################################################
 # Finally, compute the LOS integrated AIA emission.
-aia = InstrumentSDOAIA([0, 1]*u.s, earth_observer, pad_fov=(20, 20)*u.arcsec)
+aia = InstrumentSDOAIA([0, 1]*u.s, earth_observer, pad_fov=(40, 40)*u.pixel)
 maps = aia.observe(arcade)
 
 #########################################################################
@@ -56,7 +56,7 @@ for k in maps:
 # a different LOS.
 off_limb_observer = SkyCoord(
     lon=-70*u.deg, lat=earth_observer.lat, radius=earth_observer.radius, frame=earth_observer.frame)
-aia = InstrumentSDOAIA([0, 1]*u.s, off_limb_observer, pad_fov=(10, 10)*u.arcsec,)
+aia = InstrumentSDOAIA([0, 1]*u.s, off_limb_observer, pad_fov=(20, 20)*u.pixel,)
 maps = aia.observe(arcade)
 for k in maps:
     maps[k][0].peek(draw_limb=True)

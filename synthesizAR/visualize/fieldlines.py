@@ -102,7 +102,9 @@ def plot_fieldlines(*coords,
         image_map.draw_grid(axes=ax, **grid_kwargs)
     if axes_limits is None:
         transformed_coords = SkyCoord(transformed_coords)
-        blc, trc = find_minimum_fov(transformed_coords, padding=(10, 10)*u.arcsec)
-        axes_limits = (u.Quantity([blc.Tx, trc.Tx]), u.Quantity([blc.Ty, trc.Ty]))
+        blc, trc = find_minimum_fov(transformed_coords)
+        padding = [-10,10] * u.arcsec
+        axes_limits = (u.Quantity([blc.Tx, trc.Tx])+padding,
+                       u.Quantity([blc.Ty, trc.Ty])+padding)
     set_ax_lims(ax, *axes_limits, image_map)
     return fig, ax, image_map
