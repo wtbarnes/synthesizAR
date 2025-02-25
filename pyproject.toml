@@ -17,7 +17,7 @@ requires-python = ">=3.10"
 dependencies = [
     "scipy",
     "matplotlib",
-    "sunpy[all]>=6.0",
+    "sunpy[all]>=6.0.3",
     "zarr",
     "asdf",
     "ndcube>=2.0",
