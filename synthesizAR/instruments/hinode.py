@@ -83,10 +83,11 @@ class InstrumentHinodeXRT(InstrumentBase):
     def get_instrument_name(self, channel):
         return self.detector
 
-    def get_header(self, channel, *args):
-        header = super().get_header(channel, *args)
-        header['EC_FW1_'] = channel.filter_wheel_1
-        header['EC_FW2_'] = channel.filter_wheel_2
+    def get_header(self, *args, **kwargs):
+        header = super().get_header(*args, **kwargs)
+        if (channel := kwargs.get('channel')):
+            header['EC_FW1_'] = channel.filter_wheel_1
+            header['EC_FW2_'] = channel.filter_wheel_2
         return header
 
     @staticmethod

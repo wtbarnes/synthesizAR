@@ -56,7 +56,7 @@ class InstrumentBase:
         Reference coordinate coinciding with the center of the field of view.
         For this to have an effect, must also specify ``fov_width``.
     fov_width : `~astropy.units.Quantity`, optional
-        Extent of the field of view in pixels.
+        Angular extent of the field of the view.
         For this to have an effect, must also specify ``fov_center``.
     average_over_los : `bool`, optional
         Set to true for non-volumetric quantities
@@ -70,7 +70,7 @@ class InstrumentBase:
                  cadence: u.s = None,
                  pad_fov: u.pixel = None,
                  fov_center = None,
-                 fov_width: u.pixel = None,
+                 fov_width: u.arcsec = None,
                  average_over_los=False):
         self.observer = observer
         self.cadence = cadence
@@ -387,7 +387,7 @@ class InstrumentBase:
             kernels *= (skeleton.all_cross_sectional_areas / self.pixel_area).decompose() * skeleton.all_widths
         # Bin
         # NOTE: Bin order is (y,x) or (row, column)
-        bins = n_pixels.to_value('pixel')
+        bins = n_pixels.to_value('pixel').astype(int)
         bin_edges = (np.linspace(-0.5, bins[1]-0.5, bins[1]+1),
                      np.linspace(-0.5, bins[0]-0.5, bins[0]+1))
         hist, _, _ = np.histogram2d(
@@ -413,7 +413,7 @@ class InstrumentBase:
         new_header = copy.deepcopy(header)
         new_header['date_sim'] = (self.observer.obstime + time).isot
 
-        return Map(hist.T, new_header)
+        return Map(hist, new_header)
 
     def get_header(self, ref_coord, n_pixels: u.pixel, channel=None):
         """
@@ -437,7 +437,7 @@ class InstrumentBase:
             instrument = self.get_instrument_name(channel)
             wavelength = channel.channel
         header = make_fitswcs_header(
-            n_pixels[::-1].to_value('pixel'),  # swap order because it expects (row,column)
+            tuple(n_pixels[::-1].to_value('pixel')),  # swap order because it expects (row,column)
             ref_coord,
             reference_pixel=(n_pixels - 1*u.pix) / 2,  # center of lower left pixel is (0,0)
             scale=self.resolution,
@@ -456,7 +456,7 @@ class InstrumentBase:
         """
         if self.fov_center is not None and self.fov_width is not None:
             center = self.fov_center.transform_to(self.projected_frame)
-            n_pixels = self.fov_width
+            n_pixels = (self.fov_width / self.resolution).decompose().to('pixel')
         else:
             # If not specified, derive FOV from loop coordinates
             coordinates = coordinates.transform_to(self.projected_frame)
