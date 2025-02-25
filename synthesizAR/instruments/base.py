@@ -110,13 +110,13 @@ class InstrumentBase:
     def resolution(self, value):
         self._resolution = value
 
-    @cached_property
+    @property
     def observer(self):
-        return self._observer.transform_to(HeliographicStonyhurst)
+        return self._observer
 
     @observer.setter
     def observer(self, value):
-        self._observer = value
+        self._observer = value.transform_to(HeliographicStonyhurst)
 
     @property
     def pad_fov(self) -> u.pixel:
