@@ -59,7 +59,8 @@ def field_aligned_coordinate():
 def simple_strand(field_aligned_coordinate):
     observer = get_earth('2020-01-01')
     coord = semi_circular_loop(s=field_aligned_coordinate,
-                               observer=observer)
+                               observer=observer,
+                               correct_z=False)
     return synthesizAR.Strand('test', coord)
 
 
