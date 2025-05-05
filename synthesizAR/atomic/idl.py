@@ -8,6 +8,7 @@ import io
 import ndcube
 import numpy as np
 import os
+import tqdm
 
 from ndcube.extra_coords import QuantityTableCoordinate
 
@@ -169,7 +170,7 @@ def compute_spectral_table(temperature: u.K,
 
     # Iterate over T and n values
     all_spectra = []
-    for T, n in zip(temperature, density):
+    for T, n in tqdm.tqdm(zip(temperature, density)):
         input_args['temperature'] = T
         input_args['density'] = n
         log.debug(f'Computing spectra for (T,n) = ({T}, {n})')

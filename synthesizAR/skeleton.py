@@ -94,13 +94,12 @@ Number of strands: {len(self.strands)}'''
                     continue
                 model_results_filename = af.tree[k].get('model_results_filename', None)
                 cross_sectional_area = af.tree[k].get('cross_sectional_area', None)
-                strands.append(Strand(
-                    k,
-                    SkyCoord(af.tree[k]['coordinate']),
-                    af.tree[k]['field_strength'],
-                    cross_sectional_area=cross_sectional_area,
-                    model_results_filename=model_results_filename,
-                ))
+                strand = Strand(k,
+                                SkyCoord(af.tree[k]['coordinate']),
+                                af.tree[k]['field_strength'],
+                                cross_sectional_area=cross_sectional_area,
+                                model_results_filename=model_results_filename)
+                strands.append(strand)
         return cls(strands)
 
     @u.quantity_input

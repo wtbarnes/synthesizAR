@@ -1,11 +1,12 @@
 """
 Helper routines for field extrapolation routines and dealing with vector field data
 """
-import numpy as np
-import astropy.units as u
-from astropy.coordinates import SkyCoord
 import astropy.constants as const
+import astropy.units as u
+import numpy as np
 import sunpy.coordinates
+
+from astropy.coordinates import SkyCoord
 
 __all__ = ['semi_circular_loop', 'semi_circular_bundle', 'semi_circular_arcade']
 
@@ -19,7 +20,8 @@ def semi_circular_loop(length: u.cm=None,
                        offset: u.cm = None,
                        gamma: u.deg = 0*u.deg,
                        inclination: u.deg = 0*u.deg,
-                       ellipticity=0):
+                       ellipticity=0,
+                       correct_z=True):
     """
     Generate coordinates for a semi-circular loop
 
@@ -37,22 +39,26 @@ def semi_circular_loop(length: u.cm=None,
         of the `observer`.
     n_points : `int`, optional
         Number of points in the coordinate. Only used if `s` is not specified.
-    offset : `~astropy.units.Quantity`
+    offset : `~astropy.units.Quantity`, optional
         Offset in the direction perpendicular and parallel to loop, convenient for simulating
         arcade geometries. This should always be of length 2.
-    gamma : `~astropy.units.Quantity`
+    gamma : `~astropy.units.Quantity`, optional
         Angle between the loop axis and the HCC x-axis. This defines the orientation
         of the loop in the HCC x-y plane. `gamma=0` corresponds to a loop who's
         axis is perpendicular to the HCC y-axis.
-    inclination : `~astropy.units.Quantity`
+    inclination : `~astropy.units.Quantity`, optional
         Angle between the HCC z-axis and the loop plane. An inclination of 0 corresponds
         to a loop that extends vertically only in the z-direction while an inclination
         of 90 degrees corresponds to a loop that lies entirely in the HCC x-y plane.
-    ellipticity : `float`
+    ellipticity : `float`, optional
         Must be between -1 and +1. If > 0, the loop will be "tall and skinny" and if
         < 0, the loop will be "short and fat". Note that if this value is nonzero,
         ``length`` is no longer the actual loop length because the loop is no longer
         semi-circular.
+    correct_z : `bool`, optional
+        If True, correct the z-coordinate such that the footpoint lies on the surface of the
+        Sun. This does not correct the coordinate such that the strand is normal to the surface
+        at the footpoint.
     """
     if s is None and length is None:
         raise ValueError('Must specify field-aligned coordinate or loop length')
@@ -87,6 +93,8 @@ def semi_circular_loop(length: u.cm=None,
     x_hcc = -(offset[1] + z * np.sin(inclination)) * np.sin(gamma) + (x + offset[0]) * np.cos(gamma)
     y_hcc = (offset[1] + z * np.sin(inclination)) * np.cos(gamma) + (x + offset[0]) * np.sin(gamma)
     z_hcc = z * np.cos(inclination) + const.R_sun
+    if correct_z:
+        z_hcc -= const.R_sun - np.sqrt(const.R_sun**2 - x_hcc**2 - y_hcc**2)
     return SkyCoord(x=x_hcc, y=y_hcc, z=z_hcc, frame=hcc_frame)
 
 

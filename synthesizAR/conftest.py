@@ -44,6 +44,6 @@ def skeleton_with_time_dependent_model(bare_skeleton):
 
 
 @pytest.fixture
-def semi_circle_strand(bare_skeleton):
+def semi_circle_strand():
     coords = semi_circular_loop(length=100*u.Mm)
     return synthesizAR.Strand('test', coords)
