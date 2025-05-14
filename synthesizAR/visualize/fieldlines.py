@@ -30,7 +30,7 @@ def set_ax_lims(ax, xlim, ylim, smap):
 def plot_fieldlines(*coords,
                     image_map=None,
                     observer=None,
-                    check_visible=False,
+                    check_visible=True,
                     draw_grid=True,
                     axes_limits=None,
                     **kwargs):
