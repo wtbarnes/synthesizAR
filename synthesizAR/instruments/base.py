@@ -72,6 +72,7 @@ class InstrumentBase:
                  pad_fov: u.pixel = None,
                  fov_center = None,
                  fov_width: u.arcsec = None,
+                 rotation_angle: u.deg = None,
                  average_over_los=False):
         self.observer = observer
         self.cadence = cadence
@@ -80,6 +81,7 @@ class InstrumentBase:
         self.pad_fov = pad_fov
         self.fov_center = fov_center
         self.fov_width = fov_width
+        self.rotation_angle = rotation_angle
         self.average_over_los = average_over_los
 
     @property
@@ -109,6 +111,14 @@ class InstrumentBase:
     @resolution.setter
     def resolution(self, value):
         self._resolution = value
+
+    @property
+    def rotation_angle(self) -> u.deg:
+        return self._rotation_angle
+
+    @rotation_angle.setter
+    def rotation_angle(self, value):
+        self._rotation_angle = value
 
     @property
     def observer(self):
@@ -442,6 +452,7 @@ class InstrumentBase:
             ref_coord,
             reference_pixel=(n_pixels - 1*u.pix) / 2,  # center of lower left pixel is (0,0)
             scale=self.resolution,
+            rotation_angle=self.rotation_angle,
             observatory=self.observatory,
             instrument=instrument,
             telescope=self.telescope,
