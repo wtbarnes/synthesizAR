@@ -5,12 +5,12 @@ spatial and spectroscopic resolution.
 import asdf
 import astropy.units as u
 import numpy as np
-import pkg_resources
 import warnings
 import zarr
 
 from aiapy.psf import filter_mesh_parameters
 from aiapy.response import Channel
+from astropy.utils.data import get_pkg_data_filename
 from scipy.interpolate import interp1d, interpn
 
 from synthesizAR.instruments import InstrumentBase
@@ -18,8 +18,8 @@ from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['InstrumentSDOAIA', 'aia_kernel_quick']
 
-_TEMPERATURE_RESPONSE_FILE = pkg_resources.resource_filename(
-    'synthesizAR', 'instruments/data/aia_temperature_response.asdf')
+_TEMPERATURE_RESPONSE_FILE = get_pkg_data_filename('data/aia_temperature_response.asdf',
+                                                   package='synthesizAR.instruments')
 with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r', memmap=False) as af:
     _TEMPERATURE_RESPONSE = af.tree
 
