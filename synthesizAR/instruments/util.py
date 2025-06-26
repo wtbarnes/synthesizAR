@@ -89,7 +89,7 @@ def read_cube_from_dataset(filename, axis_name, physical_type):
     mask = ds['mask'].data
     celestial_wcs = astropy.wcs.WCS(header=meta)
     axis_array = u.Quantity(ds[axis_name].data, ds[axis_name].attrs.get('unit'))
-    combined_wcs = extend_celestial_wcs(celestial_wcs, axis_array, axis_name, physical_type)
+    combined_wcs = extend_celestial_wcs(celestial_wcs, (axis_array, axis_name, physical_type))
     return ndcube.NDCube(data, wcs=combined_wcs, meta=meta, mask=mask)
 
 
