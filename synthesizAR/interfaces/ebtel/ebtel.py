@@ -99,7 +99,10 @@ class EbtelInterface:
         return velocity
 
     def _update_physics_model(self, strand):
-        physics_model_params = self.physics_model.to_dict()
+        if self.physics_model is not None:
+            physics_model_params = self.physics_model.to_dict()
+        else:
+            physics_model_params = {}
         # NOTE: This is set automatically as needed and is not included in the constructor
         _ = physics_model_params.pop('use_flux_limiting', None)
         expansion_factors = self._get_expansion_factors(strand)
@@ -108,18 +111,29 @@ class EbtelInterface:
         )
 
     def _get_expansion_factors(self, strand):
-        if self.physics_model.loop_length_ratio_tr_total == 0:
+        L_TR_over_L = getattr(self.physics_model, 'loop_length_ratio_tr_total', 0)
+        # If the TR length is not specified, cannot calculate expansion factors.
+        if L_TR_over_L == 0:
             return {'area_ratio_tr_corona': 1, 'area_ratio_0_corona': 1}
+        # Approximate the TR/corona boundary based on the input TR length
         r_norm = strand.coordinate.spherical.distance-strand.coordinate.spherical.distance.min()
-        s_interface = self.physics_model.loop_length_ratio_tr_total*strand.length/2
+        s_interface = L_TR_over_L*strand.length/2
         is_tr = r_norm < s_interface
         idx_tr = np.where(is_tr)
         idx_c = np.where(~is_tr)
+        # The point at which the classification switches from True (1) to False (0) is the boundary
+        # between the two regions. Note that this does account for multiple interfaces, i.e. in both legs.
         idx_interface = np.where(np.gradient(is_tr.astype(int)) != 0)
+        # There may some cases where the above approximation fails. For example, for low lying
+        # loops, the above approximation may classify the whole loop as "being in the TR". In these
+        # cases, no reliable estimate of the expansion factor can be made.
         if any([idx[0].shape==(0,) for idx in [idx_c, idx_tr, idx_interface]]):
             A_tr_A_c = 1
             A_0_A_c = 1
         else:
+            # NOTE: We assume that A~1/B such that area ratio is the inverse of the ratio of the
+            # field strengths. To estimate the expansion factor of the half loop, we are averaging
+            # over the whole corona and the TR in both legs of the loop.
             A_tr_A_c = strand.field_strength[idx_c].mean()/strand.field_strength[idx_tr].mean()
             A_0_A_c = strand.field_strength[idx_c].mean()/strand.field_strength[idx_interface].mean()
         return {'area_ratio_tr_corona': A_tr_A_c, 'area_ratio_0_corona': A_0_A_c}
