@@ -68,10 +68,11 @@ class EbtelInterface:
         """
         if self.event_builder is not None:
             self.heating_model.events = self.event_builder(strand)
+        physics_model = self._update_physics_model(strand)
         results = ebtelplusplus.run(self.total_time,
                                     strand.length/2,
                                     heating=self.heating_model,
-                                    physics=self.physics_model,
+                                    physics=physics_model,
                                     solver=self.solver_model,
                                     dem=None)
         electron_temperature = self._map_quantity_to_strand(strand, results.electron_temperature)
@@ -96,3 +97,29 @@ class EbtelInterface:
             i_mirror = int(strand.n_s / 2) if strand.n_s % 2 == 0 else int((strand.n_s - 1) / 2)
         velocity[:, i_mirror:] = -velocity[:, i_mirror:]
         return velocity
+
+    def _update_physics_model(self, strand):
+        physics_model_params = self.physics_model.to_dict()
+        # NOTE: This is set automatically as needed and is not included in the constructor
+        _ = physics_model_params.pop('use_flux_limiting', None)
+        expansion_factors = self._get_expansion_factors(strand)
+        return ebtelplusplus.models.PhysicsModel(
+            **{**physics_model_params, **expansion_factors}
+        )
+
+    def _get_expansion_factors(self, strand):
+        if self.physics_model.loop_length_ratio_tr_total == 0:
+            return {'area_ratio_tr_corona': 1, 'area_ratio_0_corona': 1}
+        r_norm = strand.coordinate.spherical.distance-strand.coordinate.spherical.distance.min()
+        s_interface = self.physics_model.loop_length_ratio_tr_total*strand.length/2
+        is_tr = r_norm < s_interface
+        idx_tr = np.where(is_tr)
+        idx_c = np.where(~is_tr)
+        idx_interface = np.where(np.gradient(is_tr.astype(int)) != 0)
+        if any([idx[0].shape==(0,) for idx in [idx_c, idx_tr, idx_interface]]):
+            A_tr_A_c = 1
+            A_0_A_c = 1
+        else:
+            A_tr_A_c = strand.field_strength[idx_c].mean()/strand.field_strength[idx_tr].mean()
+            A_0_A_c = strand.field_strength[idx_c].mean()/strand.field_strength[idx_interface].mean()
+        return {'area_ratio_tr_corona': A_tr_A_c, 'area_ratio_0_corona': A_0_A_c}
