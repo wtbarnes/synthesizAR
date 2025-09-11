@@ -36,6 +36,8 @@ class Skeleton:
 
     def __init__(self, strands):
         self.strands = strands
+        from synthesizAR import log
+        self.log = log
 
     @classmethod
     def from_coordinates(cls, coordinates, field_strengths=None, **kwargs):
@@ -221,28 +223,28 @@ Number of strands: {len(self.strands)}'''
             grp = root.create_group(strand.name)
             grp.attrs['simulation_type'] = interface.name
             # time
-            dset_time = grp.create_dataset('time', data=time.value)
+            dset_time = grp.create_array('time', data=time.value)
             dset_time.attrs['unit'] = time.unit.to_string()
             # NOTE: Set the chunk size such that accessing all entries for a given timestep
             # is the most efficient pattern.
-            chunks = (None,) + strand.field_aligned_coordinate_center.shape
+            chunks = strand.time.shape + (1,)
             # electron temperature
-            dset_electron_temperature = grp.create_dataset(
+            dset_electron_temperature = grp.create_array(
                 'electron_temperature', data=electron_temperature.value, chunks=chunks)
             dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
             # ion temperature
-            dset_ion_temperature = grp.create_dataset(
+            dset_ion_temperature = grp.create_array(
                 'ion_temperature', data=ion_temperature.value, chunks=chunks)
             dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
             # number density
-            dset_density = grp.create_dataset('density', data=density.value, chunks=chunks)
+            dset_density = grp.create_array('density', data=density.value, chunks=chunks)
             dset_density.attrs['unit'] = density.unit.to_string()
             # field-aligned velocity
-            dset_velocity = grp.create_dataset('velocity', data=velocity.value, chunks=chunks)
+            dset_velocity = grp.create_array('velocity', data=velocity.value, chunks=chunks)
             dset_velocity.attrs['unit'] = velocity.unit.to_string()
             dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
 
-    def load_loop_simulations(self, interface, filename=None, **kwargs):
+    def load_loop_simulations(self, interface, filename=None, parallelize=False, **kwargs):
         """
         Load results from hydrodynamic results.
 
@@ -252,6 +254,8 @@ Number of strands: {len(self.strands)}'''
             Interface to the hydrodynamic simulation from which to load the results
         filename : `str` or path-like
             Path to `zarr` store to write hydrodynamic results to
+        parallelize : `bool`
+            If True and a `distributed.Client` exists, load loop simulations in parallel.
         """
         if filename is None:
             root = None
@@ -263,16 +267,19 @@ Number of strands: {len(self.strands)}'''
             import distributed
             client = distributed.get_client()
         except (ImportError, ValueError):
-            for l in self.strands:
-                self._load_loop_simulation(l, root=root, interface=interface)
+            pass
         else:
-            status = client.map(
-                self._load_loop_simulation,
-                self.strands,
-                root=root,
-                interface=interface,
-            )
-            return status
+            if parallelize:
+                status = client.map(
+                    self._load_loop_simulation,
+                    self.strands,
+                    root=root,
+                    interface=interface,
+                )
+                return status
+        for l in self.strands:
+            self.log.debug(f'Loading results for strand {l.name}')
+            self._load_loop_simulation(l, root=root, interface=interface)
 
     def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
         """
@@ -323,6 +330,6 @@ Number of strands: {len(self.strands)}'''
                     else:
                         frac = frac_el[:, :, ion.charge_state]
                         desc = f'{ion.ion_name} ionization fraction in equilibrium.'
-                    dset = grp.create_dataset(f'{ion.ion_name}', data=frac, chunks=chunks)
+                    dset = grp.create_array(f'{ion.ion_name}', data=frac, chunks=chunks)
                     dset.attrs['unit'] = ''
                     dset.attrs['description'] = desc

@@ -77,7 +77,7 @@ def write_to_hdf5(data, loop, element_name, savefile):
         with h5py.File(savefile, 'a') as hf:
             grp = hf.create_group(loop.name) if loop.name not in hf else hf[loop.name]
             if element_name not in grp:
-                dset = grp.create_dataset(element_name, data=data)
+                dset = grp.create_array(element_name, data=data)
             else:
                 dset = grp[element_name]
                 dset[:, :, :] = data
