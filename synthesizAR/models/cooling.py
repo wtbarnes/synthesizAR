@@ -20,7 +20,7 @@ def cargill_cooling_time(strand, heating_rate: u.Unit('erg cm-3 s-1')) -> u.s:
 
     .. math::
 
-        \tau_{cool}=\left(\frac{2-\alpha}{1-\alpha}\right)3k_B\left(\frac{1}{\kappa_0^{4-2\alpha}\chi^7}\frac{L^{8-4\alpha}}{(n_0T_0)^{3+2\alphA}}\right)^{1/(11-2\alpha)}.
+        \tau_{cool}=\left(\frac{2-\alpha}{1-\alpha}\right)3k_B\left(\frac{1}{\kappa_0^{4-2\alpha}\chi^7}\frac{L^{8-4\alpha}}{(n_0T_0)^{3+2\alpha}}\right)^{1/(11-2\alpha)}.
 
     The initial temperature :math:`T_0` and density :math:`n_0` are estimated
     from the EBTEL initial conditions using the input heating rate.
