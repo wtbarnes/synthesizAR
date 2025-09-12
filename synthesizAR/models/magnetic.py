@@ -21,7 +21,7 @@ def mikic_magnetic_field_profile(s: u.cm,
 
     .. math::
 
-        B(s) = B_0 + B_1(\exp{-s/\ell} + \exp{-(L-s)/\ell})
+        B(s) = B_0 + B_1\left(\exp{\left(\frac{-s}{\ell}\right)} + \exp{\left(\frac{-(L-s)}{\ell}\right)}\right)
 
     where :math:`L` is the strand length and :math:`\ell` is the scale height of the field.
     The default values of all of these parameters are those used in :cite:t:`mikic_importance_2013`.

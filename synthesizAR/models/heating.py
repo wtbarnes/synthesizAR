@@ -17,7 +17,7 @@ def b_over_l_scaling(strand,
     r"""
     Heating rate dependent on the strand length and average field strength along the strand,
 
-    ..math::
+    .. math::
 
         H = H_0\left(\frac{\bar{B}}{B_0}\right)^\alpha\left(\frac{L_0}{L}\right)^\beta,
 
