@@ -14,8 +14,16 @@ def b_over_l_scaling(strand,
                      beta=0.2,
                      B_0=76*u.G,
                      L_0=29*u.Mm) -> u.Unit('erg cm-3 s-1'):
-    """
-    Heating rate dependent on the strand length and average field strength along the strand.
+    r"""
+    Heating rate dependent on the strand length and average field strength along the strand,
+
+    .. math::
+
+        H = H_0\left(\frac{\bar{B}}{B_0}\right)^\alpha\left(\frac{L_0}{L}\right)^\beta,
+
+    where :math:`H_0,B_0,L_0` are the nominal heating rate, field strength, and loop length,
+    respectively, :math:`\bar{B}` is the average field strength, and :math:`L` is the full
+    loop length.
 
     .. note:: The default values for all parameters are taken from
               :cite:t:`ugarte-urra_magnetic_2019`.
@@ -29,9 +37,9 @@ def b_over_l_scaling(strand,
         Dependence on average field strength.
     beta: `float`, optional
         Dependence on strand length.
-    B0: `~astropy.units.Quantity`, optional
+    B_0: `~astropy.units.Quantity`, optional
         Nominal value of the field strength.
-    L0: `~astropy.units.Quantity`, optional
+    L_0: `~astropy.units.Quantity`, optional
         Nominal value of the strand length.
     """
     B_avg = strand.field_strength_average
@@ -40,9 +48,16 @@ def b_over_l_scaling(strand,
 
 @u.quantity_input
 def free_magnetic_energy_density(strand, stress_level=0.3) -> u.Unit('erg cm-3'):
-    """
+    r"""
     Calculate available free energy of the magnetic field using
-    Eq. 1 of :cite:t:`reep_diagnosing_2013`.
+    Eq. 1 of :cite:t:`reep_diagnosing_2013`,
+
+    .. math::
+
+        E_B = \frac{(\epsilon B_p)^2}{8\pi},
+
+    where :math:`B_p` is the potential component of the field and :math:`epsilon`
+    parameterizes the stress level.
 
     Parameters
     ----------

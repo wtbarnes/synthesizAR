@@ -111,9 +111,9 @@ class EmissionModel(fiasco.IonCollection):
             wavelength = np.sort(wavelength)
             # Save as lookup table
             grp = root.create_group(ion.ion_name)
-            ds = grp.create_dataset('wavelength', data=wavelength.value)
+            ds = grp.create_array('wavelength', data=wavelength.value)
             ds.attrs['unit'] = wavelength.unit.to_string()
-            ds = grp.create_dataset('emissivity', data=emissivity.data)
+            ds = grp.create_array('emissivity', data=emissivity.data)
             ds.attrs['unit'] = emissivity.unit.to_string()
 
     def get_emissivity(self, ion):

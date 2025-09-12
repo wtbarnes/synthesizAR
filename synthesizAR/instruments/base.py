@@ -289,7 +289,7 @@ class InstrumentBase:
         root = zarr.open(loop.model_results_filename, 'a')
         if name not in root[loop.name]:
             root[loop.name].create_group(name)
-        ds = root[f'{loop.name}/{name}'].create_dataset(
+        ds = root[f'{loop.name}/{name}'].create_array(
             channel.name,
             data=kernel.value,
             chunks=(None,)+kernel.shape[:1],
@@ -311,7 +311,7 @@ class InstrumentBase:
         if f'{self.name}/{channel.name}_stacked_kernels' not in root:
             n_space = sum([l.electron_temperature.shape[1] for l in loops])
             shape = self.observing_time.shape + (n_space,)
-            root.create_dataset(
+            root.create_array(
                 f'{self.name}/{channel.name}_stacked_kernels',
                 shape=shape,
                 chunks=(shape[0], n_space//len(loops)),
@@ -331,7 +331,7 @@ class InstrumentBase:
         tmp_ds = tmp_root[f'{self.name}/{channel.name}_stacked_kernels']
         tmp = tmp_ds[...]
         final_root = zarr.open(final_store, 'a')
-        ds = final_root.create_dataset(
+        ds = final_root.create_array(
             f'{self.name}/{channel.name}_stacked_kernels',
             data=tmp,
             chunks=(1, tmp.shape[1]),

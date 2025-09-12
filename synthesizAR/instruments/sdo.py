@@ -182,7 +182,7 @@ class InstrumentSDOAIA(InstrumentBase):
                         ds = chan_grp[k]
                         ds[:, :] = em_convolved[k].value
                     else:
-                        ds = chan_grp.create_dataset(k, data=em_convolved[k].value)
+                        ds = chan_grp.create_array(k, data=em_convolved[k].value)
                     ds.attrs['unit'] = em_convolved[k].unit.to_string()
 
         return super().observe(skeleton, save_directory=save_directory, channels=channels, **kwargs)
