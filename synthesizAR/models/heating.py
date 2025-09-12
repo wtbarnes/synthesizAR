@@ -48,9 +48,16 @@ def b_over_l_scaling(strand,
 
 @u.quantity_input
 def free_magnetic_energy_density(strand, stress_level=0.3) -> u.Unit('erg cm-3'):
-    """
+    r"""
     Calculate available free energy of the magnetic field using
-    Eq. 1 of :cite:t:`reep_diagnosing_2013`.
+    Eq. 1 of :cite:t:`reep_diagnosing_2013`,
+
+    .. math::
+
+        E_B = \frac{(\epsilon B_p)^2}{8\pi},
+
+    where :math:`B_p` is the potential component of the field and :math:`epsilon`
+    parameterizes the stress level.
 
     Parameters
     ----------

@@ -23,6 +23,9 @@ def mikic_magnetic_field_profile(s: u.cm,
 
         B(s) = B_0 + B_1(\exp{-s/\ell} + \exp{-(L-s)/\ell})
 
+    where :math:`L` is the strand length and :math:`\ell` is the scale height of the field.
+    The default values of all of these parameters are those used in :cite:t:`mikic_importance_2013`.
+
     Parameters
     ----------
     s: `~astropy.units.Quantity`
