@@ -208,41 +208,25 @@ Number of strands: {len(self.strands)}'''
     @staticmethod
     def _load_loop_simulation(strand, root=None, interface=None):
         # Load in parameters from interface
-        (time, electron_temperature, ion_temperature,
-            density, velocity) = interface.load_results(strand)
+        results = interface.load_results(strand)
+        result_names = ['time', 'electron_temperature', 'ion_temperature', 'density', 'velocity']
         # If no Zarr file is passed, set the quantites as attributes on the loops
         if root is None:
-            strand._time = time
-            strand._electron_temperature = electron_temperature
-            strand._ion_temperature = ion_temperature
-            strand._density = density
-            strand._velocity = velocity
             strand._simulation_type = interface.name
+            for name in result_names:
+                setattr(strand, f'_{name}', results[name])
         else:
             # Write to file
             grp = root.create_group(strand.name)
             grp.attrs['simulation_type'] = interface.name
-            # time
-            dset_time = grp.create_array('time', data=time.value)
-            dset_time.attrs['unit'] = time.unit.to_string()
             # NOTE: Set the chunk size such that accessing all entries for a given timestep
             # is the most efficient pattern.
-            chunks = strand.time.shape + (1,)
-            # electron temperature
-            dset_electron_temperature = grp.create_array(
-                'electron_temperature', data=electron_temperature.value, chunks=chunks)
-            dset_electron_temperature.attrs['unit'] = electron_temperature.unit.to_string()
-            # ion temperature
-            dset_ion_temperature = grp.create_array(
-                'ion_temperature', data=ion_temperature.value, chunks=chunks)
-            dset_ion_temperature.attrs['unit'] = ion_temperature.unit.to_string()
-            # number density
-            dset_density = grp.create_array('density', data=density.value, chunks=chunks)
-            dset_density.attrs['unit'] = density.unit.to_string()
-            # field-aligned velocity
-            dset_velocity = grp.create_array('velocity', data=velocity.value, chunks=chunks)
-            dset_velocity.attrs['unit'] = velocity.unit.to_string()
-            dset_velocity.attrs['note'] = 'Velocity in the field-aligned direction'
+            chunks = results['time'].shape + (1,)
+            for name in result_names:
+                dset = grp.create_array(name,
+                                        data=results[name].value,
+                                        chunks='auto' if name=='time' else chunks)
+                dset.attrs['unit'] = results[name].unit.to_string()
 
     def load_loop_simulations(self, interface, filename=None, parallelize=False, **kwargs):
         """
@@ -301,7 +285,6 @@ Number of strands: {len(self.strands)}'''
 
         from synthesizAR.atomic import equilibrium_ionization
 
-        root = zarr.open(store=self.strands[0].model_results_filename, mode='a', **kwargs)
         # Check if we can load from the model
         FROM_MODEL = False
         if interface is not None and hasattr(interface, 'load_ionization_fraction'):
@@ -319,6 +302,7 @@ Number of strands: {len(self.strands)}'''
                 chunks = (None,) + strand.field_aligned_coordinate_center.shape
                 if not FROM_MODEL:
                     frac_el = equilibrium_ionization(el, strand.electron_temperature)
+                root = zarr.open(store=strand.model_results_filename, mode='a', **kwargs)
                 if 'ionization_fraction' in root[strand.name]:
                     grp = root[f'{strand.name}/ionization_fraction']
                 else:

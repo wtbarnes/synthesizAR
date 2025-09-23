@@ -43,7 +43,11 @@ class RTVInterface:
         # Scaling laws do not provide any velocity information
         velocity = np.ones(shape) * np.nan * u.cm/u.s
 
-        return time, temperature, temperature, density, velocity
+        return {'time': time,
+                'electron_temperature': temperature,
+                'ion_temperature': temperature,
+                'density': density,
+                'velocity': velocity}
 
     @u.quantity_input
     def get_heating_rate(self, loop) -> u.Unit('erg cm-3 s-1'):

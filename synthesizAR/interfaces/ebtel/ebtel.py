@@ -79,7 +79,11 @@ class EbtelInterface:
         ion_temperature = self._map_quantity_to_strand(strand, results.ion_temperature)
         density = self._map_quantity_to_strand(strand, results.density)
         velocity = self._map_velocity_to_strand(strand, results.velocity)
-        return results.time, electron_temperature, ion_temperature, density, velocity
+        return {'time': results.time,
+                'electron_temperature': electron_temperature,
+                'ion_temperature': ion_temperature,
+                'density': density,
+                'velocity': velocity}
 
     def _map_quantity_to_strand(self, strand, quantity):
         return np.outer(quantity, np.ones(strand.n_s))
