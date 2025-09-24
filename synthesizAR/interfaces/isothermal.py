@@ -34,7 +34,11 @@ class IsothermalInterface:
         temperature = T_0 * ones
         velocity = np.nan * ones * (u.cm / u.s)
         density = iso.density.reshape(ones.shape)
-        return time, temperature, temperature, density, velocity
+        return {'time': time,
+                'electron_temperature': temperature,
+                'ion_temperature': temperature,
+                'density': density,
+                'velocity': velocity}
 
     def get_temperature(self, loop):
         return self._temperature

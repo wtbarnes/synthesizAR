@@ -68,7 +68,11 @@ class MartensInterface:
         # NOTE: Scaling laws do not provide any velocity information
         velocity = np.ones(time.shape+s_center.shape) * np.nan * u.cm/u.s
 
-        return time, temperature, temperature, density, velocity
+        return {'time': time,
+                'electron_temperature': temperature,
+                'ion_temperature': temperature,
+                'density': density,
+                'velocity': velocity}
 
     def get_heating_constant(self, loop):
         """

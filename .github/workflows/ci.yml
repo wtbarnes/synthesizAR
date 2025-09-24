@@ -21,7 +21,7 @@ jobs:
     with:
       toxdeps: tox-pypi-filter
       envs: |
-        - linux: py312
+        - linux: py313
       coverage: 'codecov'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -32,8 +32,8 @@ jobs:
     with:
       toxdeps: tox-pypi-filter
       envs: |
-        - macos: py311
-        - windows: py310
+        - macos: py312
+        - windows: py311
       coverage: 'codecov'
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -45,7 +45,7 @@ jobs:
       toxdeps: tox-pypi-filter
       envs: |
         - linux: build_docs-gallery
-          python-version: '3.12'
+          python-version: '3.13'
       libraries: |
         apt:
           - graphviz
@@ -69,6 +69,6 @@ jobs:
       test_extras: 'dev'
       test_command: 'pytest -p no:warnings --doctest-rst --pyargs synthesizAR'
       submodules: false
-      python-version: '3.12'
+      python-version: '3.13'
     secrets:
       pypi_token: ${{ secrets.PYPI_TOKEN }}

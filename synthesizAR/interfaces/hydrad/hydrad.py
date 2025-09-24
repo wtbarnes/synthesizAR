@@ -3,12 +3,9 @@ Model interface for the HYDrodynamics and RADiation (HYDRAD) code
 """
 import astropy.units as u
 import copy
-import numpy as np
 import pathlib
+import pydrad.configure
 import pydrad.parse
-
-from pydrad.configure import Configure
-from scipy.interpolate import splev, splrep
 
 __all__ = ['HYDRADInterface']
 
@@ -90,8 +87,6 @@ class HYDRADInterface:
     def _map_strand_to_config_dict(self, loop):
         # NOTE: This is a separate function for ease of debugging
         config = copy.deepcopy(self.base_config)
-        # NOTE: Avoids a bug in HYDRAD where seg faults can arise due to inconsistencies between max cell
-        # widths and minimum number of cells
         config['general']['loop_length'] = loop.length
         config['initial_conditions']['heating_location'] = loop.length / 2
         if self.maximum_chromosphere_ratio:
@@ -109,13 +104,18 @@ class HYDRADInterface:
         from synthesizAR import log
         log.debug(f'Configuring HYDRAD for {loop.name}')
         config_dict = self._map_strand_to_config_dict(loop)
-        c = Configure(config_dict)
+        c = pydrad.configure.Configure(config_dict)
         c.setup_simulation(self.output_dir / loop.name,
                            base_path=self.hydrad_dir,
                            **kwargs)
 
     def load_results(self, loop):
-        strand = pydrad.parse.Strand(self.output_dir / loop.name)
+        strand = pydrad.parse.Strand(self.output_dir / loop.name,
+                                     read_phy=False,
+                                     read_hstate=False,
+                                     read_trm=False,
+                                     read_scl=False,
+                                     read_ine=False)
         return self._load_results_from_strand(
             loop,
             strand,
@@ -128,38 +128,28 @@ class HYDRADInterface:
                                   strand,
                                   use_initial_conditions=False,
                                   interpolate_to_norm=False):
-        loop_coord_center = loop.field_aligned_coordinate_center.to_value('cm')
         if interpolate_to_norm:
-            loop_coord_center = loop.field_aligned_coordinate_center_norm.value
+            loop_coord_center = loop.field_aligned_coordinate_center_norm
+        else:
+            loop_coord_center = loop.field_aligned_coordinate_center
         if use_initial_conditions:
             time = strand.initial_conditions.time.reshape((1,))
-            strand = [strand.initial_conditions]
+            strand = strand.initial_conditions
         else:
             time = strand.time
-        shape = time.shape + loop_coord_center.shape
-        quantities = {
-            'electron_temperature': np.zeros(shape) * u.K,
-            'ion_temperature': np.zeros(shape) * u.K,
-            'density': np.zeros(shape) * u.cm**(-3),
-            'velocity': np.zeros(shape) * u.cm/u.s,
+        quantity_name_mapping = {
+            'electron_temperature': 'electron_temperature',
+            'ion_temperature': 'hydrogen_temperature',
+            'density': 'electron_density',
+            'velocity': 'velocity',
         }
-        for i, p in enumerate(strand):
-            coord = p.coordinate.to('cm').value
-            if interpolate_to_norm:
-                coord /= strand.loop_length.to('cm').value
-            for k in quantities:
-                q = getattr(p, 'electron_density' if k == 'density' else k)
-                tsk = splrep(coord, q.to_value(quantities[k].unit))
-                q_interp = splev(loop_coord_center, tsk, ext=0)
-                quantities[k][i, :] = u.Quantity(q_interp, quantities[k].unit)
-
-        return (
-            time,
-            quantities['electron_temperature'],
-            quantities['ion_temperature'],
-            quantities['density'],
-            quantities['velocity'],
-        )
+        quantities = {}
+        for name, hydrad_name in quantity_name_mapping.items():
+            quantities[name] = strand.to_constant_grid(
+                hydrad_name,
+                loop_coord_center
+            )
+        return {'time': time, **quantities}
 
     def configure_gravity_fit(self, loop):
         return {

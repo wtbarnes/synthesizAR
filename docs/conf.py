@@ -121,9 +121,9 @@ graphviz_dot_args = [
 # -- Sphinx gallery -----------------------------------------------------------
 extensions += ['sphinx_gallery.gen_gallery']
 sphinx_gallery_conf = {
-     'examples_dirs': '../examples',   # path to your example scripts
-     'gallery_dirs': 'generated/gallery',  # path to where to save gallery generated output
-     'filename_pattern': '^((?!skip_).)*$',
-     'default_thumb_file': '_static/synthesizar_logo.png',
+    'examples_dirs': '../examples',   # path to your example scripts
+    'gallery_dirs': 'generated/gallery',  # path to where to save gallery generated output
+    'filename_pattern': '^((?!skip_).)*$',
+    'default_thumb_file': '_static/synthesizar_logo.png',
     'matplotlib_animations': True,
 }
