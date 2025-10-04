@@ -109,25 +109,28 @@ class HYDRADInterface:
                            base_path=self.hydrad_dir,
                            **kwargs)
 
-    def load_results(self, loop):
+    def load_results(self, loop, emission_model=None):
+        read_ine = emission_model is not None
         strand = pydrad.parse.Strand(self.output_dir / loop.name,
+                                     read_ine=read_ine,
                                      read_phy=False,
                                      read_hstate=False,
                                      read_trm=False,
-                                     read_scl=False,
-                                     read_ine=False)
+                                     read_scl=False)
         return self._load_results_from_strand(
             loop,
             strand,
             use_initial_conditions=self.use_initial_conditions,
             interpolate_to_norm=self.interpolate_to_norm,
+            emission_model=emission_model,
         )
 
     @staticmethod
     def _load_results_from_strand(loop,
                                   strand,
                                   use_initial_conditions=False,
-                                  interpolate_to_norm=False):
+                                  interpolate_to_norm=False,
+                                  emission_model=None):
         if interpolate_to_norm:
             loop_coord_center = loop.field_aligned_coordinate_center_norm
         else:
@@ -137,18 +140,26 @@ class HYDRADInterface:
             strand = strand.initial_conditions
         else:
             time = strand.time
+        quantity_names = [
+            'electron_temperature',
+            'hydrogen_temperature',
+            'electron_density',
+            'velocity',
+        ]
+        # TODO: Add names of ionization fractions if emission model is present
         quantity_name_mapping = {
-            'electron_temperature': 'electron_temperature',
-            'ion_temperature': 'hydrogen_temperature',
-            'density': 'electron_density',
-            'velocity': 'velocity',
+            'hydrogen_temperature': 'ion_temperature',
+            'electron_density': 'density',
         }
-        quantities = {}
-        for name, hydrad_name in quantity_name_mapping.items():
-            quantities[name] = strand.to_constant_grid(
-                hydrad_name,
-                loop_coord_center
-            )
+        quantities = {quantity_name_mapping.get(qn, qn): [] for qn in quantity_names}
+        # NOTE: Purposefully not using strand.to_constant_grid to avoid re-instantiating
+        # profiles and reading files multiple times.
+        for profile in strand:
+            for name in quantity_names:
+                quantities[quantity_name_mapping.get(name, name)].append(
+                    profile.to_constant_grid(name, loop_coord_center)
+                )
+        quantities = {k: u.Quantity(v) for k, v in quantities.items()}
         return {'time': time, **quantities}
 
     def configure_gravity_fit(self, loop):

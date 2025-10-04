@@ -90,7 +90,7 @@ Number of strands: {len(self.strands)}'''
         """
         exclude_keys = ['asdf_library', 'history']
         strands = []
-        with asdf.open(filename, mode='r', memmap=False) as af:
+        with asdf.open(filename, mode='r', memmap=False, lazy_load=False) as af:
             for k in af.keys():
                 if k in exclude_keys:
                     continue

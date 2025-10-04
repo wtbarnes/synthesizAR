@@ -5,13 +5,12 @@ spatial and spectroscopic resolution.
 import asdf
 import astropy.units as u
 import numpy as np
-import warnings
-import zarr
 
 from aiapy.psf import filter_mesh_parameters
 from aiapy.response import Channel
 from astropy.utils.data import get_pkg_data_filename
-from scipy.interpolate import interp1d, interpn
+from functools import cached_property
+from scipy.interpolate import interpn
 
 from synthesizAR.instruments import InstrumentBase
 from synthesizAR.util.decorators import return_quantity_as_tuple
@@ -22,6 +21,29 @@ _TEMPERATURE_RESPONSE_FILE = get_pkg_data_filename('data/aia_temperature_respons
                                                    package='synthesizAR.instruments')
 with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r', memmap=False) as af:
     _TEMPERATURE_RESPONSE = af.tree
+
+
+class AIAChannel(Channel):
+
+    @u.quantity_input
+    def wavelength_response(self) -> u.Unit('cm2 DN ph-1 sr pix-1'):
+        response = super().wavelength_response(
+            include_crosstalk=True,
+            obstime=None,
+            include_eve_correction=False,
+            correction_table=None,  # Can remove this after aiapy v0.11
+        )
+        # NOTE: Can remove this once Channel refactor is done
+        response *= self.plate_scale
+        return response
+
+    @property
+    def psf_width(self):
+        # Add the Gaussian width for the PSF convolution
+        psf_width = filter_mesh_parameters(
+            use_preflightcore=True
+        )[self.channel]['width']
+        return u.Quantity([psf_width, psf_width])
 
 
 class InstrumentSDOAIA(InstrumentBase):
@@ -62,22 +84,16 @@ class InstrumentSDOAIA(InstrumentBase):
     def telescope(self):
         return 'SDO/AIA'
 
-    @property
+    @cached_property
     def channels(self):
-        channels = [
-            Channel(94*u.angstrom),
-            Channel(131*u.angstrom),
-            Channel(171*u.angstrom),
-            Channel(193*u.angstrom),
-            Channel(211*u.angstrom),
-            Channel(335*u.angstrom),
+        return [
+            AIAChannel(94*u.angstrom),
+            AIAChannel(131*u.angstrom),
+            AIAChannel(171*u.angstrom),
+            AIAChannel(193*u.angstrom),
+            AIAChannel(211*u.angstrom),
+            AIAChannel(335*u.angstrom),
         ]
-        # Add the Gaussian width for the PSF convolution
-        psf_params = filter_mesh_parameters(use_preflightcore=True)
-        for c in channels:
-            psf_width = psf_params[c.channel]['width']
-            c.psf_width = u.Quantity([psf_width, psf_width])
-        return channels
 
     @property
     def _expected_unit(self):
@@ -96,19 +112,14 @@ class InstrumentSDOAIA(InstrumentBase):
             n = loop.density
             T = loop.electron_temperature
             Tn_flat = np.stack((T.value.flatten(), n.value.flatten()), axis=1)
-            kernel = np.zeros(T.shape)
-            # Get the group for this channel
-            root = zarr.open(em_model.emissivity_table_filename, mode='r')
-            grp = root[f'SDO_AIA/{channel.name}']
+            kernel = u.Quantity(np.zeros(T.shape), 'DN pix-1 s-1 cm-1')
             for ion in em_model:
-                if ion.ion_name not in grp:
-                    warnings.warn(f'Not including contribution from {ion.ion_name}')
-                    continue
-                ds = grp[ion.ion_name]
-                em_ion = u.Quantity(ds, ds.attrs['unit'])
+                # NOTE: This is cached such that it is only calculated once
+                # for a given ion/channel pair
+                em_ion = em_model.calculate_narrowband_emissivity(ion, channel)
                 # Interpolate wavelength-convolved emissivity to loop n,T
                 em_flat = interpn(
-                    (em_model.temperature.to(T.unit).value, em_model.density.to(n.unit).value),
+                    (em_model.temperature.to_value(T.unit), em_model.density.to_value(n.unit)),
                     em_ion.value,
                     Tn_flat,
                     method='linear',
@@ -116,76 +127,13 @@ class InstrumentSDOAIA(InstrumentBase):
                     bounds_error=False,
                 )
                 em_ion_interp = np.reshape(em_flat, T.shape)
-                em_ion_interp = u.Quantity(np.where(em_ion_interp < 0., 0., em_ion_interp),
-                                           em_ion.unit)
+                em_ion_interp = u.Quantity(np.where(em_ion_interp < 0., 0., em_ion_interp), em_ion.unit)
                 ionization_fraction = loop.get_ionization_fraction(ion)
-                tmp = ion.abundance*0.83/(4*np.pi*u.steradian)*ionization_fraction*n*em_ion_interp
-                if not hasattr(kernel, 'unit'):
-                    kernel = kernel*tmp.unit
-                kernel += tmp
+                kernel += n**2*ionization_fraction*em_ion_interp/(4*np.pi*u.steradian)
         else:
             # Use tabulated temperature response functions
             kernel = aia_kernel_quick(channel.name, loop.electron_temperature, loop.density)
         return kernel
-
-    def convolve_emissivities(self, channel, emission_model, **kwargs):
-        """
-        Compute product between wavelength response for `channel` and emissivity for all ions
-        in an emission model.
-        """
-        em_convolved = {}
-        r = channel.wavelength_response(**kwargs) * channel.plate_scale
-        f_interp = interp1d(channel.wavelength, r, bounds_error=False, fill_value=0.0)
-        for ion in emission_model:
-            wavelength, emissivity = emission_model.get_emissivity(ion)
-            # TODO: need to figure out a better way to propagate missing emissivities
-            if wavelength is None or emissivity is None:
-                em_convolved[ion.ion_name] = None
-            else:
-                em_convolved[ion.ion_name] = np.dot(emissivity, f_interp(wavelength)) * r.unit
-
-        return em_convolved
-
-    def observe(self, skeleton, save_directory=None, channels=None, **kwargs):
-        em_model = kwargs.get('emission_model')
-        if em_model:
-            # TODO: skip if the file already exists?
-            # If using an emission model, we want to first convolve the wavelength-dependent
-            # emissivities with the wavelength response functions and store them in the
-            # emissivity table
-            channels = self.channels if channels is None else channels
-            # NOTE: Don't open with 'w' because we want to preserve the emissivity table
-            root = zarr.open(store=em_model.emissivity_table_filename, mode='a')
-            if self.name not in root:
-                grp = root.create_group(self.name)
-            else:
-                grp = root[self.name]
-            # Get options for wavelength response
-            include_crosstalk = kwargs.pop('include_crosstalk', True)
-            obstime = self.observer.obstime if kwargs.pop('include_degradation', False) else None
-            include_eve_correction = kwargs.pop('include_eve_correction', False)
-            for channel in channels:
-                em_convolved = self.convolve_emissivities(
-                    channel,
-                    em_model,
-                    include_crosstalk=include_crosstalk,
-                    obstime=obstime,
-                    include_eve_correction=include_eve_correction,
-                )
-                if channel.name in grp:
-                    chan_grp = grp[channel.name]
-                else:
-                    chan_grp = grp.create_group(channel.name)
-                for k in em_convolved:
-                    # NOTE: update dataset even when it already exists
-                    if k in chan_grp:
-                        ds = chan_grp[k]
-                        ds[:, :] = em_convolved[k].value
-                    else:
-                        ds = chan_grp.create_array(k, data=em_convolved[k].value)
-                    ds.attrs['unit'] = em_convolved[k].unit.to_string()
-
-        return super().observe(skeleton, save_directory=save_directory, channels=channels, **kwargs)
 
 
 @u.quantity_input
@@ -193,7 +141,7 @@ def aia_kernel_quick(channel,
                      temperature: u.K,
                      density: u.cm**(-3)) -> u.Unit('DN pix-1 s-1 cm-1'):
     r"""
-    Calculate AIA intensity kernel for a given channel
+    Calculate AIA intensity kernel for a given channel.
 
     Compute the integrand of the AIA intensity integral,
 

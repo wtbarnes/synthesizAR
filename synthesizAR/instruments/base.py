@@ -21,7 +21,10 @@ from sunpy.map import make_fitswcs_header, Map
 from synthesizAR.util import find_minimum_fov
 from synthesizAR.util.decorators import return_quantity_as_tuple
 
-__all__ = ['ChannelBase', 'InstrumentBase']
+__all__ = [
+    'ChannelBase',
+    'InstrumentBase',
+]
 
 
 @dataclass
