@@ -64,6 +64,8 @@ class Strand:
         self.model_results_filename = model_results_filename
         if self.coordinate.shape != self.field_strength.shape:
             raise ValueError('Coordinates and field strength must have same shape.')
+        from synthesizAR import log
+        self.log = log
 
     @property
     def zarr_root(self):
@@ -90,6 +92,14 @@ Simulation Type: {self.simulation_type}'''
         """
         return interp1d(self.field_aligned_coordinate.to(u.Mm).value, y.value, **kwargs)(
             self.field_aligned_coordinate_center.to(u.Mm).value) * y.unit
+
+    @u.quantity_input
+    def get_chromosphere_mask(self, footpoint_height: u.Mm):
+        "Is strand in chromosphere as defined by ``footpoint_height``."
+        return np.logical_or(
+            self.field_aligned_coordinate_center<footpoint_height,
+            self.field_aligned_coordinate_center>(self.length-footpoint_height),
+        )
 
     @property
     def coordinate(self):
@@ -289,16 +299,31 @@ Simulation Type: {self.simulation_type}'''
         try:
             q = getattr(self, f'_{quantity}')
         except AttributeError:
-            dset = self.zarr_root[f'{self.name}/{quantity}']
-            return u.Quantity(dset, dset.attrs['unit'])
+            if self.zarr_root is not None:
+                if (dset:=self.zarr_root.get(f'{self.name}/{quantity}')) is not None:
+                    return u.Quantity(dset, dset.attrs['unit'])
         else:
             return q
+        # Ensures that an attribute error is raised if this quantity does not
+        # exist for this loop.
+        raise AttributeError(f'Strand {self.name} has no attribute {quantity}')
 
     def get_ionization_fraction(self, ion):
         """
         Return the ionization fraction for a particular ion.
         """
-        return self._get_quantity(f'ionization_fraction/{ion.ion_name}')
+        try:
+            # Some models can model the ionization fractions as a function of
+            # time and space. If they do, they are loaded and attached to the strand
+            # when loading the results.
+            return self._get_quantity(f'{ion.element_name}_{ion.ionization_stage}')
+        except AttributeError:
+            self.log.debug(f'No {ion.ion_name} ionization fractions found for {self.name}. Assuming equilibrium.')
+            # NOTE: Should these be calculated from the rates rather than using the tabulated values? In principle,
+            # these are the same.
+            return np.interp(self.temperature,
+                             ion.temperature,
+                             ion.ionization_fraction)
 
 
 def add_property(name, unit, doc):
