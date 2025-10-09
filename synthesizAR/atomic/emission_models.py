@@ -32,8 +32,8 @@ class EmissionModel(fiasco.IonCollection):
     args: `~fiasco.Ion`
         All remaining positional arguments are the ions comprising the
         emission model. These can also be elements or collections.
-    line_emissivity_table_filename: `str` or pathlike, optional
-        Path to Zarr store for saving the line emissivity calculations.
+    emissivity_table_filename: `str` or pathlike, optional
+        Path to Zarr store for saving the emissivity calculations.
         If this file already exists, care should be taken to ensure that
         all input parameters are the same as the model that originally
         generated this file. If not specified, the emissivity table will
@@ -66,7 +66,7 @@ class EmissionModel(fiasco.IonCollection):
         tree = {
             'temperature': self.temperature,
             'density': self.density,
-            'emissivity_table_filename': self.emissivity_table_filename,
+            'emissivity_table_filename': self.emissivity_table_filename.as_posix(),
             'level_pops_kwargs': self._level_pops_kwargs,
             'ions': [ion.ion_name for ion in self],
             'ion_kwargs': [ion._instance_kwargs for ion in self]
@@ -88,11 +88,30 @@ class EmissionModel(fiasco.IonCollection):
             ion_kwargs = af.tree['ion_kwargs']
 
         ions = [fiasco.Ion(ion, temperature, **kwargs) for ion, kwargs in zip(ions, ion_kwargs)]
-        em_model = cls(density, emissivity_table_filename, *ions, **level_pops_kwargs)
+        em_model = cls(
+            density,
+            *ions,
+            emissivity_table_filename=emissivity_table_filename,
+            **level_pops_kwargs
+        )
         return em_model
 
+    def build_emissivity_table(self):
+        """
+        Save line and continuum emissivity to a Zarr file.
+
+        Calculate line and continuum emissivity as a function of wavelength, temperature,
+        and density for each ion in the emission model to a Zarr file. It is not necessary
+        to call this function as emissivities will be automatically calculated and stored as
+        needed, but it may be convenient in some instances.
+        """
+        for ion in self:
+            self.log.debug(f'Calculating emissivity for {ion.ion_name}.')
+            _ = self.get_line_emissivity(ion)
+            _ = self.get_continuum_emissivity(ion)
+
     def _get_quantity_from_emissivity_table(self, ion, path):
-        "Convenience method for retrieving a unitful quantity for a given ion from the Zarr file"
+        "Convenience method for retrieving a quantity for a given ion from the Zarr file"
         root = zarr.open(store=self.emissivity_table_filename, mode='r')
         ds = root[f'{ion.ion_name}/{path}']
         return u.Quantity(ds, ds.attrs.get('unit', ''))
@@ -109,7 +128,7 @@ class EmissionModel(fiasco.IonCollection):
             # NOTE: populations not available for every ion
             self.log.warning(f'Cannot compute level populations for {ion.ion_name}')
             wavelength = [0]*u.AA
-            emissivity = u.Quantity(np.zeros(self.temperature.shape+self.density.shape+(1,)), 'ph s-1')
+            emissivity = u.Quantity(np.zeros(self.temperature.shape+self.density.shape+(1,)), 'cm3 ph s-1')
         else:
             upper_level = ion.transitions.upper_level[ion.transitions.is_bound_bound]
             wavelength = ion.transitions.wavelength[ion.transitions.is_bound_bound]
@@ -172,12 +191,12 @@ class EmissionModel(fiasco.IonCollection):
             ff = ion.free_free(wavelength)
         except MissingDatasetException:
             self.log.warning(f'Cannot compute free-free emission for {ion.ion_name}')
-            ff = u.Quantity(np.zeros(self.temperature.shape+wavelength.shape), 'ph cm3 s-1 Angstrom-1')
+            ff = u.Quantity(np.zeros(self.temperature.shape+wavelength.shape), 'erg cm3 s-1 Angstrom-1')
         try:
             fb = ion.free_bound(wavelength)
         except MissingDatasetException:
             self.log.warning(f'Cannot compute free-bound emission for {ion.ion_name}')
-            fb = u.Quantity(np.zeros(self.temperature.shape+wavelength.shape), 'ph cm3 s-1 Angstrom-1')
+            fb = u.Quantity(np.zeros(self.temperature.shape+wavelength.shape), 'erg cm3 s-1 Angstrom-1')
         emissivity = ion.abundance*ion.proton_electron_ratio[..., np.newaxis]*(ff + fb)*ph_per_erg
         return wavelength, emissivity
 
