@@ -7,6 +7,8 @@ import pathlib
 import pydrad.configure
 import pydrad.parse
 
+from synthesizAR import log
+
 __all__ = ['HYDRADInterface']
 
 
@@ -146,19 +148,25 @@ class HYDRADInterface:
             'electron_density',
             'velocity',
         ]
-        # TODO: Add names of ionization fractions if emission model is present
         quantity_name_mapping = {
             'hydrogen_temperature': 'ion_temperature',
             'electron_density': 'density',
         }
+        if emission_model:
+            quantity_names += [f'{ion.element_name}_{ion.ionization_stage}' for ion in emission_model]
         quantities = {quantity_name_mapping.get(qn, qn): [] for qn in quantity_names}
         # NOTE: Purposefully not using strand.to_constant_grid to avoid re-instantiating
         # profiles and reading files multiple times.
         for profile in strand:
             for name in quantity_names:
-                quantities[quantity_name_mapping.get(name, name)].append(
-                    profile.to_constant_grid(name, loop_coord_center)
-                )
+                # Need this try/except as the HYDRAD simulations may not have ine files
+                # for every ion in the emission model.
+                try:
+                    quantity = profile.to_constant_grid(name, loop_coord_center)
+                except AttributeError:
+                    log.warning(f'No quantity {name} for HYDRAD snapshot {profile.time}.')
+                else:
+                    quantities[quantity_name_mapping.get(name, name)].append(quantity)
         quantities = {k: u.Quantity(v) for k, v in quantities.items()}
         return {'time': time, **quantities}
 
