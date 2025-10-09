@@ -112,7 +112,7 @@ class InstrumentSDOAIA(InstrumentBase):
             n = loop.density
             T = loop.electron_temperature
             Tn_flat = np.stack((T.value.flatten(), n.value.flatten()), axis=1)
-            kernel = u.Quantity(np.zeros(T.shape), 'DN pix-1 s-1 cm-1')
+            kernel = u.Quantity(np.zeros(T.shape), 'cm5 DN sr pix-1 s-1')
             for ion in em_model:
                 # NOTE: This is cached such that it is only calculated once
                 # for a given ion/channel pair
@@ -123,13 +123,14 @@ class InstrumentSDOAIA(InstrumentBase):
                     em_ion.value,
                     Tn_flat,
                     method='linear',
-                    fill_value=None,
+                    fill_value=0.0,  # No emission outside of model bounds
                     bounds_error=False,
                 )
                 em_ion_interp = np.reshape(em_flat, T.shape)
-                em_ion_interp = u.Quantity(np.where(em_ion_interp < 0., 0., em_ion_interp), em_ion.unit)
+                em_ion_interp = u.Quantity(np.where(em_ion_interp<0, 0, em_ion_interp), em_ion.unit)
                 ionization_fraction = loop.get_ionization_fraction(ion)
-                kernel += n**2*ionization_fraction*em_ion_interp/(4*np.pi*u.steradian)
+                kernel += ionization_fraction*em_ion_interp
+            kernel *= n**2/(4*np.pi*u.steradian)
         else:
             # Use tabulated temperature response functions
             kernel = aia_kernel_quick(channel.name, loop.electron_temperature, loop.density)
