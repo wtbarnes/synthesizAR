@@ -40,7 +40,7 @@ class MartensInterface:
         self.model_parameters = model_parameters
         self.heating_constant = heating_constant
 
-    def load_results(self, loop):
+    def load_results(self, loop, **kwargs):
         time = u.Quantity([0, ], 's')
         s_half = np.linspace(0, 1, 1000)*loop.length/2
         H = self.get_heating_constant(loop)

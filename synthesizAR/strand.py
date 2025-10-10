@@ -321,7 +321,7 @@ Simulation Type: {self.simulation_type}'''
             self.log.debug(f'No {ion.ion_name} ionization fractions found for {self.name}. Assuming equilibrium.')
             # NOTE: Should these be calculated from the rates rather than using the tabulated values? In principle,
             # these are the same.
-            return np.interp(self.temperature,
+            return np.interp(self.electron_temperature,
                              ion.temperature,
                              ion.ionization_fraction)
 

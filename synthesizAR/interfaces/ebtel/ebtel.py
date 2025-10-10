@@ -58,7 +58,7 @@ class EbtelInterface:
             )
         self._heating_model = val
 
-    def load_results(self, strand):
+    def load_results(self, strand, **kwargs):
         """
         Load EBTEL output for a given particular strand.
 
