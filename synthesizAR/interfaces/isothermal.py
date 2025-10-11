@@ -22,7 +22,7 @@ class IsothermalInterface:
         self._temperature = temperature
         self._base_pressure = base_pressure
 
-    def load_results(self, loop):
+    def load_results(self, loop, **kwargs):
         T_0 = self.get_temperature(loop)
         p_0 = self.get_base_pressure(loop)
         iso = Isothermal(loop.field_aligned_coordinate_center,

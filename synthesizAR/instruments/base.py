@@ -21,7 +21,10 @@ from sunpy.map import make_fitswcs_header, Map
 from synthesizAR.util import find_minimum_fov
 from synthesizAR.util.decorators import return_quantity_as_tuple
 
-__all__ = ['ChannelBase', 'InstrumentBase']
+__all__ = [
+    'ChannelBase',
+    'InstrumentBase',
+]
 
 
 @dataclass
@@ -49,7 +52,7 @@ class InstrumentBase:
     cadence : `~astropy.units.Quantity`, optional
         If specified, this is used to construct the observing time.
     pad_fov : `~astropy.units.Quantity`, optional
-        Two-dimensional array specifying the padding to apply to the field of view of the synthetic
+        Array specifying the padding to apply to the field of view of the synthetic
         image in both directions in pixel space. If None, no padding is applied and the field of
         view is defined by the maximal extent of the loop coordinates in each direction.
         Note that if ``fov_center`` and ``fov_width`` are specified, this is ignored.
@@ -188,7 +191,8 @@ class InstrumentBase:
         w = w.to_value('pixel')[::-1]
         return smap._new_instance(gaussian_filter(smap.data, w), smap.meta)
 
-    def observe(self, skeleton, save_directory=None, channels=None, **kwargs):
+    @u.quantity_input
+    def observe(self, skeleton, save_directory=None, channels=None, footpoint_height: u.cm=None, **kwargs):
         """
         Calculate the time dependent intensity for all loops and project them along
         the line-of-sight as defined by the instrument observer.
@@ -197,6 +201,19 @@ class InstrumentBase:
         ----------
         skeleton : `~synthesizAR.Skeleton`
         save_directory : `str` or path-like
+            Directory to save all of the resulting maps to.
+        channels : `list` of `ChannelBase`
+            List of instrument channels for which to model the emission.
+        footpoint_height : `~astropy.units.Quantity`
+            Portion of each end of the strand that makes up the chromosphere.
+            If specified, each strand will be masked at both footpoints by this amount.
+            This masking is done in the field-aligned coordinate system :math:`s` such that any
+            points in each strand with :math:`s<f_P` and :math:`s>L-f_P`. This masking
+            is done in :math:`s` rather than the real 3D coordinate because the atmospheric
+            stratification is determined by the field-aligned model.
+            In HYDRAD, this is typically 5 Mm.
+            The reason for applying this masking is because the chromospheric emission is not
+            accurately modeled by this approach and will be heavily overestimated.
         """
         if channels is None:
             channels = self.channels
@@ -210,6 +227,8 @@ class InstrumentBase:
         coordinates_centers = skeleton.all_coordinates_centers
         pixel_locations = wcs.world_to_pixel(coordinates_centers)
         visibilities = coordinates_centers.transform_to(self.projected_frame).is_visible()
+        if footpoint_height is not None:
+            visibilities *= ~skeleton.get_chromosphere_mask(footpoint_height)
         maps = {}
         for channel in channels:
             # Compute intensity as a function of time and field-aligned coordinate
@@ -270,12 +289,13 @@ class InstrumentBase:
                     n_pixels,
                     visibilities,
                     header,
-                    kernels=kernels[i])
+                    kernels=kernels[i]
+                )
                 m = self.convolve_with_psf(m, channel)
                 if save_directory is None:
                     maps[channel.name].append(m)
                 else:
-                    fname = pathlib.Path(save_directory) / f'm_{channel.name}_t{i}.fits'
+                    fname = pathlib.Path(save_directory) / f'm_{channel.name}_t{i:09d}.fits'
                     m.save(fname, overwrite=True)
                     maps[channel.name].append(fname)
         return maps

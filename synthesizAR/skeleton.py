@@ -30,7 +30,7 @@ class Skeleton:
     --------
     >>> import synthesizAR
     >>> import astropy.units as u
-    >>> strand = synthesizAR.Strand('strand', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm,frame='heliographic_stonyhurst', representation_type='cartesian'), [1e2,1e3] * u.G)
+    >>> strand = synthesizAR.Strand('strand', SkyCoord(x=[1,4]*u.Mm, y=[2,5]*u.Mm, z=[3,6]*u.Mm, frame='heliographic_stonyhurst', representation_type='cartesian'), [1e2,1e3] * u.G)
     >>> field = synthesizAR.Skeleton([strand,])
     """
 
@@ -90,7 +90,7 @@ Number of strands: {len(self.strands)}'''
         """
         exclude_keys = ['asdf_library', 'history']
         strands = []
-        with asdf.open(filename, mode='r', memmap=False) as af:
+        with asdf.open(filename, mode='r', memmap=False, lazy_load=False) as af:
             for k in af.keys():
                 if k in exclude_keys:
                     continue
@@ -188,6 +188,11 @@ Number of strands: {len(self.strands)}'''
         """
         return np.concatenate([l.cross_sectional_area_center for l in self.strands])
 
+    @u.quantity_input
+    def get_chromosphere_mask(self, footpoint_height:u.Mm):
+        "Returns result of `synthesizAR.Strand.get_chromosphere_mask` for all strands in skeleton."
+        return np.concatenate([l.get_chromosphere_mask(footpoint_height) for l in self.strands])
+
     def peek(self, **kwargs):
         """
         Plot strand coordinates on the solar disk.
@@ -206,15 +211,14 @@ Number of strands: {len(self.strands)}'''
             interface.configure_input(strand, **kwargs)
 
     @staticmethod
-    def _load_loop_simulation(strand, root=None, interface=None):
+    def _load_loop_simulation(strand, root=None, interface=None, emission_model=None):
         # Load in parameters from interface
-        results = interface.load_results(strand)
-        result_names = ['time', 'electron_temperature', 'ion_temperature', 'density', 'velocity']
+        results = interface.load_results(strand, emission_model=emission_model)
         # If no Zarr file is passed, set the quantites as attributes on the loops
         if root is None:
             strand._simulation_type = interface.name
-            for name in result_names:
-                setattr(strand, f'_{name}', results[name])
+            for name, quantity in results.items():
+                setattr(strand, f'_{name}', quantity)
         else:
             # Write to file
             grp = root.create_group(strand.name)
@@ -222,13 +226,13 @@ Number of strands: {len(self.strands)}'''
             # NOTE: Set the chunk size such that accessing all entries for a given timestep
             # is the most efficient pattern.
             chunks = results['time'].shape + (1,)
-            for name in result_names:
+            for name, quantity in results.items():
                 dset = grp.create_array(name,
-                                        data=results[name].value,
+                                        data=quantity.value,
                                         chunks='auto' if name=='time' else chunks)
-                dset.attrs['unit'] = results[name].unit.to_string()
+                dset.attrs['unit'] = quantity.unit.to_string()
 
-    def load_loop_simulations(self, interface, filename=None, parallelize=False, **kwargs):
+    def load_loop_simulations(self, interface, filename=None, parallelize=False, emission_model=None):
         """
         Load results from hydrodynamic results.
 
@@ -240,11 +244,15 @@ Number of strands: {len(self.strands)}'''
             Path to `zarr` store to write hydrodynamic results to
         parallelize : `bool`
             If True and a `distributed.Client` exists, load loop simulations in parallel.
+        emission_model : `synthesizAR.atomic.EmissionModel`
+            Emission model that specifies the ions used in the emission modeling process.
+            This can be optionally specified in order to load the time-dependent ionization
+            fractions for some models.
         """
         if filename is None:
             root = None
         else:
-            root = zarr.open(store=filename, mode='w', **kwargs)
+            root = zarr.open(store=filename, mode='w')
         for strand in self.strands:
             strand.model_results_filename = filename
         try:
@@ -259,61 +267,9 @@ Number of strands: {len(self.strands)}'''
                     self.strands,
                     root=root,
                     interface=interface,
+                    emission_model=emission_model,
                 )
                 return status
         for l in self.strands:
             self.log.debug(f'Loading results for strand {l.name}')
-            self._load_loop_simulation(l, root=root, interface=interface)
-
-    def load_ionization_fractions(self, emission_model, interface=None, **kwargs):
-        """
-        Load the ionization fractions for each ion in the emission model.
-
-        Parameters
-        ----------
-        emission_model : `synthesizAR.atomic.EmissionModel`
-        interface : optional
-            A model interface. Only necessary if loading the ionization fractions
-            from the model
-
-        If the model interface provides a method for loading the population fraction
-        from the model, use that to get the population fractions. Otherwise, compute
-        the ion population fractions in equilibrium. This should be done after
-        calling `load_loop_simulations`.
-        """
-        from fiasco import Element
-
-        from synthesizAR.atomic import equilibrium_ionization
-
-        # Check if we can load from the model
-        FROM_MODEL = False
-        if interface is not None and hasattr(interface, 'load_ionization_fraction'):
-            frac = interface.load_ionization_fraction(self.strands[0], emission_model[0])
-            # Some models may optionally output the ionization fractions such that
-            # they will have this method, but it may not return anything
-            if frac is not None:
-                FROM_MODEL = True
-        # Get the unique elements from all of our ions
-        element_names = list(set([ion.element_name for ion in emission_model]))
-        for el_name in element_names:
-            el = Element(el_name, emission_model.temperature)
-            ions = [i for i in emission_model if i.element_name == el.element_name]
-            for strand in self.strands:
-                chunks = (None,) + strand.field_aligned_coordinate_center.shape
-                if not FROM_MODEL:
-                    frac_el = equilibrium_ionization(el, strand.electron_temperature)
-                root = zarr.open(store=strand.model_results_filename, mode='a', **kwargs)
-                if 'ionization_fraction' in root[strand.name]:
-                    grp = root[f'{strand.name}/ionization_fraction']
-                else:
-                    grp = root[strand.name].create_group('ionization_fraction')
-                for ion in ions:
-                    if FROM_MODEL:
-                        frac = interface.load_ionization_fraction(strand, ion)
-                        desc = f'{ion.ion_name} ionization fraction computed by {interface.name}'
-                    else:
-                        frac = frac_el[:, :, ion.charge_state]
-                        desc = f'{ion.ion_name} ionization fraction in equilibrium.'
-                    dset = grp.create_array(f'{ion.ion_name}', data=frac, chunks=chunks)
-                    dset.attrs['unit'] = ''
-                    dset.attrs['description'] = desc
+            self._load_loop_simulation(l, root=root, interface=interface, emission_model=emission_model)

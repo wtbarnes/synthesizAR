@@ -33,7 +33,7 @@ class RTVInterface:
         self._heating_rate = heating_rate
         self.rtv_kwargs = {} if rtv_kwargs is None else rtv_kwargs
 
-    def load_results(self, loop):
+    def load_results(self, loop, **kwargs):
         heating_rate = self.get_heating_rate(loop)
         rtv = RTVScalingLaws(loop.length/2, heating_rate=heating_rate, **self.rtv_kwargs)
         time = u.Quantity([0, ], 's')
