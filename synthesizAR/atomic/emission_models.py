@@ -146,7 +146,7 @@ class EmissionModel(fiasco.IonCollection):
         r"""
         Get bound-bound emissivity for all lines of a particular ion.
 
-        .. note:: This first searches the Zarr store at ``line_emissivity_table_filename`` and if
+        .. note:: This first searches the Zarr store at ``emissivity_table_filename`` and if
                   no emissivity is found, it is calculated. As such, the first time this is run for
                   a given ion it may be slow, but will cache the result on subsequent calls.
 
@@ -258,7 +258,7 @@ class EmissionModel(fiasco.IonCollection):
         Parameters
         ----------
         ion : `~fiasco.Ion`
-        channel : Compatible with `sunkit_instruments.response.AbstractChannel`
+        channel : Compatible with `sunkit_instruments.response.abstractions.AbstractChannel`
 
         Returns
         -------

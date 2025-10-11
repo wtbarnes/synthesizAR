@@ -70,6 +70,7 @@ intersphinx_mapping = {
     'pydrad': ('https://pydrad.readthedocs.io/en/latest/', None),
     'ebtelplusplus': ('https://ebtelplusplus.readthedocs.io/en/stable', None),
     'dask': ('https://docs.dask.org/en/latest', None),
+    'sunkit_instruments': ('https://docs.sunpy.org/projects/sunkit-instruments/en/stable/', None),
 }
 
 # -- Options for HTML output -------------------------------------------------
