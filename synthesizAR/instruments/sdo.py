@@ -4,15 +4,18 @@ spatial and spectroscopic resolution.
 """
 import asdf
 import astropy.units as u
+import ndcube
 import numpy as np
+import pathlib
+import sunpy.map
 
 from aiapy.psf import filter_mesh_parameters
 from aiapy.response import Channel
 from astropy.utils.data import get_pkg_data_filename
-from functools import cached_property
 from scipy.interpolate import interpn
 
 from synthesizAR.instruments import InstrumentBase
+from synthesizAR.instruments.util import map_list_to_time_cube
 from synthesizAR.util.decorators import return_quantity_as_tuple
 
 __all__ = ['InstrumentSDOAIA', 'aia_kernel_quick']
@@ -60,6 +63,14 @@ class InstrumentSDOAIA(InstrumentBase):
     --------
     """
     name = 'SDO_AIA'
+    channels = [
+        AIAChannel(94*u.angstrom),
+        AIAChannel(131*u.angstrom),
+        AIAChannel(171*u.angstrom),
+        AIAChannel(193*u.angstrom),
+        AIAChannel(211*u.angstrom),
+        AIAChannel(335*u.angstrom),
+    ]
 
     def __init__(self, observing_time, observer, **kwargs):
         resolution = kwargs.pop('resolution', [0.600698, 0.600698] * u.arcsec/u.pixel)
@@ -83,17 +94,6 @@ class InstrumentSDOAIA(InstrumentBase):
     @property
     def telescope(self):
         return 'SDO/AIA'
-
-    @cached_property
-    def channels(self):
-        return [
-            AIAChannel(94*u.angstrom),
-            AIAChannel(131*u.angstrom),
-            AIAChannel(171*u.angstrom),
-            AIAChannel(193*u.angstrom),
-            AIAChannel(211*u.angstrom),
-            AIAChannel(335*u.angstrom),
-        ]
 
     @property
     def _expected_unit(self):
@@ -135,6 +135,30 @@ class InstrumentSDOAIA(InstrumentBase):
             # Use tabulated temperature response functions
             kernel = aia_kernel_quick(channel.name, loop.electron_temperature, loop.density)
         return kernel
+
+    @staticmethod
+    def build_collection_from_maps(save_directory, channels=None):
+        """
+        Build an `~ndcube.NDCollection` from all maps in all channels produced by a simulation.
+
+        Parameters
+        ----------
+        save_directory : path-like
+            Directory that contains all FITS files produced by the `~synthesizAR.instruments.InstrumentBase.observe` method.
+        channels : `list` of `str`
+            Channel labels from which to build collection. If not specified, will default to the
+            six EUV channels of AIA.
+        """
+        save_directory = pathlib.Path(save_directory)
+        if channels is None:
+            channels = [chan.name for chan in InstrumentSDOAIA.channels]
+        key_data_pairs = []
+        for chan in channels:
+            filenames = sorted(save_directory.glob(f'm_{chan}_t*.fits'))
+            cube = map_list_to_time_cube(sunpy.map.Map(filenames))
+            key_data_pairs.append((chan, cube))
+        col = ndcube.NDCollection(key_data_pairs, aligned_axes=(0, 1, 2))
+        return col
 
 
 @u.quantity_input

@@ -30,8 +30,9 @@ Homepage = "https://github.com/wtbarnes/synthesizAR"
 Documentation = "https://synthesizar.readthedocs.io"
 
 [project.optional-dependencies]
-all = ["synthesizAR[aia,atomic,ebtel,hydrad,parallel,xrt]"]
+all = ["synthesizAR[aia,analysis,atomic,ebtel,hydrad,parallel,xrt]"]
 aia = ["aiapy"]
+analysis = ["sunkit_image"]
 atomic = [
   "plasmapy",
   "fiasco",

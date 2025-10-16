@@ -8,13 +8,14 @@ import ndcube
 import numpy as np
 import xarray
 
-from ndcube.extra_coords.table_coord import QuantityTableCoordinate
+from ndcube.extra_coords.table_coord import QuantityTableCoordinate, TimeTableCoordinate
 from ndcube.wcs.wrappers import CompoundLowLevelWCS
 
 __all__ = [
     'get_wave_keys',
     'add_wave_keys_to_header',
     'extend_celestial_wcs',
+    'map_list_to_time_cube',
     'read_cube_from_dataset',
     'write_cube_to_netcdf',
 ]
@@ -58,9 +59,26 @@ def extend_celestial_wcs(celestial_wcs, *extra_coords, **kwargs):
     for ec in extra_coords:
         if isinstance(ec, tuple):
             array, name, physical_type = ec
-            ec = QuantityTableCoordinate(array, names=name, physical_types=physical_type)
+            if isinstance(array, u.Quantity):
+                ec = QuantityTableCoordinate(array, names=name, physical_types=physical_type)
+            elif isinstance(array, astropy.time.Time):
+                ec = TimeTableCoordinate(array, names=name, physical_types=physical_type)
+            else:
+                raise TypeError(f'{array} has unrecognized type {type(array)}')
         wcses.append(ec.wcs)
     return CompoundLowLevelWCS(celestial_wcs, *wcses, **kwargs)
+
+
+def map_list_to_time_cube(map_list):
+    """
+    Transform a list of maps into a single `ndcube.NDCube`
+    """
+    data = np.array([m.data for m in map_list])
+    # NOTE: This is specific to datacubes produced by synthesizAR
+    times = astropy.time.Time([m.meta['DATE_SIM'] for m in map_list])
+    new_wcs = extend_celestial_wcs(map_list[0].wcs, (times, 'time', 'time'))
+    new_meta = map_list[0].meta.copy()
+    return ndcube.NDCube(data, wcs=new_wcs, meta=new_meta, unit=map_list[0].unit)
 
 
 def read_cube_from_dataset(filename, axis_name, physical_type):
