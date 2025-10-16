@@ -6,7 +6,7 @@ import itertools
 import sunkit_image.time_lag
 import sunpy.map
 
-from synthesizAR.instruments.sdo import InstrumentSDOAIA
+from synthesizAR.instruments.sdo import _AIA_CHANNEL_WAVELENGTHS
 
 import synthesizAR.analysis.time_lag.map_sources  # NOQA
 
@@ -19,7 +19,7 @@ def get_aia_channel_combinations():
     Convenience function for listing all possible AIA channel pairs.
     This is useful for computing time lags.
     """
-    channel_list = [chan.name for chan in InstrumentSDOAIA.channels]
+    channel_list = [f"{chan.to_value('Angstrom'):.0f}" for chan in _AIA_CHANNEL_WAVELENGTHS]
     channel_combinations = list(itertools.combinations(channel_list, 2))
     channel_combinations = channel_combinations[:5] + [sorted(c, key=lambda x: float(x), reverse=True) for c in channel_combinations[5:]]
     return channel_combinations

@@ -12,6 +12,7 @@ import sunpy.map
 from aiapy.psf import filter_mesh_parameters
 from aiapy.response import Channel
 from astropy.utils.data import get_pkg_data_filename
+from functools import cached_property
 from scipy.interpolate import interpn
 
 from synthesizAR.instruments import InstrumentBase
@@ -24,6 +25,15 @@ _TEMPERATURE_RESPONSE_FILE = get_pkg_data_filename('data/aia_temperature_respons
                                                    package='synthesizAR.instruments')
 with asdf.open(_TEMPERATURE_RESPONSE_FILE, 'r', memmap=False) as af:
     _TEMPERATURE_RESPONSE = af.tree
+
+_AIA_CHANNEL_WAVELENGTHS = [
+    94*u.angstrom,
+    131*u.angstrom,
+    171*u.angstrom,
+    193*u.angstrom,
+    211*u.angstrom,
+    335*u.angstrom,
+]
 
 
 class AIAChannel(Channel):
@@ -63,14 +73,6 @@ class InstrumentSDOAIA(InstrumentBase):
     --------
     """
     name = 'SDO_AIA'
-    channels = [
-        AIAChannel(94*u.angstrom),
-        AIAChannel(131*u.angstrom),
-        AIAChannel(171*u.angstrom),
-        AIAChannel(193*u.angstrom),
-        AIAChannel(211*u.angstrom),
-        AIAChannel(335*u.angstrom),
-    ]
 
     def __init__(self, observing_time, observer, **kwargs):
         resolution = kwargs.pop('resolution', [0.600698, 0.600698] * u.arcsec/u.pixel)
@@ -82,6 +84,10 @@ class InstrumentSDOAIA(InstrumentBase):
             cadence=cadence,
             **kwargs,
         )
+
+    @cached_property
+    def channels(self):
+        return [AIAChannel(w) for w in _AIA_CHANNEL_WAVELENGTHS]
 
     @property
     def observatory(self):
@@ -151,7 +157,7 @@ class InstrumentSDOAIA(InstrumentBase):
         """
         save_directory = pathlib.Path(save_directory)
         if channels is None:
-            channels = [chan.name for chan in InstrumentSDOAIA.channels]
+            channels = [f"{chan.to_value('Angstrom'):.0f}" for chan in _AIA_CHANNEL_WAVELENGTHS]
         key_data_pairs = []
         for chan in channels:
             filenames = sorted(save_directory.glob(f'm_{chan}_t*.fits'))
