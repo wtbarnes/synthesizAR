@@ -3,6 +3,7 @@ Strand object for holding field-aligned coordinates and quantities
 """
 import astropy.units as u
 import numpy as np
+import pathlib
 import sunpy.sun.constants as sun_const
 import zarr
 
@@ -28,7 +29,7 @@ class Strand:
     cross_sectional_area : `astropy.units.Quantity`, optional
         Cross-sectional area of the loop. If not specified, defaults to :math:`10^{14}\,\mathrm{cm}^2`.
         This is used to compute the filling factor when computing the line-of-sight intensity.
-    model_results_filename : `str`, optional
+    model_results_filename : `str` or path-like, optional
         Path to file where model results are stored. This will be set by
         `~synthesizAR.Skeleton` when the model results are loaded.
 
@@ -66,6 +67,16 @@ class Strand:
             raise ValueError('Coordinates and field strength must have same shape.')
         from synthesizAR import log
         self.log = log
+
+    @property
+    def model_results_filename(self):
+        return self._model_results_filename
+
+    @model_results_filename.setter
+    def model_results_filename(self, value):
+        if value is not None:
+            value = pathlib.Path(value)
+        self._model_results_filename = value
 
     @property
     def zarr_root(self):

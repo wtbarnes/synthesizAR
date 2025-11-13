@@ -73,8 +73,9 @@ Number of strands: {len(self.strands)}'''
                 'field_strength': l.field_strength,
                 'coordinate': l.coordinate,
                 'cross_sectional_area': l.cross_sectional_area,
-                'model_results_filename': l.model_results_filename,
             }
+            if l.model_results_filename is not None:
+                tree[l.name]['model_results_filename'] = l.model_results_filename.as_posix()
         with asdf.AsdfFile(tree) as asdf_file:
             asdf_file.write_to(filename)
 

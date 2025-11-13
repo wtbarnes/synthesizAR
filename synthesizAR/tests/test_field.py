@@ -35,6 +35,21 @@ def test_roundtrip(bare_skeleton, tmpdir):
         l1 = bare_skeleton.strands[i].coordinate.cartesian.xyz
         l2 = skeleton_2.strands[i].coordinate.cartesian.xyz
         assert u.allclose(l2, l1, rtol=1e-9)
+        assert skeleton_2.strands[i].model_results_filename is None
+
+
+def test_roundtrip_skeleton_with_model(skeleton_with_model, tmpdir):
+    # Add an arbitrary results filename to each strand to make sure
+    # that serializes correctly
+    for l in skeleton_with_model.strands:
+        l.model_results_filename = 'foo/bar.zarr'
+    dirname = tmpdir.mkdir('model_skeleton_checkpoint')
+    filename = pathlib.Path(dirname) / 'test-save.asdf'
+    skeleton_with_model.to_asdf(filename)
+    skeleton_2 = synthesizAR.Skeleton.from_asdf(filename)
+    assert len(skeleton_with_model.strands) == len(skeleton_2.strands)
+    for i in range(len(skeleton_with_model.strands)):
+        assert skeleton_2.strands[i].model_results_filename == pathlib.Path('foo/bar.zarr')
 
 
 def test_refine_loops(bare_skeleton):
