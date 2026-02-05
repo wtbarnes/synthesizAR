@@ -161,7 +161,8 @@ class InstrumentSDOAIA(InstrumentBase):
         key_data_pairs = []
         for chan in channels:
             filenames = sorted(save_directory.glob(f'm_{chan}_t*.fits'))
-            cube = map_list_to_time_cube(sunpy.map.Map(filenames))
+            maps = sunpy.map.Map(filenames, memmap=False, lazy_load_hdus=False)
+            cube = map_list_to_time_cube(maps)
             key_data_pairs.append((chan, cube))
         col = ndcube.NDCollection(key_data_pairs, aligned_axes=(0, 1, 2))
         return col

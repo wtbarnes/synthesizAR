@@ -436,13 +436,10 @@ class InstrumentBase:
                 weights=visibilities,
             )
             hist /= np.where(_hist == 0, 1, _hist)
-        # NOTE: Purposefully using a nonstandard key to record this time as we do not
-        # want this to have the implicit consequence of changing the coordinate frame
-        # by changing a more standard time key. However, still want to record this
-        # information somewhere in the header.
-        # FIXME: Figure out a better way to deal with this.
+        # NOTE: This time is not the time used to construct the coordinate frame but rather
+        # the time of observation.
         new_header = copy.deepcopy(header)
-        new_header['date_sim'] = (self.observer.obstime + time).isot
+        new_header['date-obs'] = (self.observer.obstime + time).isot
 
         return Map(hist, new_header)
 
@@ -480,6 +477,8 @@ class InstrumentBase:
             wavelength=wavelength,
             unit=self._expected_unit,
         )
+        # Explicitly add DATE-AVG to header as this is what is used to construct the coordinate frame
+        header['date-avg'] = header['date-obs']
         return header
 
     def get_fov(self, coordinates):

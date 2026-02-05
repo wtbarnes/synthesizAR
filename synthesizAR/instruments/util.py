@@ -74,8 +74,9 @@ def map_list_to_time_cube(map_list):
     Transform a list of maps into a single `ndcube.NDCube`
     """
     data = np.array([m.data for m in map_list])
-    # NOTE: This is specific to datacubes produced by synthesizAR
-    times = astropy.time.Time([m.meta['DATE_SIM'] for m in map_list])
+    times = astropy.time.Time([m.date for m in map_list])
+    # NOTE: This assumes that all maps have the same spatial WCS, i.e. they
+    # have already been aligned to a common coordinate frame.
     new_wcs = extend_celestial_wcs(map_list[0].wcs, (times, 'time', 'time'))
     new_meta = map_list[0].meta.copy()
     return ndcube.NDCube(data, wcs=new_wcs, meta=new_meta, unit=map_list[0].unit)
