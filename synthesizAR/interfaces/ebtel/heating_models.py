@@ -135,9 +135,9 @@ class NanoflareTrain(AbstractEventBuilder):
         events = []
         for st, rate in zip(start_times, rates):
             event = HeatingEvent(st,
-                                 st+self.duration_rise,
-                                 st+self.duration_rise+self.duration_constant,
-                                 st+self.duration,
+                                 self.duration,
+                                 self.duration_rise,
+                                 self.duration_decay,
                                  rate)
             events.append(event)
         return events
@@ -176,15 +176,15 @@ class ScaledPowerLawNanoflareTrain(PowerLawNanoflareTrain):
         # NOTE: This is overloaded because the waiting times depend on the heating rates
         # and the heating rates are sampled randomly from a distribution
         rates = self.heating_rates(strand)
-        scaling_const = self.n_events * self.average_waiting_time / (rates**(1/self.index)).sum()
-        self.waiting_times = scaling_const * rates**(1/self.index)
+        scaling_const = self.n_events * self.average_waiting_time / (rates**(1/self.scaling)).sum()
+        self.waiting_times = scaling_const * rates**(1/self.scaling)
         start_times = self.start_times
         events = []
         for st, rate in zip(start_times, rates):
             event = HeatingEvent(st,
-                                 st+self.duration_rise,
-                                 st+self.duration_rise+self.duration_constant,
-                                 st+self.duration,
+                                 self.duration,
+                                 self.duration_rise,
+                                 self.duration_decay,
                                  rate)
             events.append(event)
         return events
