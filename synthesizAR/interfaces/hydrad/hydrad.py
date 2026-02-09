@@ -3,6 +3,7 @@ Model interface for the HYDrodynamics and RADiation (HYDRAD) code
 """
 import astropy.units as u
 import copy
+import numpy as np
 import pathlib
 import pydrad.configure
 import pydrad.parse
@@ -51,7 +52,9 @@ class HYDRADInterface:
         If True, the loop quantities are interpolated using the coordinates normalized
         by the loop length. In cases where the length of the simulated loop does not
         match that of the geometric loop model, using this option will "stretch" or
-        "squash" the simulated solution appropriately
+        "squash" the simulated solution appropriately. Typically, it is best to use
+        this as the HYDRAD loop lengths will not exactly match those in the skeleton
+        geometry.
     """
     name = 'HYDRAD'
 
@@ -65,7 +68,7 @@ class HYDRADInterface:
                  use_magnetic_field=True,
                  use_initial_conditions=False,
                  maximum_chromosphere_ratio=None,
-                 interpolate_to_norm=False):
+                 interpolate_to_norm=True):
         self.output_dir = pathlib.Path(output_dir)
         self.base_config = base_config
         self.hydrad_dir = hydrad_dir
@@ -89,7 +92,7 @@ class HYDRADInterface:
     def _map_strand_to_config_dict(self, loop):
         # NOTE: This is a separate function for ease of debugging
         config = copy.deepcopy(self.base_config)
-        config['general']['loop_length'] = loop.length
+        config['general']['loop_length'] = np.round(loop.length.to('Mm'))
         config['initial_conditions']['heating_location'] = loop.length / 2
         if self.maximum_chromosphere_ratio:
             config['general']['footpoint_height'] = min(
