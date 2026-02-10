@@ -125,9 +125,7 @@ class NanoflareTrain(AbstractEventBuilder):
     @u.quantity_input
     def start_times(self) -> u.s:
         durations = self.duration * np.arange(self.n_events)
-        waiting_time_sums = np.cumsum(self.waiting_times[:-1])
-        waiting_time_sums = np.append(u.Quantity(0, waiting_time_sums.unit), waiting_time_sums)
-        return self.period[0] + np.cumsum(durations) + waiting_time_sums
+        return self.period[0] + self.waiting_times.cumsum() + durations
 
     def __call__(self, strand):
         rates = self.heating_rates(strand)
