@@ -32,10 +32,10 @@ def test_aia_observing_times(earth_observer, input, result):
 
 
 @pytest.mark.remote_data
-def test_aia_resolution(earth_observer):
+def test_aia_plate_scale(earth_observer):
     aia = InstrumentSDOAIA([0,]*u.s, earth_observer)
-    assert u.allclose(aia.resolution, [0.600698, 0.600698]*u.arcsec/u.pix)
+    assert u.allclose(aia.plate_scale, [0.600698, 0.600698]*u.arcsec/u.pix)
     aia = InstrumentSDOAIA([0,]*u.s,
                            earth_observer,
-                           resolution=[1.2,1.2] * u.arcsec / u.pix)
-    assert u.allclose(aia.resolution, [1.2,1.2] * u.arcsec / u.pix)
+                           plate_scale=[1.2,1.2] * u.arcsec / u.pix)
+    assert u.allclose(aia.plate_scale, [1.2,1.2] * u.arcsec / u.pix)

@@ -48,7 +48,7 @@ class InstrumentBase:
         as the times at which the observations should be forward modeled.
     observer : `~astropy.coordinates.SkyCoord`
         Coordinate of the observing instrument
-    resolution : `~astropy.units.Quantity`
+    plate_scale : `~astropy.units.Quantity`
     cadence : `~astropy.units.Quantity`, optional
         If specified, this is used to construct the observing time.
     pad_fov : `~astropy.units.Quantity`, optional
@@ -66,21 +66,26 @@ class InstrumentBase:
         Set to true for non-volumetric quantities
     """
 
-    @u.quantity_input
+    @u.quantity_input(observing_time=u.s,
+                      plate_scale=u.arcsec/u.pix,
+                      cadence=u.s,
+                      pad_fov=u.pixel,
+                      fov_width=(u.arcsec, u.pixel),
+                      rotation_angle=u.deg,)
     def __init__(self,
-                 observing_time: u.s,
+                 observing_time,
                  observer,
-                 resolution: u.Unit('arcsec/pix'),
-                 cadence: u.s = None,
-                 pad_fov: u.pixel = None,
-                 fov_center = None,
-                 fov_width: u.arcsec = None,
-                 rotation_angle: u.deg = None,
+                 plate_scale,
+                 cadence=None,
+                 pad_fov=None,
+                 fov_center=None,
+                 fov_width=None,
+                 rotation_angle=None,
                  average_over_los=False):
         self.observer = observer
         self.cadence = cadence
         self.observing_time = observing_time
-        self.resolution = resolution
+        self.plate_scale = plate_scale
         self.pad_fov = pad_fov
         self.fov_center = fov_center
         self.fov_width = fov_width
@@ -108,12 +113,12 @@ class InstrumentBase:
         self._cadence = value
 
     @property
-    def resolution(self) -> u.arcsec/u.pix:
-        return self._resolution
+    def plate_scale(self) -> u.arcsec/u.pix:
+        return self._plate_scale
 
-    @resolution.setter
-    def resolution(self, value):
-        self._resolution = value
+    @plate_scale.setter
+    def plate_scale(self, value):
+        self._plate_scale = value
 
     @property
     def rotation_angle(self) -> u.deg:
@@ -178,7 +183,7 @@ class InstrumentBase:
         Cartesian area on the surface of the Sun covered by a single pixel.
         """
         sa_equiv = solar_angle_equivalency(self.observer)
-        res = (1*u.pix * self.resolution).to('cm', equivalencies=sa_equiv)
+        res = (1*u.pix * self.plate_scale).to('cm', equivalencies=sa_equiv)
         return res[0] * res[1]
 
     def convolve_with_psf(self, smap, channel):
@@ -468,7 +473,7 @@ class InstrumentBase:
             tuple(n_pixels[::-1].to_value('pixel')),  # swap order because it expects (row,column)
             ref_coord,
             reference_pixel=(n_pixels - 1*u.pix) / 2,  # center of lower left pixel is (0,0)
-            scale=self.resolution,
+            scale=self.plate_scale,
             rotation_angle=self.rotation_angle,
             observatory=self.observatory,
             instrument=instrument,
@@ -487,7 +492,10 @@ class InstrumentBase:
         """
         if self.fov_center is not None and self.fov_width is not None:
             center = self.fov_center.transform_to(self.projected_frame)
-            n_pixels = (self.fov_width / self.resolution).decompose().to('pixel')
+            if u.get_physical_type(self.fov_width) == 'angle':
+                n_pixels = (self.fov_width / self.plate_scale).decompose().to('pixel')
+            else:
+                n_pixels = self.fov_width.to('pixel')
         else:
             # If not specified, derive FOV from loop coordinates
             coordinates = coordinates.transform_to(self.projected_frame)
@@ -497,8 +505,8 @@ class InstrumentBase:
             center = SkyCoord(Tx=bottom_left_corner.Tx+delta_x/2,
                               Ty=bottom_left_corner.Ty+delta_y/2,
                               frame=bottom_left_corner.frame)
-            pixels_x = int(np.ceil((delta_x / self.resolution[0]).decompose()).value)
-            pixels_y = int(np.ceil((delta_y / self.resolution[1]).decompose()).value)
+            pixels_x = int(np.ceil((delta_x / self.plate_scale[0]).decompose()).value)
+            pixels_y = int(np.ceil((delta_y / self.plate_scale[1]).decompose()).value)
             n_pixels = u.Quantity([pixels_x, pixels_y], 'pixel')
             n_pixels += self.pad_fov
         return center, n_pixels

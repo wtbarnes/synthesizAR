@@ -75,12 +75,12 @@ class InstrumentSDOAIA(InstrumentBase):
     name = 'SDO_AIA'
 
     def __init__(self, observing_time, observer, **kwargs):
-        resolution = kwargs.pop('resolution', [0.600698, 0.600698] * u.arcsec/u.pixel)
+        plate_scale = kwargs.pop('plate_scale', [0.600698, 0.600698] * u.arcsec/u.pixel)
         cadence = kwargs.pop('cadence', 12.0 * u.s)
         super().__init__(
             observing_time=observing_time,
             observer=observer,
-            resolution=resolution,
+            plate_scale=plate_scale,
             cadence=cadence,
             **kwargs,
         )
