@@ -115,7 +115,7 @@ class InstrumentSTEREOEUVI(InstrumentSDOAIA):
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
-            resolution=u.Quantity([1.58777404, 1.58777404], 'arcsec / pixel'),
+            plate_scale=u.Quantity([1.58777404, 1.58777404], 'arcsec / pixel'),
             cadence=1*u.h,
             **kwargs,
         )

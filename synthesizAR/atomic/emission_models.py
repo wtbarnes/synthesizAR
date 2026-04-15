@@ -49,6 +49,13 @@ class EmissionModel(fiasco.IonCollection):
         self.emissivity_table_filename = emissivity_table_filename
         self._level_pops_kwargs = kwargs
 
+    def __getitem__(self, value):
+        if isinstance(value, str):
+            # Index by ion roman name. Not calling iterator because this would be circular
+            return {i.ion_name_roman: i for i in self._ion_list}[value]
+        else:
+            return super().__getitem__(value)
+
     @property
     def emissivity_table_filename(self):
         return self._emissivity_table_filename
@@ -110,11 +117,15 @@ class EmissionModel(fiasco.IonCollection):
             _ = self.get_line_emissivity(ion)
             _ = self.get_continuum_emissivity(ion)
 
-    def _get_quantity_from_emissivity_table(self, ion, path):
+    def _get_quantity_from_emissivity_table(self, ion, path, slice=None):
         "Convenience method for retrieving a quantity for a given ion from the Zarr file"
+        slice = np.s_[...] if slice is None else slice
         root = zarr.open(store=self.emissivity_table_filename, mode='r')
         ds = root[f'{ion.ion_name}/{path}']
-        return u.Quantity(ds, ds.attrs.get('unit', ''))
+        if (unit:=ds.attrs.get('unit')) is not None:
+            return u.Quantity(ds[slice], unit)
+        else:
+            return ds[slice]
 
     def _calculate_line_emissivity(self, ion):
         # NOTE: Purposefully not using the contribution_function or emissivity methods on
@@ -132,17 +143,19 @@ class EmissionModel(fiasco.IonCollection):
         else:
             upper_level = ion.transitions.upper_level[ion.transitions.is_bound_bound]
             wavelength = ion.transitions.wavelength[ion.transitions.is_bound_bound]
+            label = ion.transitions.label[ion.transitions.is_bound_bound]
             A = ion.transitions.A[ion.transitions.is_bound_bound]
-            i_upper = fiasco.util.vectorize_where(ion._elvlc['level'], upper_level)
+            i_upper = fiasco.util.vectorize_where(np.arange(1, ion.n_levels+1), upper_level)
             emissivity = pop[:, :, i_upper] * A * u.photon
             emissivity = emissivity[:, :, np.argsort(wavelength)]
+            label = label[np.argsort(wavelength)]
             wavelength = np.sort(wavelength)
             # This is the factor of n_H/n_e * 1/n_e which replaces 0.83 / n_e
             nH_ne2 = np.outer(ion.proton_electron_ratio, 1/self.density)[..., np.newaxis]
             emissivity *= ion.abundance * nH_ne2
-        return wavelength, emissivity
+        return wavelength, label, emissivity
 
-    def get_line_emissivity(self, ion):
+    def get_line_emissivity(self, ion, transition=None):
         r"""
         Get bound-bound emissivity for all lines of a particular ion.
 
@@ -168,17 +181,26 @@ class EmissionModel(fiasco.IonCollection):
         ----------
         ion: `fiasco.Ion`
             Ion instance for which to compute bound-bound line emission.
+        transition: `str`, optional
+            Optionally return only a single transition. The reason for having this is it is faster to read out
+            the emissivity for just one transition rather than reading out the whole array and then slicing.
         """
         root = zarr.open(store=self.emissivity_table_filename, mode='a')
         if root.get(f'{ion.ion_name}/line') is None:
-            wavelength, emissivity = self._calculate_line_emissivity(ion)
+            wavelength, label, emissivity = self._calculate_line_emissivity(ion)
             grp = root.create_group(f'{ion.ion_name}/line')
             ds = grp.create_array('wavelength', data=wavelength.value)
             ds.attrs['unit'] = wavelength.unit.to_string()
+            ds = grp.create_array('label', data=label)
             ds = grp.create_array('emissivity', data=emissivity.value)
             ds.attrs['unit'] = emissivity.unit.to_string()
-        wavelength = self._get_quantity_from_emissivity_table(ion, 'line/wavelength')
-        emissivity = self._get_quantity_from_emissivity_table(ion, 'line/emissivity')
+        if transition is not None:
+            label = self._get_quantity_from_emissivity_table(ion, 'line/label')
+            idx = np.s_[:,:] + np.where(label==transition)
+        else:
+            idx = np.s_[:,:,:]
+        wavelength = self._get_quantity_from_emissivity_table(ion, 'line/wavelength', slice=idx[-1])
+        emissivity = self._get_quantity_from_emissivity_table(ion, 'line/emissivity', slice=idx)
         return wavelength, emissivity
 
     def _calculate_continuum_emissivity(self, ion):
