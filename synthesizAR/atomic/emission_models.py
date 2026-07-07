@@ -76,7 +76,10 @@ class EmissionModel(fiasco.IonCollection):
             'emissivity_table_filename': self.emissivity_table_filename.as_posix(),
             'level_pops_kwargs': self._level_pops_kwargs,
             'ions': [ion.ion_name for ion in self],
-            'ion_kwargs': [ion._instance_kwargs for ion in self]
+            'ion_kwargs': [
+                {k: str(v) if isinstance(v, pathlib.Path) else v for k,v in ion._instance_kwargs.items()}
+                for ion in self
+            ]
         }
         with asdf.AsdfFile(tree) as asdf_file:
             asdf_file.write_to(filename)
@@ -139,7 +142,12 @@ class EmissionModel(fiasco.IonCollection):
             # NOTE: populations not available for every ion
             self.log.warning(f'Cannot compute level populations for {ion.ion_name}')
             wavelength = [0]*u.AA
-            emissivity = u.Quantity(np.zeros(self.temperature.shape+self.density.shape+(1,)), 'cm3 ph s-1')
+            label = np.array([''])
+            if self._level_pops_kwargs.get('couple_density_to_temperature', False):
+                default_shape = self.temperature.shape+(1,1,)
+            else:
+                default_shape = self.temperature.shape+self.density.shape+(1,)
+            emissivity = u.Quantity(np.zeros(default_shape), 'cm3 ph s-1')
         else:
             upper_level = ion.transitions.upper_level[ion.transitions.is_bound_bound]
             wavelength = ion.transitions.wavelength[ion.transitions.is_bound_bound]
@@ -151,7 +159,11 @@ class EmissionModel(fiasco.IonCollection):
             label = label[np.argsort(wavelength)]
             wavelength = np.sort(wavelength)
             # This is the factor of n_H/n_e * 1/n_e which replaces 0.83 / n_e
-            nH_ne2 = np.outer(ion.proton_electron_ratio, 1/self.density)[..., np.newaxis]
+            if self._level_pops_kwargs.get('couple_density_to_temperature', False):
+                nH_ne2 = ion.proton_electron_ratio / self.density
+                nH_ne2 = nH_ne2[:, np.newaxis, np.newaxis]
+            else:
+                nH_ne2 = np.outer(ion.proton_electron_ratio, 1/self.density)[..., np.newaxis]
             emissivity *= ion.abundance * nH_ne2
         return wavelength, label, emissivity
 
@@ -303,3 +315,32 @@ class EmissionModel(fiasco.IonCollection):
                                  axis=-1) * integrand.unit*continuum_wavelength.unit
         emissivity += em_continuum[:, np.newaxis]
         return emissivity
+
+    @u.quantity_input
+    def calculate_temperature_response(self, channel) -> u.Unit('cm5 DN pixel-1 s-1'):
+        r"""
+        Compute the temperature response function of a given channel for all ions in the model.
+
+        The temperature response is given by,
+
+        .. math::
+
+            K_c(T) = \frac{1}{4\pi}\Sum_{X,k}f_{X,k}\epsilon_{c,X,k},
+
+        where :math:`\epsilon` is the emissivity computed by `~synthesizAR.atomic.EmissionModel.calculate_narrowband_emissivity`.
+
+        Parameters
+        ----------
+        channel : Compatible with `sunkit_instruments.response.abstractions.AbstractChannel`
+        """
+        if self.density.shape[0] > 1 and not self._level_pops_kwargs.get('couple_density_to_temperature', False):
+            raise ValueError(
+                'Can only compute temperature response for a single density entry or aligned temperature and density axes.'
+            )
+        temperature_response = np.zeros(self.temperature.shape) * u.Unit('cm5 DN sr pixel-1 s-1')
+        for ion in self:
+            emiss = self.calculate_narrowband_emissivity(ion, channel).squeeze().copy()
+            emiss *= ion.ionization_fraction
+            temperature_response += emiss
+        temperature_response /= 4*np.pi*u.steradian
+        return temperature_response
