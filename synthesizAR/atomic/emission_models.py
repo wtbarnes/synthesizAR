@@ -8,6 +8,7 @@ import numpy as np
 import pathlib
 import zarr
 
+from collections import Counter
 from fiasco.util.exceptions import MissingDatasetException
 from functools import cache
 from scipy.integrate import trapezoid
@@ -48,12 +49,18 @@ class EmissionModel(fiasco.IonCollection):
         self.density = density
         self.emissivity_table_filename = emissivity_table_filename
         self._level_pops_kwargs = kwargs
+        # No duplicate ions allowed due to indexing by ion name
+        ion_names = Counter([i.ion_name for i in self._ion_list])
+        if (duplicates := [i for i,c in ion_names.items() if c>1]):
+            raise ValueError(f'Cannot pass duplicate ions {duplicates} to emission model.')
+
 
     def __getitem__(self, value):
         if isinstance(value, str):
             # Index by ion roman name. Not calling iterator because this would be circular
             return {i.ion_name_roman: i for i in self._ion_list}[value]
         else:
+            # FIXME: Allow for slicing, actually return an EmissionModel instance
             return super().__getitem__(value)
 
     @property
@@ -106,7 +113,7 @@ class EmissionModel(fiasco.IonCollection):
         )
         return em_model
 
-    def build_emissivity_table(self):
+    def build_emissivity_table(self, progress=True):
         """
         Save line and continuum emissivity to a Zarr file.
 
@@ -115,7 +122,12 @@ class EmissionModel(fiasco.IonCollection):
         to call this function as emissivities will be automatically calculated and stored as
         needed, but it may be convenient in some instances.
         """
-        for ion in self:
+        if progress:
+            import tqdm
+            iterator = tqdm.tqdm(self)
+        else:
+            iterator = self
+        for ion in iterator:
             self.log.debug(f'Calculating emissivity for {ion.ion_name}.')
             _ = self.get_line_emissivity(ion)
             _ = self.get_continuum_emissivity(ion)
@@ -301,6 +313,10 @@ class EmissionModel(fiasco.IonCollection):
         """
         wavelength = channel.wavelength
         response = channel.wavelength_response()
+        # NOTE: Can remove this logic once AIA Channel class is compatible with sunkit-instrument
+        # response function API
+        if u.steradian not in response.unit.bases:
+            response *= channel.plate_scale
         f_interp = interp1d(wavelength, response, bounds_error=False, fill_value=0.0)
         # Bound-bound line emissivity
         transition_wavelengths, line_emissivity = self.get_line_emissivity(ion)
@@ -317,7 +333,7 @@ class EmissionModel(fiasco.IonCollection):
         return emissivity
 
     @u.quantity_input
-    def calculate_temperature_response(self, channel) -> u.Unit('cm5 DN pixel-1 s-1'):
+    def calculate_temperature_response(self, channel, ion=None) -> u.Unit('cm5 DN pixel-1 s-1'):
         r"""
         Compute the temperature response function of a given channel for all ions in the model.
 
@@ -332,15 +348,25 @@ class EmissionModel(fiasco.IonCollection):
         Parameters
         ----------
         channel : Compatible with `sunkit_instruments.response.abstractions.AbstractChannel`
+            Channel for which to compute the temperature response function
+        ion: `~fiasco.Ion`, optional
+            The ion to compute the temperature response for. This is useful when analyzing the
+            contribution of a given ion to the temperature response of a channel. This ion must
+            be a part of the emission model. If not specified, all ions in the collection are included.
         """
         if self.density.shape[0] > 1 and not self._level_pops_kwargs.get('couple_density_to_temperature', False):
             raise ValueError(
                 'Can only compute temperature response for a single density entry or aligned temperature and density axes.'
             )
+        if ion is not None:
+            ion_list = [ion,]
+        else:
+            ion_list = self
         temperature_response = np.zeros(self.temperature.shape) * u.Unit('cm5 DN sr pixel-1 s-1')
-        for ion in self:
-            emiss = self.calculate_narrowband_emissivity(ion, channel).squeeze().copy()
-            emiss *= ion.ionization_fraction
+        for _ion in ion_list:
+            emiss = self.calculate_narrowband_emissivity(_ion, channel).squeeze().copy()
+            # NOTE: ionization fraction can be NaN outside of database temperature data
+            emiss *= np.where(np.isnan(_ion.ionization_fraction), 0, _ion.ionization_fraction)
             temperature_response += emiss
         temperature_response /= 4*np.pi*u.steradian
         return temperature_response
